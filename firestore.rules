@@ -1,0 +1,143 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // 1. Global Safety Net
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // Primitive / Global Helpers
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+    
+    function isOwner(userId) {
+      return request.auth.uid == userId;
+    }
+
+    function isValidId(id) {
+      return id is string && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+    }
+
+    function incoming() {
+      return request.resource.data;
+    }
+
+    function existing() {
+      return resource.data;
+    }
+
+    // Entity Validators
+    function isValidUser(data) {
+      return data.keys().hasAll(['uid', 'email', 'createdAt', 'monthlyBudget']) &&
+             data.keys().size() == 4 &&
+             data.uid is string && data.uid.size() <= 128 &&
+             data.email is string && data.email.size() <= 256 &&
+             data.createdAt is string && data.createdAt.size() <= 64 &&
+             data.monthlyBudget is number;
+    }
+
+    function isValidTransaction(data) {
+      return data.keys().hasAll(['type', 'amount', 'category', 'subcategory', 'date', 'description', 'createdAt']) &&
+             data.keys().size() == 7 &&
+             data.type is string && (data.type == 'pemasukan' || data.type == 'pengeluaran') &&
+             data.amount is number &&
+             data.category is string && data.category.size() <= 128 &&
+             data.subcategory is string && data.subcategory.size() <= 128 &&
+             data.date is string && data.date.size() <= 64 &&
+             data.description is string && data.description.size() <= 500 &&
+             data.createdAt is string && data.createdAt.size() <= 64;
+    }
+
+    function isValidBudget(data) {
+      return data.keys().hasAll(['periodId', 'categoryId', 'type', 'value', 'createdAt']) &&
+             data.keys().size() == 5 &&
+             data.periodId is string && data.periodId.size() <= 64 &&
+             data.categoryId is string && data.categoryId.size() <= 128 &&
+             data.type is string && (data.type == 'amount' || data.type == 'percentage') &&
+             data.value is number &&
+             data.createdAt is string && data.createdAt.size() <= 64;
+    }
+
+    function isValidPeriod(data) {
+      return data.keys().hasAll(['name', 'startDate', 'endDate', 'createdAt']) &&
+             (data.keys().size() == 4 || (data.keys().size() == 5 && data.keys().hasAny(['isActive']) && data.isActive is bool)) &&
+             data.name is string && data.name.size() <= 64 &&
+             data.startDate is string && data.startDate.size() <= 64 &&
+             data.endDate is string && data.endDate.size() <= 64 &&
+             data.createdAt is string && data.createdAt.size() <= 64;
+    }
+
+    // Rules for User Profile collection
+    match /users/{userId} {
+      allow get: if isAuthenticated() && isOwner(userId) && isValidId(userId);
+      allow create: if isAuthenticated() && isOwner(userId) && isValidId(userId) && isValidUser(incoming());
+      
+      allow update: if isAuthenticated() && isOwner(userId) && isValidId(userId) && isValidUser(incoming()) &&
+                    incoming().uid == existing().uid &&
+                    incoming().email == existing().email &&
+                    incoming().createdAt == existing().createdAt &&
+                    incoming().diff(existing()).affectedKeys().hasOnly(['monthlyBudget']);
+                    
+      allow delete: if isAuthenticated() && isOwner(userId) && isValidId(userId);
+
+      // Rules for user's subcollection of transactions
+      match /transactions/{transactionId} {
+        // List query check: MUST explicitly evaluate resource.data or enforce on path to prevent unauthorized queries (Query Enforcer)
+        allow list: if isAuthenticated() && isOwner(userId);
+        
+        allow get: if isAuthenticated() && isOwner(userId) && isValidId(transactionId);
+        allow create: if isAuthenticated() && isOwner(userId) && isValidId(transactionId) && isValidTransaction(incoming());
+        
+        allow update: if isAuthenticated() && isOwner(userId) && isValidId(transactionId) && isValidTransaction(incoming()) &&
+                      incoming().createdAt == existing().createdAt &&
+                      incoming().diff(existing()).affectedKeys().hasOnly(['type', 'amount', 'category', 'subcategory', 'date', 'description']);
+                      
+        allow delete: if isAuthenticated() && isOwner(userId) && isValidId(transactionId);
+      }
+      // Rules for user's subcollection of budgets
+      match /budgets/{budgetId} {
+        allow list: if isAuthenticated() && isOwner(userId);
+        
+        allow get: if isAuthenticated() && isOwner(userId) && isValidId(budgetId);
+        allow create: if isAuthenticated() && isOwner(userId) && isValidId(budgetId) && isValidBudget(incoming());
+        
+        allow update: if isAuthenticated() && isOwner(userId) && isValidId(budgetId) && isValidBudget(incoming()) &&
+                      incoming().createdAt == existing().createdAt &&
+                      incoming().diff(existing()).affectedKeys().hasOnly(['periodId', 'categoryId', 'type', 'value']);
+                      
+        allow delete: if isAuthenticated() && isOwner(userId) && isValidId(budgetId);
+      }
+      
+      // Rules for user's subcollection of periods
+      match /periods/{periodId} {
+        allow list: if isAuthenticated() && isOwner(userId);
+        
+        allow get: if isAuthenticated() && isOwner(userId) && isValidId(periodId);
+        allow create: if isAuthenticated() && isOwner(userId) && isValidId(periodId) && isValidPeriod(incoming());
+        
+        allow update: if isAuthenticated() && isOwner(userId) && isValidId(periodId) && isValidPeriod(incoming()) &&
+                      incoming().createdAt == existing().createdAt &&
+                      incoming().diff(existing()).affectedKeys().hasOnly(['name', 'startDate', 'endDate', 'isActive']);
+                      
+        allow delete: if isAuthenticated() && isOwner(userId) && isValidId(periodId);
+      }
+
+      match /accounts/{accountId} {
+        allow read, write: if isAuthenticated() && isOwner(userId);
+      }
+      match /assets/{assetId} {
+        allow read, write: if isAuthenticated() && isOwner(userId);
+      }
+      match /tags/{tagId} {
+        allow read, write: if isAuthenticated() && isOwner(userId);
+      }
+      match /contacts/{contactId} {
+        allow read, write: if isAuthenticated() && isOwner(userId);
+      }
+      match /customCategories/{categoryId} {
+        allow read, write: if isAuthenticated() && isOwner(userId);
+      }
+    }
+  }
+}

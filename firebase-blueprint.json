@@ -1,0 +1,82 @@
+{
+  "entities": {
+    "User": {
+      "title": "User Profile",
+      "description": "Represents the user's personal profile and preferences in the finance tracker.",
+      "type": "object",
+      "properties": {
+        "uid": {
+          "type": "string",
+          "description": "The unique Firebase Auth user ID."
+        },
+        "email": {
+          "type": "string",
+          "description": "The email address of the user."
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Timestamp when the user account was initialized in the database."
+        },
+        "monthlyBudget": {
+          "type": "number",
+          "description": "Optional monthly spending limit/budget set by the user."
+        }
+      },
+      "required": ["uid", "email", "createdAt"]
+    },
+    "Transaction": {
+      "title": "Financial Transaction",
+      "description": "Represents a single income or expense transaction logged by the user.",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique transaction ID."
+        },
+        "type": {
+          "type": "string",
+          "enum": ["pemasukan", "pengeluaran"],
+          "description": "The type of transaction: pemasukan (income) or pengeluaran (expense)."
+        },
+        "amount": {
+          "type": "number",
+          "description": "The monetary value of the transaction."
+        },
+        "category": {
+          "type": "string",
+          "description": "The high-level category of the transaction (e.g., Makanan, Transportasi, Gaji)."
+        },
+        "subcategory": {
+          "type": "string",
+          "description": "The specific sub-category (e.g., Makan Siang, Bensin, Gaji Pokok)."
+        },
+        "date": {
+          "type": "string",
+          "format": "date",
+          "description": "The date when the transaction occurred (formatted as YYYY-MM-DD)."
+        },
+        "description": {
+          "type": "string",
+          "description": "Optional notes or details regarding the transaction."
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Timestamp when the record was written to the database."
+        }
+      },
+      "required": ["id", "type", "amount", "category", "subcategory", "date", "createdAt"]
+    }
+  },
+  "firestore": {
+    "/users/{userId}": {
+      "schema": "User",
+      "description": "Stores user profiles."
+    },
+    "/users/{userId}/transactions/{transactionId}": {
+      "schema": "Transaction",
+      "description": "Stores transaction logs for a specific user."
+    }
+  }
+}
