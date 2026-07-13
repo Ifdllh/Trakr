@@ -85,7 +85,11 @@ const getAI = () => {
 
 app.use(express.json());
 
-  app.post("/api/transactions/upload", requireAuth, (req: AuthRequest, res, next) => {
+app.get("/api/health", (req, res) => {
+  res.json({ status: "ok", message: "Server is running on Vercel" });
+});
+
+app.post("/api/transactions/upload", requireAuth, (req: AuthRequest, res, next) => {
     const uploadMiddleware = getUploadMiddleware();
     if (!uploadMiddleware) {
       return handleMemoryUpload(req, res);
