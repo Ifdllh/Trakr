@@ -1,7 +1,6 @@
 import express from "express";
 import axios from "axios";
 import path from "path";
-import { createServer as createViteServer } from "vite";
 import { GoogleGenAI } from "@google/genai";
 import { requireAuth, AuthRequest } from "./src/middleware/auth";
 import { v2 as cloudinary } from "cloudinary";
@@ -111,8 +110,9 @@ app.post("/api/transactions/upload", requireAuth, (req: AuthRequest, res, next) 
     
     try {
       const endpoints = ['logammulia', 'anekalogam', 'galeri24', 'indogold', 'treasury', 'bankbsi', 'sampoernagold'];
+      const baseUrl = process.env.GOLD_API_URL || "https://logam-mulia-api.iamutaki.workers.dev";
       const promises = endpoints.map(ep => 
-        axios.get(`https://logam-mulia-api.iamutaki.workers.dev/api/prices/${ep}${isRefresh ? '?refresh=true' : ''}`)
+        axios.get(`${baseUrl}/api/prices/${ep}${isRefresh ? '?refresh=true' : ''}`)
           .catch(e => ({ data: { data: [] } }))
       );
       
@@ -310,6 +310,7 @@ CONTEXT:${masterDataContext}. You must return UI Markdown and ---JSON_DATA--- wi
 
 if (process.env.NODE_ENV !== "production") {
   (async () => {
+    const { createServer: createViteServer } = await import("vite");
     const vite = await createViteServer({ server: { middlewareMode: true }, appType: "spa" });
     app.use(vite.middlewares);
     app.listen(PORT, "0.0.0.0", () => {

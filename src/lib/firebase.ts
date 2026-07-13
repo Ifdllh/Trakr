@@ -38,7 +38,7 @@ export const googleProvider = new GoogleAuthProvider();
 
 export function getAuthEnv(): 'dev' | 'prd' {
   // Always prefer production database when running in Vercel/Production
-  if (import.meta.env.PROD) {
+  if (import.meta.env.PROD && import.meta.env.VITE_PRD_FIREBASE_PROJECT_ID) {
     if (!prdAuth) {
       console.error("CRITICAL: Running in production but VITE_PRD_FIREBASE_PROJECT_ID is not configured. Falling back to dev is disabled to prevent security issues.");
       // We still return 'prd' to force the UI to handle it as a production state, 
@@ -61,7 +61,7 @@ export function setAuthEnv(env: 'dev' | 'prd') {
 }
 
 export function getActiveAuth(): Auth {
-  if (import.meta.env.PROD) {
+  if (import.meta.env.PROD && import.meta.env.VITE_PRD_FIREBASE_PROJECT_ID) {
     if (!prdAuth) {
        throw new Error("Production Firebase Database is not configured. Please set VITE_PRD_FIREBASE_PROJECT_ID and redeploy.");
     }
@@ -95,7 +95,7 @@ if (prdApp) {
 export const prdDb = _prdDb;
 
 export function getActiveDb(): Firestore {
-  if (import.meta.env.PROD) {
+  if (import.meta.env.PROD && import.meta.env.VITE_PRD_FIREBASE_PROJECT_ID) {
     if (!prdDb) {
       throw new Error("Production Firebase Database is not configured. Please set VITE_PRD_FIREBASE_PROJECT_ID and redeploy.");
     }
