@@ -37,6 +37,16 @@ export const prdAuth = _prdAuth;
 export const googleProvider = new GoogleAuthProvider();
 
 export function getAuthEnv(): 'dev' | 'prd' {
+  // Always prefer production database when running in Vercel/Production
+  if (import.meta.env.PROD) {
+    if (!prdAuth) {
+      console.error("CRITICAL: Running in production but VITE_PRD_FIREBASE_PROJECT_ID is not configured. Falling back to dev is disabled to prevent security issues.");
+      // We still return 'prd' to force the UI to handle it as a production state, 
+      // which will cause expected failures instead of silently writing to the dev database.
+    }
+    return 'prd';
+  }
+
   if (typeof window !== 'undefined') {
     const env = localStorage.getItem('trakr_auth_env');
     if (env === 'prd' && prdAuth) return 'prd';
@@ -51,6 +61,12 @@ export function setAuthEnv(env: 'dev' | 'prd') {
 }
 
 export function getActiveAuth(): Auth {
+  if (import.meta.env.PROD) {
+    if (!prdAuth) {
+       throw new Error("Production Firebase Database is not configured. Please set VITE_PRD_FIREBASE_PROJECT_ID and redeploy.");
+    }
+    return prdAuth;
+  }
   return getAuthEnv() === 'prd' && prdAuth ? prdAuth : devAuth;
 }
 
@@ -79,6 +95,12 @@ if (prdApp) {
 export const prdDb = _prdDb;
 
 export function getActiveDb(): Firestore {
+  if (import.meta.env.PROD) {
+    if (!prdDb) {
+      throw new Error("Production Firebase Database is not configured. Please set VITE_PRD_FIREBASE_PROJECT_ID and redeploy.");
+    }
+    return prdDb;
+  }
   return getAuthEnv() === 'prd' && prdDb ? prdDb : devDb;
 }
 

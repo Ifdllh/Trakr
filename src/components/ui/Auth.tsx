@@ -4,7 +4,7 @@ import {
   signInWithRedirect,
   getRedirectResult
 } from 'firebase/auth';
-import { devAuth, prdAuth, googleProvider, setAuthEnv, getAuthEnv } from '@/lib/firebase';
+import { devAuth, prdAuth, googleProvider, setAuthEnv, getAuthEnv, getActiveAuth } from '@/lib/firebase';
 import { motion } from 'motion/react';
 import { AlertCircle } from 'lucide-react';
 import BrandLogo from './BrandLogo';
@@ -22,8 +22,7 @@ export default function Auth({ onSuccess }: AuthProps) {
   useEffect(() => {
     const checkRedirect = async () => {
       try {
-        const env = getAuthEnv();
-        const authToUse = env === 'prd' && prdAuth ? prdAuth : devAuth;
+        const authToUse = getActiveAuth();
         const result = await getRedirectResult(authToUse);
         if (result) {
           onSuccess();
@@ -47,7 +46,15 @@ export default function Auth({ onSuccess }: AuthProps) {
     setLoading(true);
     
     setAuthEnv(env);
-    const authToUse = env === 'prd' && prdAuth ? prdAuth : devAuth;
+    
+    let authToUse;
+    try {
+      authToUse = getActiveAuth();
+    } catch (err: any) {
+      setError(err.message);
+      setLoading(false);
+      return;
+    }
 
     try {
       await signInWithPopup(authToUse, googleProvider);
@@ -158,17 +165,21 @@ export default function Auth({ onSuccess }: AuthProps) {
           )}
 
           <div className="flex flex-col gap-3">
-            {!hasPrdConfig && import.meta.env.PROD && (
-              <div className="mb-4 bg-blue-50 border border-blue-200 p-4 rounded-xl text-xs text-blue-800 leading-relaxed shadow-sm">
-                <p className="font-bold mb-1">Catatan Deployment Vercel:</p>
-                <p>Aplikasi ini belum dikonfigurasi dengan Firebase Production Anda. Saat ini menggunakan database Sandbox/Dev default.</p>
-                <p className="mt-2">
-                  Untuk menggunakan database Production, tambahkan semua variabel <strong>VITE_PRD_FIREBASE_*</strong> (seperti <code className="bg-blue-100 px-1 py-0.5 rounded">VITE_PRD_FIREBASE_PROJECT_ID</code>) di menu <strong>Settings &gt; Environment Variables</strong> pada dashboard Vercel Anda, lalu lakukan <strong>Redeploy</strong>.
-                </p>
+            {import.meta.env.PROD && !hasPrdConfig ? (
+              <div className="mb-4 bg-red-50 border border-red-200 p-4 rounded-xl text-xs text-red-800 leading-relaxed shadow-sm">
+                <p className="font-bold mb-1 text-red-900">Konfigurasi Vercel Belum Lengkap atau Membutuhkan Redeploy!</p>
+                <p>Vercel tidak mendeteksi variabel <strong>VITE_PRD_FIREBASE_PROJECT_ID</strong> di dalam build. Karena alasan keamanan, akses ke Database Sandbox (Dev) telah diblokir di Production.</p>
+                <div className="mt-3 bg-white/60 p-3 rounded-lg border border-red-100/50">
+                  <p className="font-bold text-red-900 mb-1">Cara Memperbaiki:</p>
+                  <ol className="list-decimal pl-4 space-y-1 text-red-800">
+                    <li>Buka Dashboard Vercel proyek Anda.</li>
+                    <li>Masuk ke <strong>Settings</strong> &gt; <strong>Environment Variables</strong>.</li>
+                    <li>Pastikan Anda telah menambahkan <strong>semua</strong> variabel <code className="bg-red-100 px-1 py-0.5 rounded font-mono font-bold">VITE_PRD_FIREBASE_...</code> (seperti VITE_PRD_FIREBASE_PROJECT_ID, VITE_PRD_FIREBASE_API_KEY, dll) persis seperti di AI Studio.</li>
+                    <li><strong>WAJIB:</strong> Buka tab <strong>Deployments</strong>, klik titik tiga (...) di deployment terakhir, dan pilih <strong>Redeploy</strong>.</li>
+                  </ol>
+                </div>
               </div>
-            )}
-
-            {hasPrdConfig ? (
+            ) : hasPrdConfig && !import.meta.env.PROD ? (
               <>
                 <div className="text-center mb-1">
                   <span className="text-xs font-medium text-slate-400">Pilih mode masuk:</span>
@@ -219,7 +230,7 @@ export default function Auth({ onSuccess }: AuthProps) {
             ) : (
               <button
                 type="button"
-                onClick={() => handleGoogleLogin('dev')}
+                onClick={() => handleGoogleLogin(import.meta.env.PROD ? 'prd' : 'dev')}
                 disabled={loading}
                 className="w-full flex items-center justify-center gap-3 py-3 px-4 border border-slate-200 bg-white hover:bg-slate-50 hover:border-slate-300 rounded-xl text-sm font-bold text-slate-800 transition-all disabled:opacity-50 cursor-pointer shadow-xs hover:shadow-sm"
               >
