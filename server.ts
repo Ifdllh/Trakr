@@ -308,6 +308,7 @@ CONTEXT:${masterDataContext}. You must return UI Markdown and ---JSON_DATA--- wi
     }
   });
 
+app.use((err: any, req: any, res: any, next: any) => { console.error("Express Error:", err); res.status(500).json({ error: err.message || "Internal server error" }); });
 if (process.env.NODE_ENV !== "production") {
   (async () => {
     const { createServer: createViteServer } = await import("vite");
@@ -328,5 +329,3 @@ if (process.env.NODE_ENV !== "production") {
     });
   }
 }
-
-export default app;
