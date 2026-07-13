@@ -18,6 +18,7 @@ export default function Auth({ onSuccess }: AuthProps) {
   const [restrictedError, setRestrictedError] = useState(false);
   const [domainError, setDomainError] = useState(false);
   const [loading, setLoading] = useState(false);
+  const isIframe = typeof window !== 'undefined' && window.self !== window.top;
 
   useEffect(() => {
     const checkRedirect = async () => {
@@ -113,6 +114,20 @@ export default function Auth({ onSuccess }: AuthProps) {
           className="bg-white py-8 px-6 shadow-xl border border-gray-100 rounded-2xl"
         >
           
+          {isIframe && (
+            <div className="mb-6 bg-blue-50 border border-blue-200 p-4 rounded-xl flex flex-col gap-2 shadow-xs">
+              <div className="flex items-start gap-2.5">
+                <AlertCircle className="text-blue-600 shrink-0 mt-0.5" size={18} />
+                <div>
+                  <h3 className="text-xs font-bold text-blue-900">Buka di Tab Baru</h3>
+                  <p className="text-[11px] text-blue-800 mt-1 leading-relaxed">
+                    Login Google tidak dapat diselesaikan di dalam iframe AI Studio karena alasan keamanan browser. <strong>Silakan buka aplikasi ini di tab baru</strong> menggunakan tombol di pojok kanan atas AI Studio.
+                  </p>
+                </div>
+              </div>
+            </div>
+          )}
+
           {domainError ? (
             <div className="mb-6 bg-amber-50 border border-amber-200 p-4 rounded-xl flex flex-col gap-2 shadow-xs">
               <div className="flex items-start gap-2.5">

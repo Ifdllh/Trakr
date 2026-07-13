@@ -49,7 +49,7 @@ export default function GoldPriceTracker() {
     
     setError(null);
     try {
-      const response = await api.get<GoldPriceResponse>('/reports/gold-price');
+      const response = await api.get<GoldPriceResponse>(`/reports/gold-price${isManual ? '?refresh=true' : ''}`);
       if (response.data && response.data.success) {
         setData(response.data);
         
@@ -127,6 +127,7 @@ export default function GoldPriceTracker() {
         year: 'numeric',
         hour: '2-digit',
         minute: '2-digit',
+        second: '2-digit',
         hour12: false
       }).format(date) + ' WIB';
     } catch {
@@ -280,11 +281,11 @@ export default function GoldPriceTracker() {
           <div className="border-t border-gray-50 pt-4 mt-4 flex items-center justify-between text-[9px] font-medium text-gray-400">
             <span className="flex items-center gap-1">
               <Clock size={10} />
-              Last Updated: {formatLastUpdated(data.vendors[selectedVendorKey]?.date || data.lastUpdated)}
+              Last Updated: {formatLastUpdated(data.lastUpdated)}
             </span>
             {data.cached && (
               <span className="bg-slate-50 text-slate-500 border border-slate-100 px-2 py-0.5 rounded-full font-bold uppercase">
-                Cached 6h
+                Cached
               </span>
             )}
           </div>

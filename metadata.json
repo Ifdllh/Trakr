@@ -1,5 +1,5 @@
 {
-  "name": "Pencatat Keuangan Pribadi",
+  "name": "Trakr - Your Financial Tracker",
   "description": "Aplikasi pencatatan uang pribadi dengan fitur autentikasi, input pemasukan dan pengeluaran, kategori, sub-kategori, dan visualisasi grafik laporan keuangan bulanan.",
   "requestFramePermissions": [],
   "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]

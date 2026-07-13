@@ -279,60 +279,48 @@ export default function Dashboard({
     };
   }, [monthlyTransactions]);
 
-  // Baseline credit balance is Rp 83.172.640 (matches screenshot's $83,172.64)
   const netSavingsAndBalance = useMemo(() => {
     let accountsBalance = 0;
     
-    // Only calculate if we have accounts loaded, otherwise use fallback
     if (accounts.length > 0) {
       accountsBalance = accounts
         .filter((acc: any) => acc.includeInNetWorth !== false) // default is true
         .reduce((sum: number, acc: any) => sum + (acc.currentBalance !== undefined ? acc.currentBalance : (acc.balance || 0)), 0);
     }
 
-    const BASELINE_BALANCE = accounts.length > 0 ? accountsBalance : 83172640;
-    
-    // If the user uses the 'accounts' feature to log balances directly,
-    // we assume the balance represents the current state.
-    // However, if they want it dynamically calculated from transactions on top of a starting balance,
-    // we would do this. For now, since the user enters "Saldo Awal" (Starting Balance), 
-    // adding all-time net to it makes sense IF the balance on the account is genuinely the starting balance.
-    // If the account balance is maintained actively by the user, we just use the sum of accounts.
-    // We will use the sum of accounts if there are accounts, else fallback.
-    return BASELINE_BALANCE;
+    return accountsBalance;
   }, [transactions, accounts]);
 
-  // Fallbacks to exactly match the look of the beautiful target dashboard
   const finalDisplayIncome = useMemo(() => {
-    return totalIncome > 0 ? totalIncome : 16281480; // Default matches $16,281.48
+    return totalIncome;
   }, [totalIncome]);
 
   const finalDisplayExpense = useMemo(() => {
-    return totalExpense > 0 ? totalExpense : 6638720; // Default matches $6,638.72
+    return totalExpense;
   }, [totalExpense]);
 
   // Monthly trend of cashflow based on database reports
   const chartData = useMemo(() => {
     return cashflowStatsData.map((d: any) => ({
-      tanggal: d.tanggal,
-      Pemasukan: Number(d.Pemasukan) || 0,
-      Pengeluaran: Number(d.Pengeluaran) || 0
+      tanggal: d.month,
+      Pemasukan: Number(d.income) || 0,
+      Pengeluaran: Number(d.expense) || 0
     }));
   }, [cashflowStatsData]);
 
   // Expense breakdown by category for circular chart and legend list
   const expenseCategoriesBreakdown = useMemo(() => {
-    const total = rawExpenseDistribution.reduce((sum: number, item: any) => sum + (Number(item.value) || 0), 0);
+    const total = rawExpenseDistribution.reduce((sum: number, item: any) => sum + (Number(item.amount) || 0), 0);
     
     const fallbackColors = ['#3b82f6', '#f97316', '#ef4444', '#22c55e', '#a855f7', '#06b6d4', '#ec4899', '#64748b'];
     
     const mapped = rawExpenseDistribution.map((item: any, idx: number) => {
-      const cat = categories.find(c => c.name === item.name || c.id === (item.name || '').toLowerCase());
+      const cat = categories.find(c => c.name === item.category || c.id === (item.category || '').toLowerCase());
       const catColor = cat?.colorHex || cat?.color_hex || fallbackColors[idx % fallbackColors.length];
-      const percentage = total > 0 ? formatPercentage(Number(item.value) || 0, total) : 0;
+      const percentage = total > 0 ? formatPercentage(Number(item.amount) || 0, total) : 0;
       return {
-        name: item.name,
-        value: Number(item.value) || 0,
+        name: item.category,
+        value: Number(item.amount) || 0,
         color: catColor,
         percentage
       };
@@ -627,9 +615,6 @@ export default function Dashboard({
                 <span className="text-3xl font-black text-white">{balanceParts.main}</span>
                 <span className="text-[11px] font-bold text-indigo-200/80">{balanceParts.cents}</span>
               </div>
-              <div className="text-xs text-emerald-300 font-bold flex items-center gap-1 mt-1">
-                +5.2% ↗ <span className="text-indigo-200 font-medium">dari bulan lalu</span>
-              </div>
             </div>
             <div className="h-10 w-10 bg-white/10 text-white rounded-2xl flex items-center justify-center">
               <Wallet size={20} />
@@ -819,8 +804,15 @@ export default function Dashboard({
 
               {/* Area Chart with custom sharp tension curve */}
               <div className="h-[280px] w-full mt-2">
-                <ResponsiveContainer width="100%" height="100%">
-                  <AreaChart data={chartData} margin={{ top: 10, right: 10, left: -25, bottom: 0 }}>
+                {transactions.filter(t => t.date && new Date(t.date).getFullYear() === selectedYear).length === 0 ? (
+                  <div className="w-full h-full flex flex-col items-center justify-center text-gray-400 bg-gray-50/50 rounded-xl border border-gray-100 border-dashed">
+                    <LucideIcons.BarChart2 size={32} className="mb-3 opacity-40 text-indigo-400" />
+                    <p className="text-xs font-bold text-gray-500">Belum ada transaksi di tahun {selectedYear}</p>
+                    <p className="text-[10px] text-gray-400 mt-1">Data tren arus kas akan muncul di sini</p>
+                  </div>
+                ) : (
+                  <ResponsiveContainer width="100%" height="100%">
+                    <AreaChart data={chartData} margin={{ top: 10, right: 10, left: -25, bottom: 0 }}>
                     <defs>
                       <linearGradient id="chartIncomeColor" x1="0" y1="0" x2="0" y2="1">
                         <stop offset="5%" stopColor="#10b981" stopOpacity={0.15}/>
@@ -845,6 +837,7 @@ export default function Dashboard({
                     <Area type={curveCardinal.tension(0.8)} dataKey="Pengeluaran" stroke="#f97316" strokeWidth={3} fillOpacity={1} fill="url(#chartExpenseColor)" />
                   </AreaChart>
                 </ResponsiveContainer>
+                )}
               </div>
             </div>
           )}
@@ -858,45 +851,54 @@ export default function Dashboard({
               </div>
               
               {/* Concentric Circle SVG Chart with viewBox scaling to prevent clipping */}
-              <div className="h-[180px] w-full flex items-center justify-center relative my-2 overflow-hidden">
-                <svg className="w-40 h-40 transform -rotate-90 mx-auto" viewBox="0 0 160 160">
-                  {expenseCategoriesBreakdown.map((item, idx) => {
-                    const radius = 64 - idx * 13;
-                    const strokeWidth = 8;
-                    const circumference = 2 * Math.PI * radius;
-                    const strokeDashoffset = circumference - (Math.min(item.percentage, 100) / 100) * circumference;
-                    return (
-                      <g key={idx}>
-                        <circle cx="80" cy="80" r={radius} stroke="#f1f5f9" strokeWidth={strokeWidth} fill="transparent" />
-                        <circle cx="80" cy="80" r={radius} stroke={item.color} strokeWidth={strokeWidth} fill="transparent" strokeDasharray={circumference} strokeDashoffset={strokeDashoffset} strokeLinecap="round" className="transition-all duration-1000 ease-out" />
-                      </g>
-                    );
-                  })}
-                </svg>
-                {/* Center Text dynamically bound to total of displayed categories */}
-                <div className="absolute inset-0 flex items-center justify-center flex-col">
-                  <span className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Total</span>
-                  <span className="text-sm font-black text-slate-900">
-                    {formatIDR(expenseCategoriesBreakdown.reduce((sum, item) => sum + item.value, 0))}
-                  </span>
+              {expenseCategoriesBreakdown.length === 0 ? (
+                <div className="h-[280px] w-full flex flex-col items-center justify-center text-gray-400 bg-gray-50/50 rounded-xl border border-gray-100 border-dashed mt-4">
+                  <LucideIcons.PieChart size={32} className="mb-3 opacity-40 text-orange-400" />
+                  <p className="text-xs font-bold text-gray-500">Belum ada pengeluaran bulan ini</p>
                 </div>
-              </div>
-
-              {/* Legend List */}
-              <div className="space-y-3 mt-2">
-                {expenseCategoriesBreakdown.map((item, idx) => (
-                  <div key={idx} className="flex items-center justify-between text-xs">
-                    <div className="flex items-center gap-2">
-                      <span className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: item.color }} />
-                      <span className="font-bold text-gray-700">{item.name}</span>
-                    </div>
-                    <div className="flex items-center gap-2 tabular-nums">
-                      <span className="text-gray-400 font-medium">{formatIDR(item.value)}</span>
-                      <span className="font-extrabold text-slate-900 w-8 text-right">{Math.round(item.percentage)}%</span>
+              ) : (
+                <>
+                  <div className="h-[180px] w-full flex items-center justify-center relative my-2 overflow-hidden">
+                    <svg className="w-40 h-40 transform -rotate-90 mx-auto" viewBox="0 0 160 160">
+                      {expenseCategoriesBreakdown.map((item, idx) => {
+                        const radius = 64 - idx * 13;
+                        const strokeWidth = 8;
+                        const circumference = 2 * Math.PI * radius;
+                        const strokeDashoffset = circumference - (Math.min(item.percentage, 100) / 100) * circumference;
+                        return (
+                          <g key={idx}>
+                            <circle cx="80" cy="80" r={radius} stroke="#f1f5f9" strokeWidth={strokeWidth} fill="transparent" />
+                            <circle cx="80" cy="80" r={radius} stroke={item.color} strokeWidth={strokeWidth} fill="transparent" strokeDasharray={circumference} strokeDashoffset={strokeDashoffset} strokeLinecap="round" className="transition-all duration-1000 ease-out" />
+                          </g>
+                        );
+                      })}
+                    </svg>
+                    {/* Center Text dynamically bound to total of displayed categories */}
+                    <div className="absolute inset-0 flex items-center justify-center flex-col">
+                      <span className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Total</span>
+                      <span className="text-sm font-black text-slate-900">
+                        {formatIDR(expenseCategoriesBreakdown.reduce((sum, item) => sum + item.value, 0))}
+                      </span>
                     </div>
                   </div>
-                ))}
-              </div>
+
+                  {/* Legend List */}
+                  <div className="space-y-3 mt-2">
+                    {expenseCategoriesBreakdown.map((item, idx) => (
+                      <div key={idx} className="flex items-center justify-between text-xs">
+                        <div className="flex items-center gap-2">
+                          <span className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: item.color }} />
+                          <span className="font-bold text-gray-700">{item.name}</span>
+                        </div>
+                        <div className="flex items-center gap-2 tabular-nums">
+                          <span className="text-gray-400 font-medium">{formatIDR(item.value)}</span>
+                          <span className="font-extrabold text-slate-900 w-8 text-right">{Math.round(item.percentage)}%</span>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </>
+              )}
             </div>
           )}
 

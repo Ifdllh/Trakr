@@ -72,12 +72,11 @@ function getUploadMiddleware() {
 let goldPriceCache: any = null;
 const GOLD_CACHE_DURATION = 6 * 60 * 60 * 1000;
 
-async function startServer() {
-  const app = express();
-  const PORT = 3000;
-  const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
-  
-  app.use(express.json());
+const app = express();
+const PORT = 3000;
+const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
+
+app.use(express.json());
 
   app.post("/api/transactions/upload", requireAuth, (req: AuthRequest, res, next) => {
     const uploadMiddleware = getUploadMiddleware();
@@ -92,24 +91,123 @@ async function startServer() {
   });
 
   app.get("/api/reports/gold-price", requireAuth, async (req: AuthRequest, res) => {
+    const isRefresh = req.query.refresh === 'true';
     const now = Date.now();
-    if (goldPriceCache && (now - goldPriceCache.timestamp < GOLD_CACHE_DURATION)) {
+    
+    if (!isRefresh && goldPriceCache && (now - goldPriceCache.timestamp < GOLD_CACHE_DURATION)) {
       return res.json({ ...goldPriceCache.data, cached: true });
     }
-    const fallbackDate = new Date().toISOString();
-    const fallbackData = {
-      success: true,
-      cached: false,
-      lastUpdated: fallbackDate,
-      vendors: {
-        antam: { name: "Antam", buyPrice: 1500000, sellPrice: 1350000, date: fallbackDate, isAvailable: true },
-        antamRetro: { name: "Antam Retro", buyPrice: 1450000, sellPrice: 1300000, date: fallbackDate, isAvailable: true },
-        ubs: { name: "UBS", buyPrice: 1480000, sellPrice: 1330000, date: fallbackDate, isAvailable: true },
-        galeri24: { name: "Galeri 24", buyPrice: 1490000, sellPrice: 1340000, date: fallbackDate, isAvailable: true },
+    
+    try {
+      const endpoints = ['logammulia', 'anekalogam', 'galeri24', 'indogold', 'treasury', 'bankbsi', 'sampoernagold'];
+      const promises = endpoints.map(ep => 
+        axios.get(`https://logam-mulia-api.iamutaki.workers.dev/api/prices/${ep}${isRefresh ? '?refresh=true' : ''}`)
+          .catch(e => ({ data: { data: [] } }))
+      );
+      
+      const results = await Promise.all(promises);
+      const [lmRes, anekaRes, g24Res, indoRes, trRes, bsiRes, sampoernaRes] = results;
+      
+      const lmData = lmRes.data?.data || [];
+      const anekaData = anekaRes.data?.data || [];
+      const g24Data = g24Res.data?.data || [];
+      const indoData = indoRes.data?.data || [];
+      const trData = trRes.data?.data || [];
+      const bsiData = bsiRes.data?.data || [];
+      const sampoernaData = sampoernaRes.data?.data || [];
+      
+      const get1g = (arr: any[], condition: (x: any) => boolean) => arr.find((x: any) => (x.weight === 1 || x.weight === "1") && condition(x)) || arr.find((x: any) => condition(x));
+      
+      const lm1g = get1g(lmData, x => x.materialType === 'Emas Batangan');
+      const aneka1g = get1g(anekaData, x => typeof x.materialType === 'string' && x.materialType.includes('produksi tahun'));
+      const anekaCert1g = get1g(anekaData, x => typeof x.materialType === 'string' && x.materialType.includes('Certicard'));
+      const g24_g24 = get1g(g24Data, x => x.materialType === 'GALERI 24');
+      const g24_ubs = get1g(g24Data, x => x.materialType === 'UBS');
+      const g24_antam = get1g(g24Data, x => x.materialType === 'ANTAM NON PEGADAIAN') || get1g(g24Data, x => x.materialType === 'ANTAM');
+      const g24_lotus = get1g(g24Data, x => x.materialType === 'LOTUS ARCHI');
+      const g24_bb = get1g(g24Data, x => x.materialType === 'SENTRA BUYBACK');
+      
+      const indo_antam = get1g(indoData, x => x.materialType === 'Antam');
+      const indo_ubs = get1g(indoData, x => x.materialType === 'UBS');
+      const indo_ig = get1g(indoData, x => x.materialType === 'IndoGold');
+      
+      const tr_1g = get1g(trData, x => true);
+      const bsi_1g = get1g(bsiData, x => true);
+      const sampoerna_1g = get1g(sampoernaData, x => true);
+      
+      const vendors: any = {};
+      const fallbackDate = new Date().toISOString();
+      let maxTimestamp = 0;
+      
+      const addVendor = (key: string, name: string, itemSell: any, itemBuy: any) => {
+        const sellPrice = itemBuy?.buybackPrice || itemSell?.buybackPrice || 0;
+        const buyPrice = itemSell?.sellPrice || 0;
+        if (!sellPrice && !buyPrice) return;
+        
+        const date = itemSell?.recordedDate || itemBuy?.recordedDate || fallbackDate;
+        const time = new Date(date).getTime();
+        if (time > maxTimestamp) maxTimestamp = time;
+        
+        vendors[key] = {
+          name,
+          buyPrice,
+          sellPrice,
+          date,
+          isAvailable: true
+        };
+      };
+      
+      addVendor('antam_lm', 'Antam (Logam Mulia)', lm1g, aneka1g || g24_bb);
+      addVendor('antam_aneka', 'Antam (Aneka Logam)', aneka1g, aneka1g);
+      addVendor('antam_aneka_cert', 'Antam Certicard (Aneka Logam)', anekaCert1g, anekaCert1g);
+      addVendor('g24_antam', 'Antam (Galeri 24)', g24_antam, g24_antam);
+      addVendor('g24_g24', 'Galeri 24', g24_g24, g24_g24);
+      addVendor('g24_ubs', 'UBS (Galeri 24)', g24_ubs, g24_ubs);
+      addVendor('g24_lotus', 'Lotus Archi (Galeri 24)', g24_lotus, g24_lotus);
+      addVendor('indo_antam', 'Antam (IndoGold)', indo_antam, indo_antam);
+      addVendor('indo_ubs', 'UBS (IndoGold)', indo_ubs, indo_ubs);
+      addVendor('indo_ig', 'IndoGold', indo_ig, indo_ig);
+      addVendor('treasury', 'Treasury', tr_1g, tr_1g);
+      addVendor('bsi', 'Bank BSI', bsi_1g, bsi_1g);
+      addVendor('sampoerna', 'Sampoerna Gold', sampoerna_1g, sampoerna_1g);
+      
+      // Fallback if APIs are completely down
+      if (Object.keys(vendors).length === 0) {
+        throw new Error("No vendors found");
       }
-    };
-    goldPriceCache = { timestamp: now, data: fallbackData };
-    return res.json(fallbackData);
+      
+      const finalLastUpdated = maxTimestamp > 0 ? new Date(maxTimestamp).toISOString() : fallbackDate;
+      
+      const responseData = {
+        success: true,
+        cached: false,
+        lastUpdated: fallbackDate,
+        vendors
+      };
+      
+      goldPriceCache = { timestamp: now, data: responseData };
+      return res.json(responseData);
+      
+    } catch (err) {
+      console.error("Gold price fetch error", err);
+      if (goldPriceCache) {
+         return res.json({ ...goldPriceCache.data, cached: true });
+      }
+      
+      const fallbackDate = new Date().toISOString();
+      const fallbackData = {
+        success: true,
+        cached: false,
+        lastUpdated: fallbackDate,
+        vendors: {
+          antam: { name: "Antam", buyPrice: 1500000, sellPrice: 1350000, date: fallbackDate, isAvailable: true },
+          antamRetro: { name: "Antam Retro", buyPrice: 1450000, sellPrice: 1300000, date: fallbackDate, isAvailable: true },
+          ubs: { name: "UBS", buyPrice: 1480000, sellPrice: 1330000, date: fallbackDate, isAvailable: true },
+          galeri24: { name: "Galeri 24", buyPrice: 1490000, sellPrice: 1340000, date: fallbackDate, isAvailable: true },
+        }
+      };
+      return res.json(fallbackData);
+    }
   });
 
   app.post("/api/ai/chat", requireAuth, async (req: AuthRequest, res) => {
@@ -194,17 +292,24 @@ CONTEXT:${masterDataContext}. You must return UI Markdown and ---JSON_DATA--- wi
     }
   });
 
-  if (process.env.NODE_ENV !== "production") {
+if (process.env.NODE_ENV !== "production") {
+  (async () => {
     const vite = await createViteServer({ server: { middlewareMode: true }, appType: "spa" });
     app.use(vite.middlewares);
-  } else {
-    const distPath = path.join(process.cwd(), 'dist');
-    app.use(express.static(distPath));
-    app.get('*', (req, res) => res.sendFile(path.join(distPath, 'index.html')));
-  }
+    app.listen(PORT, "0.0.0.0", () => {
+      console.log(`Server running on port ${PORT}`);
+    });
+  })();
+} else {
+  const distPath = path.join(process.cwd(), 'dist');
+  app.use(express.static(distPath));
+  app.get('*', (req, res) => res.sendFile(path.join(distPath, 'index.html')));
   
-  app.listen(PORT, "0.0.0.0", () => {
-    console.log(`Server running on port ${PORT}`);
-  });
+  if (!process.env.VERCEL) {
+    app.listen(PORT, "0.0.0.0", () => {
+      console.log(`Server running on port ${PORT}`);
+    });
+  }
 }
-startServer();
+
+export default app;
