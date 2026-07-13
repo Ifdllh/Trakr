@@ -1,0 +1,44 @@
+--- src/App.tsx
++++ src/App.tsx
+@@ -5,4 +5,4 @@
+   signOut
+ } from 'firebase/auth';
+-import { auth } from '@/lib/firebase';
++import { devAuth, prdAuth, setAuthEnv, getAuthEnv } from '@/lib/firebase';
+ import { User } from 'firebase/auth';
+ import { 
+@@ -84,9 +84,18 @@
+   useEffect(() => {
+     // Listen for auth state changes
+-    const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
+-      setUser(currentUser);
+-      setAuthChecked(true);
++    const handleUser = (currentUser: User | null, env: 'dev' | 'prd') => {
++      if (currentUser) {
++        setAuthEnv(env);
++        setUser(currentUser);
++      } else if (getAuthEnv() === env) {
++        setUser(null);
++      }
++    };
++    
++    const unsubDev = onAuthStateChanged(devAuth, (u) => handleUser(u, 'dev'));
++    const unsubPrd = prdAuth ? onAuthStateChanged(prdAuth, (u) => handleUser(u, 'prd')) : () => {};
++    
++    // If neither has user initially, authChecked should be true after a short timeout or just from devAuth
++    onAuthStateChanged(devAuth, () => setAuthChecked(true));
++
++    return () => {
++      unsubDev();
++      unsubPrd();
+-    });
+-    return () => unsubscribe();
+   }, []);
+ 
+   const handleLogout = async () => {
+     try {
+-      await signOut(auth);
++      await signOut(getAuthEnv() === 'prd' && prdAuth ? prdAuth : devAuth);
++      setUser(null);
+     } catch (err) {
+       console.error("Error signing out:", err);

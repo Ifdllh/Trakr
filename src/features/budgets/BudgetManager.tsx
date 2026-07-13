@@ -116,7 +116,8 @@ export default function BudgetManager({
   };
 
   // 2. Fetch aggregated data & budget status KPIs via React Query
-  const { data: currentBudgets = [], isLoading: isLoadingBudgets } = useGetAggregatedBudgets(selectedPeriod);
+  const { data = [], isLoading: isLoadingBudgets } = useGetAggregatedBudgets(selectedPeriod);
+  const currentBudgets = data as any[];
   const { data: budgetStatus = { targetGlobal: 0, totalTeralokasi: 0, realisasiAktual: 0, sisaSaldo: 0 } } = useGetBudgetStatus(selectedPeriod);
   const deleteMutation = useDeleteCategoryBudget(selectedPeriod);
 
@@ -150,7 +151,7 @@ export default function BudgetManager({
   const masterCategories = expenseCategories;
 
   // Helper to get nominal amount
-  const getEffectiveBudgetAmount = (b: BudgetAllocation, totalTarget: number) => {
+  const getEffectiveBudgetAmount = (b: any, totalTarget: number) => {
     if (b.calculatedAmount !== undefined && b.calculatedAmount !== null) {
       return Number(b.calculatedAmount);
     }

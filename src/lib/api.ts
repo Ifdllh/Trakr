@@ -1,5 +1,5 @@
 import axios from 'axios';
-import { auth } from './firebase';
+import { getActiveAuth, getAuthEnv } from './firebase';
 
 export const api = axios.create({
   baseURL: '/api',
@@ -7,13 +7,19 @@ export const api = axios.create({
 
 // Request interceptor to attach Firebase ID Token
 api.interceptors.request.use(async (config) => {
-  const user = auth.currentUser;
+  const auth = getActiveAuth();
+  const user = auth?.currentUser;
+  
   if (user) {
     const token = await user.getIdToken();
     if (config.headers) {
       config.headers.Authorization = `Bearer ${token}`;
+      config.headers['X-Auth-Env'] = getAuthEnv();
     } else {
-      config.headers = { Authorization: `Bearer ${token}` } as any;
+      config.headers = { 
+        Authorization: `Bearer ${token}`,
+        'X-Auth-Env': getAuthEnv()
+      } as any;
     }
   }
   return config;

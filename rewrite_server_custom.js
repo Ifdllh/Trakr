@@ -1,3 +1,15 @@
+import fs from 'fs';
+
+let code = fs.readFileSync('server.ts', 'utf8');
+
+// The goal is to remove all postgres/drizzle imports and keep only needed routes.
+// We will replace the entire server.ts with a new one that only has:
+// 1. /api/transactions/upload
+// 2. /api/reports/gold-price
+// 3. /api/ai/chat
+// And the Vite middleware for development.
+
+const serverContent = `
 import express from "express";
 import axios from "axios";
 import path from "path";
@@ -22,7 +34,7 @@ function handleMemoryUpload(req: any, res: any) {
     try {
       const b64 = req.file.buffer.toString("base64");
       const mimeType = req.file.mimetype || "image/jpeg";
-      const secureUrl = `data:${mimeType};base64,${b64}`;
+      const secureUrl = \`data:\${mimeType};base64,\${b64}\`;
       res.json({ secureUrl });
     } catch (e) {
       res.status(500).json({ error: "Gagal konversi ke Base64." });
@@ -150,16 +162,13 @@ async function startServer() {
         });
       }
       
-      const masterDataContext = `Categories: ${JSON.stringify(categories)}
-Budgets: ${JSON.stringify(budgets)}
-Current Spending: ${JSON.stringify(currentSpendingData)}`;
+      const masterDataContext = \`Categories: \${JSON.stringify(categories)}\nBudgets: \${JSON.stringify(budgets)}\nCurrent Spending: \${JSON.stringify(currentSpendingData)}\`;
       
       const response = await ai.models.generateContent({
         model: "gemini-3.1-pro-preview",
         contents: [{ role: 'user', parts: [{ text: message }] }],
         config: {
-          systemInstruction: `You are AURA_CORE. User input: ${message}
-CONTEXT:${masterDataContext}. You must return UI Markdown and ---JSON_DATA--- with a transaction object if a transaction should be logged.`
+          systemInstruction: \`You are AURA_CORE. User input: \${message}\nCONTEXT:\${masterDataContext}. You must return UI Markdown and ---JSON_DATA--- with a transaction object if a transaction should be logged.\`
         }
       });
       
@@ -170,7 +179,7 @@ CONTEXT:${masterDataContext}. You must return UI Markdown and ---JSON_DATA--- wi
         const parts = text.split('---JSON_DATA---');
         markdown = parts[0].trim();
         try {
-          const jsonMatch = parts[1].match(/\{[\s\S]*\}/);
+          const jsonMatch = parts[1].match(/\\{[\\s\\S]*\\}/);
           jsonData = jsonMatch ? JSON.parse(jsonMatch[0]) : JSON.parse(parts[1].trim());
           if (jsonData?.transaction) {
              const txData = jsonData.transaction;
@@ -204,7 +213,11 @@ CONTEXT:${masterDataContext}. You must return UI Markdown and ---JSON_DATA--- wi
   }
   
   app.listen(PORT, "0.0.0.0", () => {
-    console.log(`Server running on port ${PORT}`);
+    console.log(\`Server running on port \${PORT}\`);
   });
 }
 startServer();
+`;
+
+fs.writeFileSync('server.ts', serverContent.trim());
+console.log("Rewrote server.ts with bare minimum endpoints");

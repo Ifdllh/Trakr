@@ -3,6 +3,7 @@ import CreateMasterAccountModal from '@/components/ui/CreateMasterAccountModal';
 import CreateMasterCategoryModal from '@/components/ui/CreateMasterCategoryModal';
 import CreateMasterPeriodModal from '@/components/ui/CreateMasterPeriodModal';
 import { api } from '@/lib/api';
+import { masterDataService } from '@/services/dbServices';
 import { 
   Category, BudgetPeriod,
   MasterAccount, MasterAsset, MasterTag, MasterContact,
@@ -295,7 +296,10 @@ export default function CategoryManager({
     if (!isNaN(Number(cat.id))) {
       // Custom parent category: use dedicated subcategory deletion endpoint
       try {
-        await api.post('/categories/delete-subcategory', { categoryId: cat.id, subcategoryName: subName });
+        
+        const newSubs = (cat.subcategories || []).filter((s: string) => s !== subName);
+        await masterDataService.save('customCategories', { ...cat, subcategories: newSubs }, cat.id);
+  
         onRefreshData?.();
       } catch (err: any) {
         throw new Error(err.response?.data?.error || 'Gagal menghapus sub-kategori');
@@ -341,7 +345,10 @@ export default function CategoryManager({
     if (!isNaN(Number(cat.id))) {
       // Custom parent category: call dedicated backend endpoint
       try {
-        await api.post('/categories/rename-subcategory', { categoryId: cat.id, oldName, newName });
+        
+        const newSubs = (cat.subcategories || []).map((s: string) => s === oldName ? newName : s);
+        await masterDataService.save('customCategories', { ...cat, subcategories: newSubs }, cat.id);
+  
         onRefreshData?.();
       } catch (err: any) {
         throw new Error(err.response?.data?.error || 'Gagal mengubah nama sub-kategori');

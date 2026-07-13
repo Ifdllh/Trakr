@@ -4,6 +4,7 @@ export interface UserProfile {
   uid: string;
   email: string;
   createdAt: string;
+  actual_amount?: number;
   monthlyBudget?: number;
   categoryBudgets?: Record<string, number>;
 }
@@ -27,7 +28,8 @@ export interface Transaction {
   isRecurring?: boolean;
   recurringFrequency?: 'DAILY' | 'WEEKLY' | 'MONTHLY' | 'YEARLY';
   recurringEndDate?: string | null;
-  createdAt: string; // ISO date-time string
+  createdAt: string;
+  actual_amount?: number; // ISO date-time string
 }
 
 export interface MasterAccount {
@@ -43,6 +45,7 @@ export interface MasterAccount {
   includeInNetWorth?: boolean;
   isActive: boolean;
   createdAt: string;
+  actual_amount?: number;
 }
 
 export interface MasterAsset {
@@ -52,6 +55,7 @@ export interface MasterAsset {
   currentValue: number;
   isActive: boolean;
   createdAt: string;
+  actual_amount?: number;
 }
 
 export interface MasterTag {
@@ -60,6 +64,7 @@ export interface MasterTag {
   description: string;
   isActive: boolean;
   createdAt: string;
+  actual_amount?: number;
 }
 
 export interface MasterContact {
@@ -68,6 +73,7 @@ export interface MasterContact {
   contactType: 'Payer' | 'Payee' | 'Team Member';
   isActive: boolean;
   createdAt: string;
+  actual_amount?: number;
 }
 
 export interface BudgetPeriod {
@@ -76,6 +82,7 @@ export interface BudgetPeriod {
   startDate: string;
   endDate: string;
   createdAt: string;
+  actual_amount?: number;
   isActive?: boolean;
 }
 
@@ -95,6 +102,7 @@ export interface BudgetAllocation {
   value: number;
   calculatedAmount: number;
   createdAt: string;
+  actual_amount?: number;
 }
 
 export interface Category {

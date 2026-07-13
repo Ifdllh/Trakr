@@ -1,18 +1,13 @@
-import { useState, useEffect, useMemo } from 'react';
-import { useQueryClient } from '@tanstack/react-query';
+import { User } from 'firebase/auth';
+import { useState, useEffect } from 'react';
 import { 
   onAuthStateChanged, 
   signOut, 
   User as FirebaseUser 
 } from 'firebase/auth';
 
-import { auth } from '@/lib/firebase';
-import { api } from '@/lib/api';
-import { 
-  MasterAccount, MasterAsset, MasterTag, MasterContact,
-  Transaction, BudgetAllocation, BudgetPeriod, GlobalBudget,
-  Category, PREDEFINED_CATEGORIES
-} from '@/types';
+import { devAuth, prdAuth, setAuthEnv, getAuthEnv } from '@/lib/firebase';
+import { Transaction } from '@/types';
 import Auth from '@/components/ui/Auth';
 import Dashboard from '@/features/reports/Dashboard';
 import TransactionForm from '@/features/transactions/TransactionForm';
@@ -26,13 +21,13 @@ import BrandLogo from '@/components/ui/BrandLogo';
 import { motion, AnimatePresence } from 'motion/react';
 import { 
   LogOut, LayoutDashboard, History, BookOpen, 
-  PlusCircle, User, Loader2, RefreshCw, Target, Plus, Settings as SettingsIcon
+  Loader2, RefreshCw, Target, Settings as SettingsIcon
 } from 'lucide-react';
+import { useAppData } from '@/hooks/useAppData';
 
 export default function App() {
-  const queryClient = useQueryClient();
   const [user, setUser] = useState<FirebaseUser | null>(null);
-  const isGuest = user?.isAnonymous || user?.email?.includes('guest');
+  const isGuest = user?.isAnonymous || user?.email?.includes('guest') || false;
 
   const [globalToast, setGlobalToast] = useState<{ message: string; type: 'success' | 'error' | 'info' } | null>(null);
 
@@ -50,94 +45,16 @@ export default function App() {
   }, [globalToast]);
 
   const [authChecked, setAuthChecked] = useState(false);
-  const [transactions, setTransactions] = useState<Transaction[]>([]);
-  const [budgets, setBudgets] = useState<BudgetAllocation[]>([]);
-  const [globalBudgets, setGlobalBudgets] = useState<GlobalBudget[]>([]);
-  const [periods, setPeriods] = useState<BudgetPeriod[]>([]);
-  const [accounts, setAccounts] = useState<MasterAccount[]>([]);
-  const [assets, setAssets] = useState<MasterAsset[]>([]);
-  const [tags, setTags] = useState<MasterTag[]>([]);
-  const [contacts, setContacts] = useState<MasterContact[]>([]);
-  const [customCategories, setCustomCategories] = useState<any[]>([]);
 
-  // Compute merged categories
-  const mergedCategories = useMemo(() => {
-    // 1. Start with copy of predefined categories
-    let base = JSON.parse(JSON.stringify(PREDEFINED_CATEGORIES)) as Category[];
-    
-    // First pass: handle soft-deleted parent categories (both custom & predefined overrides)
-    const softDeletedParentNames = new Set<string>();
-    customCategories.forEach(customCat => {
-      if (!customCat.parentCategory && customCat.isActive === false) {
-        softDeletedParentNames.add((customCat.name || '').toLowerCase() + "||" + customCat.type);
-      }
-    });
+  const {
+    transactions, budgets, globalBudgets, periods, accounts,
+    assets, tags, contacts, customCategories, mergedCategories,
+    monthlyBudget, loadingData, triggerAddMasterData, refreshData,
+    handleSaveTransaction, handleDeleteTransaction, handleSaveMasterData,
+    handleDeleteMasterData, handleSavePeriod, handleDeletePeriod,
+    handleSaveBudgetAllocation, handleSaveGlobalBudget, handleDeleteBudgetAllocation
+  } = useAppData(user, isGuest, showGlobalToast);
 
-    // Filter out predefined categories that are soft deleted
-    base = base.filter(c => !softDeletedParentNames.has((c.name || '').toLowerCase() + "||" + c.type));
-
-    // Second pass: process active custom categories and subcategories
-    customCategories.forEach(customCat => {
-      if (customCat.isActive === false) {
-        if (customCat.parentCategory) {
-          // Soft-deleted subcategory: remove from its parent
-          const parent = base.find(c => c.name === customCat.parentCategory && c.type === customCat.type);
-          if (parent) {
-            parent.subcategories = (parent.subcategories || []).filter(s => (s || '').toLowerCase() !== (customCat.name || '').toLowerCase());
-          }
-        }
-        return;
-      }
-
-      if (customCat.parentCategory) {
-        // Add as subcategory to existing parent
-        const parent = base.find(c => c.name === customCat.parentCategory && c.type === customCat.type);
-        if (parent) {
-          if (!(parent.subcategories || []).some(s => (s || '').toLowerCase() === (customCat.name || '').toLowerCase())) {
-            parent.subcategories.push(customCat.name);
-          }
-        }
-      } else {
-        // It's a custom main category
-        // Let's filter out inactive subcategories for this custom category
-        const inactiveSubs = (customCat.inactiveSubcategories || []).map((s: string) => (s || '').toLowerCase());
-        const activeSubs = (customCat.subcategories || []).filter((s: string) => !inactiveSubs.includes((s || '').toLowerCase()));
-
-        // Check if there is already a category with this name and type in base
-        const existingIdx = base.findIndex(c => (c.name || '').toLowerCase() === (customCat.name || '').toLowerCase() && c.type === customCat.type);
-        if (existingIdx !== -1) {
-          // Update the predefined category's fields (e.g., if renamed or customized)
-          base[existingIdx] = {
-            ...base[existingIdx],
-            id: customCat.id || customCat.name,
-            iconName: customCat.iconName || base[existingIdx].iconName,
-            colorClass: customCat.colorClass || base[existingIdx].colorClass,
-            colorHex: customCat.colorHex || customCat.color_hex || base[existingIdx].colorHex,
-            subcategories: activeSubs.length > 0 ? activeSubs : base[existingIdx].subcategories
-          };
-        } else {
-          // Add as new category
-          base.push({
-            id: customCat.id || customCat.name,
-            name: customCat.name,
-            type: customCat.type,
-            iconName: customCat.iconName || 'Folder',
-            colorClass: customCat.colorClass || 'text-indigo-600 bg-indigo-50 border-indigo-200',
-            colorHex: customCat.colorHex || customCat.color_hex,
-            subcategories: activeSubs,
-          });
-        }
-      }
-    });
-
-    return base;
-  }, [customCategories]);
-
-  const [monthlyBudget, setMonthlyBudget] = useState<number>(0);
-  const [categoryBudgets, setCategoryBudgets] = useState<Record<string, number>>({});
-  const [loadingData, setLoadingData] = useState(false);
-  const [triggerAddMasterData, setTriggerAddMasterData] = useState(0);
-  
   // UI Tabs & Modals
   const [activeTab, setActiveTab] = useState<'dashboard' | 'transactions' | 'categories' | 'budgets' | 'settings'>('dashboard');
   const [isFormOpen, setIsFormOpen] = useState(false);
@@ -168,241 +85,38 @@ export default function App() {
 
   // Monitor Auth state change
   useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
-      setUser(currentUser);
-      setAuthChecked(true);
-    });
-    return unsubscribe;
+    let authCheckedCount = 0;
+    const checkCount = prdAuth ? 2 : 1;
+    
+    const handleCheck = () => {
+      authCheckedCount++;
+      if (authCheckedCount >= checkCount) setAuthChecked(true);
+    };
+
+    const handleUser = (currentUser: User | null, env: 'dev' | 'prd') => {
+      handleCheck();
+      if (currentUser) {
+        setAuthEnv(env);
+        setUser(currentUser);
+      } else if (getAuthEnv() === env) {
+        setUser(null);
+      }
+    };
+    
+    const unsubDev = onAuthStateChanged(devAuth, (u) => handleUser(u, 'dev'));
+    const unsubPrd = prdAuth ? onAuthStateChanged(prdAuth, (u) => handleUser(u, 'prd')) : () => {};
+
+    return () => {
+      unsubDev();
+      unsubPrd();
+    };
   }, []);
-
-  
-
-
-  const handleUpdateBudget = async (budget: number) => {
-    if (!user) return;
-    try {
-      // Assuming there's an API for user profile
-      // await api.put(`/users/${user.uid}`, { monthlyBudget: budget });
-      setMonthlyBudget(budget);
-    } catch (error) {
-      console.error(error);
-    }
-  };
-
-  const handleSaveTransaction = async (transactionData: any, id?: string) => {
-    if (!user) return;
-    if (isGuest) {
-      showGlobalToast('Fitur ini dinonaktifkan untuk akun Tamu', 'error');
-      throw new Error('Fitur ini dinonaktifkan untuk akun Tamu');
-    }
-    try {
-      if (id) {
-        await api.put(`/transactions/${id}`, transactionData);
-      } else {
-        await api.post('/transactions', transactionData);
-      }
-      await refreshData();
-      queryClient.invalidateQueries({ queryKey: ['transactions'] });
-    } catch (error) {
-      console.error(error);
-    }
-  };
-
-  const handleDeleteTransaction = async (id: string) => {
-    if (!user) return;
-    if (isGuest) {
-      showGlobalToast('Fitur ini dinonaktifkan untuk akun Tamu', 'error');
-      return;
-    }
-    try {
-      await api.delete(`/transactions/${id}`);
-      await refreshData();
-      queryClient.invalidateQueries({ queryKey: ['transactions'] });
-    } catch (error) {
-      console.error(error);
-    }
-  };
-
-  const handleSaveMasterData = async (collectionName: string, data: any, id?: string): Promise<string | void> => {
-    if (!user) return;
-    if (isGuest) {
-      showGlobalToast('Fitur ini dinonaktifkan untuk akun Tamu', 'error');
-      throw new Error('Fitur ini dinonaktifkan untuk akun Tamu');
-    }
-    try {
-      if (id) {
-        await api.put(`/master/${collectionName}/${id}`, data);
-        await refreshData();
-        return id;
-      } else {
-        const res = await api.post(`/master/${collectionName}`, data);
-        await refreshData();
-        return res.data.id;
-      }
-    } catch (error) {
-      console.error(error);
-    }
-  };
-
-  const handleDeleteMasterData = async (collectionName: string, id: string) => {
-    if (!user) return;
-    if (isGuest) {
-      showGlobalToast('Fitur ini dinonaktifkan untuk akun Tamu', 'error');
-      throw new Error('Fitur ini dinonaktifkan untuk akun Tamu');
-    }
-    try {
-      await api.delete(`/master/${collectionName}/${id}`);
-      await refreshData();
-    } catch (error) {
-      console.error(error);
-      throw error;
-    }
-  };
-
-  const refreshData = async () => {
-
-    if (!user) return;
-    try {
-      const [
-        txRes,
-        periodsRes,
-        accountsRes,
-        assetsRes,
-        tagsRes,
-        contactsRes,
-        customCatRes,
-        budgetsRes,
-        globalBudgetsRes
-      ] = await Promise.all([
-        api.get('/transactions'),
-        api.get('/master/periods'),
-        api.get('/master/accounts'),
-        api.get('/master/assets'),
-        api.get('/master/tags'),
-        api.get('/master/contacts'),
-        api.get('/master/customCategories'),
-        api.get('/master/budgets'),
-        api.get('/master/globalBudgets')
-      ]);
-
-      setTransactions(txRes.data.map(d => ({...d, id: d.id.toString(), date: d.date || d.createdAt, accountId: d.accountId?.toString(), assetId: d.assetId?.toString(), tagId: d.tagId?.toString(), contactId: d.contactId?.toString(), periodId: d.periodId?.toString()})));
-      setPeriods(periodsRes.data.map(d => ({...d, id: d.id.toString()})));
-      setAccounts(accountsRes.data.map(d => ({...d, id: d.id.toString()})));
-      setAssets(assetsRes.data.map(d => ({...d, id: d.id.toString()})));
-      setTags(tagsRes.data.map(d => ({...d, id: d.id.toString()})));
-      setContacts(contactsRes.data.map(d => ({...d, id: d.id.toString()})));
-      setCustomCategories(customCatRes.data.map(d => ({...d, id: d.id.toString()})));
-      setBudgets(budgetsRes.data.map(d => ({...d, id: d.id.toString(), periodId: d.periodId?.toString(), globalBudgetId: d.globalBudgetId?.toString()})));
-      setGlobalBudgets(globalBudgetsRes.data.map(d => ({...d, id: d.id.toString(), periodId: d.periodId?.toString(), totalTargetAmount: Number(d.totalTargetAmount)})));
-      setLoadingData(false);
-    } catch (err) {
-      console.error("Failed to fetch data:", err);
-      setLoadingData(false);
-    }
-  };
-
-  // Monitor data using Axios
-  useEffect(() => {
-    if (!user) {
-      setTransactions([]);
-      setMonthlyBudget(0);
-      return;
-    }
-    setLoadingData(true);
-    refreshData();
-  }, [user]);
-
-  // Save Period
-  
-  const handleSavePeriod = async (name: string, id?: string) => {
-    if (!user) return;
-    if (isGuest) {
-      showGlobalToast('Fitur ini dinonaktifkan untuk akun Tamu', 'error');
-      throw new Error('Fitur ini dinonaktifkan untuk akun Tamu');
-    }
-    try {
-      const data = { name, startDate: new Date().toISOString(), endDate: new Date().toISOString() };
-      if (id) {
-        await api.put(`/master/periods/${id}`, data);
-      } else {
-        await api.post('/master/periods', data);
-      }
-      await refreshData();
-    } catch (error) {
-      console.error(error);
-    }
-  };
-
-  const handleDeletePeriod = async (id: string) => {
-    if (!user) return;
-    if (isGuest) {
-      showGlobalToast('Fitur ini dinonaktifkan untuk akun Tamu', 'error');
-      throw new Error('Fitur ini dinonaktifkan untuk akun Tamu');
-    }
-    try {
-      await api.delete(`/master/periods/${id}`);
-      await refreshData();
-    } catch (error) {
-      console.error(error);
-    }
-  };
-
-  const handleSaveBudgetAllocation = async (allocation: any, id?: string) => {
-    if (!user) return;
-    if (isGuest) {
-      showGlobalToast('Fitur ini dinonaktifkan untuk akun Tamu', 'error');
-      throw new Error('Fitur ini dinonaktifkan untuk akun Tamu');
-    }
-    try {
-      if (id) {
-        await api.put(`/master/budgets/${id}`, allocation);
-      } else {
-        await api.post('/master/budgets', allocation);
-      }
-      await refreshData();
-    } catch (error) {
-      console.error(error);
-      throw error;
-    }
-  };
-
-  const handleSaveGlobalBudget = async (globalBudget: any, id?: string) => {
-    if (!user) return;
-    if (isGuest) {
-      showGlobalToast('Fitur ini dinonaktifkan untuk akun Tamu', 'error');
-      throw new Error('Fitur ini dinonaktifkan untuk akun Tamu');
-    }
-    try {
-      if (id) {
-        await api.put(`/master/globalBudgets/${id}`, globalBudget);
-      } else {
-        await api.post('/master/globalBudgets', globalBudget);
-      }
-      await refreshData();
-    } catch (error) {
-      console.error(error);
-      throw error;
-    }
-  };
-
-  const handleDeleteBudgetAllocation = async (id: string) => {
-    if (!user) return;
-    if (isGuest) {
-      showGlobalToast('Fitur ini dinonaktifkan untuk akun Tamu', 'error');
-      return;
-    }
-    try {
-      await api.delete(`/master/budgets/${id}`);
-      await refreshData();
-    } catch (error) {
-      console.error(error);
-    }
-  };
-
 
   const handleLogout = async () => {
     try {
-      await signOut(auth);
+      const authToSignOut = getAuthEnv() === 'prd' && prdAuth ? prdAuth : devAuth;
+      await signOut(authToSignOut);
+      setUser(null);
     } catch (err) {
       console.error("Error signing out:", err);
     }

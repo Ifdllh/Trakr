@@ -1,0 +1,324 @@
+import { useState, useEffect, useMemo, useCallback } from 'react';
+import { useQueryClient } from '@tanstack/react-query';
+import { api } from '@/lib/api';
+import { masterDataService, transactionService } from '@/services/dbServices';
+import { 
+  MasterAccount, MasterAsset, MasterTag, MasterContact,
+  Transaction, BudgetAllocation, BudgetPeriod, GlobalBudget,
+  Category, PREDEFINED_CATEGORIES
+} from '@/types';
+import { User as FirebaseUser } from 'firebase/auth';
+
+export function useAppData(user: FirebaseUser | null, isGuest: boolean, showGlobalToast: (msg: string, type?: 'success' | 'error' | 'info') => void) {
+  const queryClient = useQueryClient();
+  
+  const [transactions, setTransactions] = useState<Transaction[]>([]);
+  const [budgets, setBudgets] = useState<BudgetAllocation[]>([]);
+  const [globalBudgets, setGlobalBudgets] = useState<GlobalBudget[]>([]);
+  const [periods, setPeriods] = useState<BudgetPeriod[]>([]);
+  const [accounts, setAccounts] = useState<MasterAccount[]>([]);
+  const [assets, setAssets] = useState<MasterAsset[]>([]);
+  const [tags, setTags] = useState<MasterTag[]>([]);
+  const [contacts, setContacts] = useState<MasterContact[]>([]);
+  const [customCategories, setCustomCategories] = useState<any[]>([]);
+  
+  const [monthlyBudget, setMonthlyBudget] = useState<number>(0);
+  const [loadingData, setLoadingData] = useState(false);
+  const [triggerAddMasterData, setTriggerAddMasterData] = useState(0);
+
+  const mergedCategories = useMemo(() => {
+    let base = JSON.parse(JSON.stringify(PREDEFINED_CATEGORIES)) as Category[];
+    
+    const softDeletedParentNames = new Set<string>();
+    customCategories.forEach(customCat => {
+      if (!customCat.parentCategory && customCat.isActive === false) {
+        softDeletedParentNames.add((customCat.name || '').toLowerCase() + "||" + customCat.type);
+      }
+    });
+
+    base = base.filter(c => !softDeletedParentNames.has((c.name || '').toLowerCase() + "||" + c.type));
+
+    customCategories.forEach(customCat => {
+      if (customCat.isActive === false) {
+        if (customCat.parentCategory) {
+          const parent = base.find(c => c.name === customCat.parentCategory && c.type === customCat.type);
+          if (parent) {
+            parent.subcategories = (parent.subcategories || []).filter(s => (s || '').toLowerCase() !== (customCat.name || '').toLowerCase());
+          }
+        }
+        return;
+      }
+
+      if (customCat.parentCategory) {
+        const parent = base.find(c => c.name === customCat.parentCategory && c.type === customCat.type);
+        if (parent) {
+          if (!(parent.subcategories || []).some(s => (s || '').toLowerCase() === (customCat.name || '').toLowerCase())) {
+            parent.subcategories.push(customCat.name);
+          }
+        }
+      } else {
+        const inactiveSubs = (customCat.inactiveSubcategories || []).map((s: string) => (s || '').toLowerCase());
+        const activeSubs = (customCat.subcategories || []).filter((s: string) => !inactiveSubs.includes((s || '').toLowerCase()));
+
+        const existingIdx = base.findIndex(c => (c.name || '').toLowerCase() === (customCat.name || '').toLowerCase() && c.type === customCat.type);
+        if (existingIdx !== -1) {
+          base[existingIdx] = {
+            ...base[existingIdx],
+            id: customCat.id || customCat.name,
+            iconName: customCat.iconName || base[existingIdx].iconName,
+            colorClass: customCat.colorClass || base[existingIdx].colorClass,
+            colorHex: customCat.colorHex || customCat.color_hex || base[existingIdx].colorHex,
+            subcategories: activeSubs.length > 0 ? activeSubs : base[existingIdx].subcategories
+          };
+        } else {
+          base.push({
+            id: customCat.id || customCat.name,
+            name: customCat.name,
+            type: customCat.type,
+            iconName: customCat.iconName || 'Folder',
+            colorClass: customCat.colorClass || 'text-indigo-600 bg-indigo-50 border-indigo-200',
+            colorHex: customCat.colorHex || customCat.color_hex,
+            subcategories: activeSubs,
+          });
+        }
+      }
+    });
+
+    return base;
+  }, [customCategories]);
+
+  const refreshData = useCallback(async () => {
+    if (!user) return;
+    try {
+      const [
+        txRes, periodsRes, accountsRes, assetsRes, tagsRes,
+        contactsRes, customCatRes, budgetsRes, globalBudgetsRes
+      ] = await Promise.all([
+        transactionService.get(),
+        masterDataService.get('periods'),
+        masterDataService.get('accounts'),
+        masterDataService.get('assets'),
+        masterDataService.get('tags'),
+        masterDataService.get('contacts'),
+        masterDataService.get('customCategories'),
+        masterDataService.get('budgets'),
+        masterDataService.get('globalBudgets')
+      ]);
+
+      setTransactions(txRes.map((d: any) => ({...d, id: d.id.toString(), date: d.date || d.createdAt, accountId: d.accountId?.toString(), assetId: d.assetId?.toString(), tagId: d.tagId?.toString(), contactId: d.contactId?.toString(), periodId: d.periodId?.toString()})));
+      setPeriods(periodsRes.map((d: any) => ({...d, id: d.id.toString()})));
+      setAccounts(accountsRes.map((d: any) => ({...d, id: d.id.toString()})));
+      setAssets(assetsRes.map((d: any) => ({...d, id: d.id.toString()})));
+      setTags(tagsRes.map((d: any) => ({...d, id: d.id.toString()})));
+      setContacts(contactsRes.map((d: any) => ({...d, id: d.id.toString()})));
+      setCustomCategories(customCatRes.map((d: any) => ({...d, id: d.id.toString()})));
+      setBudgets(budgetsRes.map((d: any) => ({...d, id: d.id.toString(), periodId: d.periodId?.toString(), globalBudgetId: d.globalBudgetId?.toString()})));
+      setGlobalBudgets(globalBudgetsRes.map((d: any) => ({...d, id: d.id.toString(), periodId: d.periodId?.toString(), totalTargetAmount: Number(d.totalTargetAmount)})));
+      setLoadingData(false);
+    } catch (err) {
+      console.error("Failed to fetch data:", err);
+      setLoadingData(false);
+    }
+  }, [user]);
+
+  useEffect(() => {
+    if (!user) {
+      setTransactions([]);
+      setMonthlyBudget(0);
+      return;
+    }
+    setLoadingData(true);
+    refreshData();
+  }, [user, refreshData]);
+
+  const handleUpdateBudget = async (budget: number) => {
+    if (!user) return;
+    try {
+      setMonthlyBudget(budget);
+    } catch (error) {
+      console.error(error);
+    }
+  };
+
+  const handleSaveTransaction = async (transactionData: any, id?: string) => {
+    if (!user) return;
+    if (isGuest) {
+      showGlobalToast('Fitur ini dinonaktifkan untuk akun Tamu', 'error');
+      throw new Error('Fitur ini dinonaktifkan untuk akun Tamu');
+    }
+    try {
+      if (id) {
+        await transactionService.save(transactionData, id);
+      } else {
+        await transactionService.save(transactionData);
+      }
+      await refreshData();
+      queryClient.invalidateQueries({ queryKey: ['transactions'] });
+    } catch (error) {
+      console.error(error);
+    }
+  };
+
+  const handleDeleteTransaction = async (id: string) => {
+    if (!user) return;
+    if (isGuest) {
+      showGlobalToast('Fitur ini dinonaktifkan untuk akun Tamu', 'error');
+      return;
+    }
+    try {
+      await transactionService.delete(id);
+      await refreshData();
+      queryClient.invalidateQueries({ queryKey: ['transactions'] });
+    } catch (error) {
+      console.error(error);
+    }
+  };
+
+  const handleSaveMasterData = async (collectionName: string, data: any, id?: string): Promise<string | void> => {
+    if (!user) return;
+    if (isGuest) {
+      showGlobalToast('Fitur ini dinonaktifkan untuk akun Tamu', 'error');
+      throw new Error('Fitur ini dinonaktifkan untuk akun Tamu');
+    }
+    try {
+      if (id) {
+        await masterDataService.save(collectionName, data, id);
+        await refreshData();
+        return id;
+      } else {
+        const res = await masterDataService.save(collectionName, data);
+        await refreshData();
+        return res.id;
+      }
+    } catch (error) {
+      console.error(error);
+    }
+  };
+
+  const handleDeleteMasterData = async (collectionName: string, id: string) => {
+    if (!user) return;
+    if (isGuest) {
+      showGlobalToast('Fitur ini dinonaktifkan untuk akun Tamu', 'error');
+      throw new Error('Fitur ini dinonaktifkan untuk akun Tamu');
+    }
+    try {
+      await masterDataService.delete(collectionName, id);
+      await refreshData();
+    } catch (error) {
+      console.error(error);
+      throw error;
+    }
+  };
+
+  const handleSavePeriod = async (name: string, id?: string) => {
+    if (!user) return;
+    if (isGuest) {
+      showGlobalToast('Fitur ini dinonaktifkan untuk akun Tamu', 'error');
+      throw new Error('Fitur ini dinonaktifkan untuk akun Tamu');
+    }
+    try {
+      const data = { name, startDate: new Date().toISOString(), endDate: new Date().toISOString() };
+      if (id) {
+        await masterDataService.save('periods', data, id);
+      } else {
+        await masterDataService.save('periods', data);
+      }
+      await refreshData();
+    } catch (error) {
+      console.error(error);
+    }
+  };
+
+  const handleDeletePeriod = async (id: string) => {
+    if (!user) return;
+    if (isGuest) {
+      showGlobalToast('Fitur ini dinonaktifkan untuk akun Tamu', 'error');
+      throw new Error('Fitur ini dinonaktifkan untuk akun Tamu');
+    }
+    try {
+      await masterDataService.delete('periods', id);
+      await refreshData();
+    } catch (error) {
+      console.error(error);
+    }
+  };
+
+  const handleSaveBudgetAllocation = async (allocation: any, id?: string) => {
+    if (!user) return;
+    if (isGuest) {
+      showGlobalToast('Fitur ini dinonaktifkan untuk akun Tamu', 'error');
+      throw new Error('Fitur ini dinonaktifkan untuk akun Tamu');
+    }
+    try {
+      if (id) {
+        await masterDataService.save('budgets', allocation, id);
+      } else {
+        await masterDataService.save('budgets', allocation);
+      }
+      await refreshData();
+    } catch (error) {
+      console.error(error);
+      throw error;
+    }
+  };
+
+  const handleSaveGlobalBudget = async (globalBudget: any, id?: string) => {
+    if (!user) return;
+    if (isGuest) {
+      showGlobalToast('Fitur ini dinonaktifkan untuk akun Tamu', 'error');
+      throw new Error('Fitur ini dinonaktifkan untuk akun Tamu');
+    }
+    try {
+      if (id) {
+        await masterDataService.save('globalBudgets', globalBudget, id);
+      } else {
+        await masterDataService.save('globalBudgets', globalBudget);
+      }
+      await refreshData();
+    } catch (error) {
+      console.error(error);
+      throw error;
+    }
+  };
+
+  const handleDeleteBudgetAllocation = async (id: string) => {
+    if (!user) return;
+    if (isGuest) {
+      showGlobalToast('Fitur ini dinonaktifkan untuk akun Tamu', 'error');
+      return;
+    }
+    try {
+      await masterDataService.delete('budgets', id);
+      await refreshData();
+    } catch (error) {
+      console.error(error);
+    }
+  };
+
+  return {
+    transactions,
+    budgets,
+    globalBudgets,
+    periods,
+    accounts,
+    assets,
+    tags,
+    contacts,
+    customCategories,
+    mergedCategories,
+    monthlyBudget,
+    loadingData,
+    triggerAddMasterData,
+    refreshData,
+    handleUpdateBudget,
+    handleSaveTransaction,
+    handleDeleteTransaction,
+    handleSaveMasterData,
+    handleDeleteMasterData,
+    handleSavePeriod,
+    handleDeletePeriod,
+    handleSaveBudgetAllocation,
+    handleSaveGlobalBudget,
+    handleDeleteBudgetAllocation
+  };
+}

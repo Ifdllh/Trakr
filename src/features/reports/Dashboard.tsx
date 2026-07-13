@@ -82,25 +82,51 @@ export default function Dashboard({
   const selectedMonth = dashboardDate.getMonth() + 1;
   const selectedYear = dashboardDate.getFullYear();
 
-  const { data: cashflowStatsData = [] } = useQuery({
-    queryKey: ['cashflowStats', selectedYear],
-    queryFn: async () => {
-      const { data } = await api.get('/reports/cashflow-stats', {
-        params: { year: selectedYear }
-      });
-      return data;
-    }
-  });
+  
+  // Calculate cashflow chart data locally
+  const cashflowStatsData = useMemo(() => {
+    const months = ['Jan', 'Feb', 'Mar', 'Apr', 'Mei', 'Jun', 'Jul', 'Ags', 'Sep', 'Okt', 'Nov', 'Des'];
+    const result = months.map(m => ({ month: m, income: 0, expense: 0 }));
+    
+    transactions.forEach(tx => {
+      if (!tx.date) return;
+      const date = new Date(tx.date);
+      if (date.getFullYear() === selectedYear) {
+        const monthIdx = date.getMonth();
+        if (String(tx.type) === 'Cr' || tx.type?.toLowerCase() === 'pemasukan') {
+          result[monthIdx].income += Number(tx.amount || 0);
+        } else if (String(tx.type) === 'Dr' || tx.type?.toLowerCase() === 'pengeluaran') {
+          result[monthIdx].expense += Number(tx.amount || 0);
+        }
+      }
+    });
+    return result;
+  }, [transactions, selectedYear]);
+  
 
-  const { data: rawExpenseDistribution = [] } = useQuery({
-    queryKey: ['expenseDistribution', selectedMonth, selectedYear],
-    queryFn: async () => {
-      const { data } = await api.get('/reports/expense-distribution', {
-        params: { month: selectedMonth, year: selectedYear }
-      });
-      return data;
-    }
-  });
+  
+  // Calculate expense distribution locally for the selected month and year
+  const rawExpenseDistribution = useMemo(() => {
+    const expTxs = transactions.filter(t => {
+      if (!t.date) return false;
+      const d = new Date(t.date);
+      return d.getMonth() + 1 === selectedMonth && d.getFullYear() === selectedYear && (String(t.type) === 'Dr' || t.type?.toLowerCase() === 'pengeluaran');
+    });
+    
+    const map: Record<string, number> = {};
+    expTxs.forEach(tx => {
+       const cat = tx.category || 'Lainnya';
+       map[cat] = (map[cat] || 0) + Number(tx.amount || 0);
+    });
+    
+    const distData = Object.keys(map).map(k => ({
+       category: k,
+       amount: map[k]
+    }));
+    
+    return distData.sort((a,b) => b.amount - a.amount);
+  }, [transactions, selectedMonth, selectedYear]);
+  
 
   const handlePrevMonth = () => {
     setDashboardDate(prev => subMonths(prev, 1));
@@ -126,7 +152,7 @@ export default function Dashboard({
     return globalBudgets.find((gb: any) => gb.periodId === activePeriodId.toString() || gb.periodId === Number(activePeriodId));
   }, [globalBudgets, activePeriodId]);
 
-  const monthlyBudget = activeGlobalBudget ? Number(activeGlobalBudget.totalTargetAmount) : (budgets[0]?.amount || 0);
+  const monthlyBudget = activeGlobalBudget ? Number((activeGlobalBudget as any).totalTargetAmount) : ((budgets[0] as any)?.amount || 0);
   const activeBudgetAllocations = useMemo(() => {
     if (!activePeriodId) return [];
     return budgetAllocations.filter((b: any) => b.periodId === activePeriodId.toString() || b.periodId === Number(activePeriodId));

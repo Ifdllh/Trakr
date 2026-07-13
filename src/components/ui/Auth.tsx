@@ -1,8 +1,9 @@
 import React, { useState } from 'react';
 import { 
-  signInWithPopup
+  signInWithPopup,
+  signInWithRedirect
 } from 'firebase/auth';
-import { auth, googleProvider } from '@/lib/firebase';
+import { devAuth, prdAuth, googleProvider, setAuthEnv } from '@/lib/firebase';
 import { motion } from 'motion/react';
 import { AlertCircle } from 'lucide-react';
 import BrandLogo from './BrandLogo';
@@ -14,32 +15,53 @@ interface AuthProps {
 export default function Auth({ onSuccess }: AuthProps) {
   const [error, setError] = useState<string | null>(null);
   const [restrictedError, setRestrictedError] = useState(false);
+  const [domainError, setDomainError] = useState(false);
   const [loading, setLoading] = useState(false);
 
-  const handleGoogleLogin = async () => {
+  const handleGoogleLogin = async (env: 'dev' | 'prd') => {
     setError(null);
     setRestrictedError(false);
+    setDomainError(false);
     setLoading(true);
+    
+    setAuthEnv(env);
+    const authToUse = env === 'prd' && prdAuth ? prdAuth : devAuth;
+
     try {
-      await signInWithPopup(auth, googleProvider);
+      await signInWithPopup(authToUse, googleProvider);
       onSuccess();
     } catch (err: any) {
+      if (err.code === 'auth/unauthorized-domain' || err.message?.includes('unauthorized-domain')) {
+        setDomainError(true);
+        setLoading(false);
+        return;
+      }
       if (err.code === 'auth/admin-restricted-operation' || err.message?.includes('admin-restricted-operation')) {
         setRestrictedError(true);
+        setLoading(false);
         return;
       }
       console.error(err);
       if (err.code === 'auth/popup-blocked') {
-        setError('Popup masuk diblokir oleh browser Anda. Mohon izinkan popup untuk situs ini.');
-      } else if (err.code === 'auth/closed-by-user') {
+        setError('Popup diblokir, mengalihkan halaman...');
+        try {
+          await signInWithRedirect(authToUse, googleProvider);
+        } catch (redirectErr) {
+          console.error(redirectErr);
+          setError('Gagal mengalihkan halaman masuk.');
+          setLoading(false);
+        }
+      } else if (err.code === 'auth/closed-by-user' || err.code === 'auth/popup-closed-by-user') {
         setError('Masuk dengan Google dibatalkan.');
+        setLoading(false);
       } else {
-        setError('Gagal masuk menggunakan Google.');
+        setError(`Gagal masuk menggunakan Google (${env.toUpperCase()}).`);
+        setLoading(false);
       }
-    } finally {
-      setLoading(false);
     }
   };
+
+  const hasPrdConfig = !!import.meta.env.VITE_PRD_FIREBASE_PROJECT_ID;
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-slate-50/50 px-4 py-12 sm:px-6 lg:px-8 font-sans">
@@ -57,7 +79,30 @@ export default function Auth({ onSuccess }: AuthProps) {
           layout
           className="bg-white py-8 px-6 shadow-xl border border-gray-100 rounded-2xl"
         >
-          {restrictedError ? (
+          
+          {domainError ? (
+            <div className="mb-6 bg-amber-50 border border-amber-200 p-4 rounded-xl flex flex-col gap-2 shadow-xs">
+              <div className="flex items-start gap-2.5">
+                <AlertCircle className="text-amber-600 shrink-0 mt-0.5" size={18} />
+                <div>
+                  <h3 className="text-xs font-bold text-amber-900">Domain Belum Diizinkan</h3>
+                  <p className="text-[11px] text-amber-700 mt-1 leading-relaxed">
+                    Sistem Firebase memblokir login dari domain ini karena belum didaftarkan.
+                  </p>
+                </div>
+              </div>
+              <div className="bg-white/60 p-3 rounded-lg border border-amber-100/50 mt-1 text-[11px] text-slate-700 leading-relaxed space-y-1">
+                <p className="font-semibold text-slate-850">Cara Mengaktifkan di Firebase Console:</p>
+                <ol className="list-decimal pl-4 space-y-1 text-slate-600">
+                  <li>Buka <a href="https://console.firebase.google.com" target="_blank" rel="noopener noreferrer" className="text-indigo-600 hover:underline font-semibold">Firebase Console</a>.</li>
+                  <li>Masuk ke menu <strong className="text-slate-800">Authentication</strong> &gt; <strong className="text-slate-800">Settings</strong>.</li>
+                  <li>Di bawah tab <strong className="text-slate-800">Authorized domains</strong>, klik <strong className="text-indigo-600">Add domain</strong>.</li>
+                  <li>Masukkan domain saat ini: <strong className="text-slate-800">{window.location.hostname}</strong></li>
+                </ol>
+              </div>
+            </div>
+          ) : restrictedError ? (
+
             <div className="mb-6 bg-amber-50 border border-amber-200 p-4 rounded-xl flex flex-col gap-2 shadow-xs">
               <div className="flex items-start gap-2.5">
                 <AlertCircle className="text-amber-600 shrink-0 mt-0.5" size={18} />
@@ -86,30 +131,78 @@ export default function Auth({ onSuccess }: AuthProps) {
             </div>
           )}
 
-          <div className="flex flex-col items-center justify-center space-y-6">
-            <button
-              type="button"
-              onClick={handleGoogleLogin}
-              disabled={loading}
-              className="w-full flex items-center justify-center gap-3 py-3 px-4 border border-gray-200 hover:bg-gray-50 rounded-xl text-sm font-bold text-gray-700 transition-all disabled:opacity-50 cursor-pointer shadow-sm hover:shadow-md"
-            >
-              {loading ? (
-                <div className="h-5 w-5 border-2 border-indigo-600 border-t-transparent rounded-full animate-spin"></div>
-              ) : (
-                <>
-                  <svg className="h-5 w-5 shrink-0" viewBox="0 0 24 24" width="24" height="24" xmlns="http://www.w3.org/2000/svg">
-                    <g transform="matrix(1, 0, 0, 1, 0, 0)">
-                      <path d="M21.35,11.1H12v2.7h5.38c-0.24,1.28 -0.96,2.37 -2.04,3.1v2.57h3.3c1.93,-1.78 3.04,-4.4 3.04,-7.47c0,-0.32 -0.03,-0.61 -0.07,-0.9z" fill="#4285F4" />
-                      <path d="M12,20.7c2.43,0 4.47,-0.8 5.96,-2.18l-3.3,-2.57c-0.91,0.61 -2.08,0.98 -3.32,0.98 -2.34,0 -4.33,-1.58 -5.03,-3.7H1.37v2.66c1.49,2.96 4.54,4.81 8.01,4.81z" fill="#34A853" />
-                      <path d="M6.97,13.23a5.55,5.55 0 0 1 0,-3.46V7.11H1.37a9.23,9.23 0 0 0 0,8.78l5.6,-2.66z" fill="#FBBC05" />
-                      <path d="M12,6.13c1.32,0 2.51,0.45 3.44,1.35l2.58,-2.58C16.46,3.48 14.42,2.7 12,2.7c-3.47,0 -6.52,1.85 -8.01,4.81l5.6,2.66c0.7,-2.12 2.69,-3.7 5.03,-3.7z" fill="#EA4335" />
-                    </g>
-                  </svg>
-                  Masuk dengan Google
-                </>
-              )}
-            </button>
-            <p className="text-xs text-slate-400 text-center leading-relaxed">
+          <div className="flex flex-col gap-3">
+            {hasPrdConfig ? (
+              <>
+                <div className="text-center mb-1">
+                  <span className="text-xs font-medium text-slate-400">Pilih mode masuk:</span>
+                </div>
+                
+                <button
+                  type="button"
+                  onClick={() => handleGoogleLogin('dev')}
+                  disabled={loading}
+                  className="w-full flex items-center justify-center gap-3 py-3 px-4 border border-slate-200 bg-white hover:bg-slate-50 hover:border-slate-300 rounded-xl text-sm font-semibold text-slate-700 transition-all disabled:opacity-50 cursor-pointer shadow-xs"
+                >
+                  {loading ? (
+                    <div className="h-5 w-5 border-2 border-slate-600 border-t-transparent rounded-full animate-spin"></div>
+                  ) : (
+                    <>
+                      <svg className="h-5 w-5 shrink-0" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                        <path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" fill="#4285F4"/>
+                        <path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="#34A853"/>
+                        <path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.06H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.94l2.85-2.22.81-.63z" fill="#FBBC05"/>
+                        <path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.06l3.66 2.84c.87-2.6 3.3-4.52 6.16-4.52z" fill="#EA4335"/>
+                      </svg>
+                      Google (Dev)
+                    </>
+                  )}
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => handleGoogleLogin('prd')}
+                  disabled={loading}
+                  className="w-full flex items-center justify-center gap-3 py-3 px-4 border border-indigo-100 bg-indigo-50/50 hover:bg-indigo-50 hover:border-indigo-200 rounded-xl text-sm font-semibold text-indigo-700 transition-all disabled:opacity-50 cursor-pointer shadow-xs"
+                >
+                  {loading ? (
+                    <div className="h-5 w-5 border-2 border-indigo-600 border-t-transparent rounded-full animate-spin"></div>
+                  ) : (
+                    <>
+                      <svg className="h-5 w-5 shrink-0" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                        <path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" fill="#4285F4"/>
+                        <path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="#34A853"/>
+                        <path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.06H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.94l2.85-2.22.81-.63z" fill="#FBBC05"/>
+                        <path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.06l3.66 2.84c.87-2.6 3.3-4.52 6.16-4.52z" fill="#EA4335"/>
+                      </svg>
+                      Google (PRD)
+                    </>
+                  )}
+                </button>
+              </>
+            ) : (
+              <button
+                type="button"
+                onClick={() => handleGoogleLogin('dev')}
+                disabled={loading}
+                className="w-full flex items-center justify-center gap-3 py-3 px-4 border border-slate-200 bg-white hover:bg-slate-50 hover:border-slate-300 rounded-xl text-sm font-bold text-slate-800 transition-all disabled:opacity-50 cursor-pointer shadow-xs hover:shadow-sm"
+              >
+                {loading ? (
+                  <div className="h-5 w-5 border-2 border-indigo-600 border-t-transparent rounded-full animate-spin"></div>
+                ) : (
+                  <>
+                    <svg className="h-5 w-5 shrink-0" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                      <path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" fill="#4285F4"/>
+                      <path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="#34A853"/>
+                      <path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.06H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.94l2.85-2.22.81-.63z" fill="#FBBC05"/>
+                      <path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.06l3.66 2.84c.87-2.6 3.3-4.52 6.16-4.52z" fill="#EA4335"/>
+                    </svg>
+                    Masuk dengan Google
+                  </>
+                )}
+              </button>
+            )}
+            <p className="text-xs text-slate-400 text-center leading-relaxed mt-2">
               Dengan masuk, Anda menyetujui Ketentuan Layanan dan Kebijakan Privasi Trakr.
             </p>
           </div>
