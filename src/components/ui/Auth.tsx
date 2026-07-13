@@ -1,9 +1,10 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { 
   signInWithPopup,
-  signInWithRedirect
+  signInWithRedirect,
+  getRedirectResult
 } from 'firebase/auth';
-import { devAuth, prdAuth, googleProvider, setAuthEnv } from '@/lib/firebase';
+import { devAuth, prdAuth, googleProvider, setAuthEnv, getAuthEnv } from '@/lib/firebase';
 import { motion } from 'motion/react';
 import { AlertCircle } from 'lucide-react';
 import BrandLogo from './BrandLogo';
@@ -17,6 +18,27 @@ export default function Auth({ onSuccess }: AuthProps) {
   const [restrictedError, setRestrictedError] = useState(false);
   const [domainError, setDomainError] = useState(false);
   const [loading, setLoading] = useState(false);
+
+  useEffect(() => {
+    const checkRedirect = async () => {
+      try {
+        const env = getAuthEnv();
+        const authToUse = env === 'prd' && prdAuth ? prdAuth : devAuth;
+        const result = await getRedirectResult(authToUse);
+        if (result) {
+          onSuccess();
+        }
+      } catch (err: any) {
+        console.error("Redirect error", err);
+        if (err.code === 'auth/unauthorized-domain' || err.message?.includes('unauthorized-domain')) {
+          setDomainError(true);
+        } else {
+          setError(`Gagal masuk: ${err.message || 'Error tidak diketahui'}`);
+        }
+      }
+    };
+    checkRedirect();
+  }, [onSuccess]);
 
   const handleGoogleLogin = async (env: 'dev' | 'prd') => {
     setError(null);
@@ -46,9 +68,13 @@ export default function Auth({ onSuccess }: AuthProps) {
         setError('Popup diblokir, mengalihkan halaman...');
         try {
           await signInWithRedirect(authToUse, googleProvider);
-        } catch (redirectErr) {
+        } catch (redirectErr: any) {
           console.error(redirectErr);
-          setError('Gagal mengalihkan halaman masuk.');
+          if (redirectErr.code === 'auth/unauthorized-domain' || redirectErr.message?.includes('unauthorized-domain')) {
+            setDomainError(true);
+          } else {
+            setError(`Gagal mengalihkan halaman masuk: ${redirectErr.message || 'Error tidak diketahui'}`);
+          }
           setLoading(false);
         }
       } else if (err.code === 'auth/closed-by-user' || err.code === 'auth/popup-closed-by-user') {
