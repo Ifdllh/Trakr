@@ -78,13 +78,9 @@ if (prdApp) {
 }
 export const prdDb = _prdDb;
 
-export const db = new Proxy({} as Firestore, {
-  get(target, prop, receiver) {
-    const activeDb = getAuthEnv() === 'prd' && prdDb ? prdDb : devDb;
-    const value = Reflect.get(activeDb, prop, receiver);
-    return typeof value === 'function' ? value.bind(activeDb) : value;
-  }
-});
+export function getActiveDb(): Firestore {
+  return getAuthEnv() === 'prd' && prdDb ? prdDb : devDb;
+}
 
 
 export enum OperationType {

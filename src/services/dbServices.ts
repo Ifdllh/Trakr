@@ -1,5 +1,5 @@
 import { collection, query, where, getDocs, doc, setDoc, addDoc, updateDoc, deleteDoc, getDoc } from 'firebase/firestore';
-import { db, getActiveAuth } from '@/lib/firebase';
+import { getActiveDb, getActiveAuth } from '@/lib/firebase';
 
 const getUserId = () => {
   const user = getActiveAuth().currentUser;
@@ -10,7 +10,7 @@ const getUserId = () => {
 export const masterDataService = {
   async get(collectionName: string) {
     const userId = getUserId();
-    const q = query(collection(db, collectionName), where('userId', '==', userId));
+    const q = query(collection(getActiveDb(), collectionName), where('userId', '==', userId));
     const snapshot = await getDocs(q);
     return snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
   },
@@ -20,18 +20,18 @@ export const masterDataService = {
     const payload = { ...data, userId, updatedAt: new Date().toISOString() };
     
     if (id) {
-      const docRef = doc(db, collectionName, id);
+      const docRef = doc(getActiveDb(), collectionName, id);
       await updateDoc(docRef, payload);
       return { id, ...payload };
     } else {
       payload.createdAt = new Date().toISOString();
-      const docRef = await addDoc(collection(db, collectionName), payload);
+      const docRef = await addDoc(collection(getActiveDb(), collectionName), payload);
       return { id: docRef.id, ...payload };
     }
   },
   
   async delete(collectionName: string, id: string) {
-    const docRef = doc(db, collectionName, id);
+    const docRef = doc(getActiveDb(), collectionName, id);
     await deleteDoc(docRef);
     return { success: true };
   }
@@ -40,7 +40,7 @@ export const masterDataService = {
 export const transactionService = {
   async get(filters?: any) {
     const userId = getUserId();
-    let q = query(collection(db, 'transactions'), where('userId', '==', userId));
+    let q = query(collection(getActiveDb(), 'transactions'), where('userId', '==', userId));
     // Could add more filters if needed by frontend
     const snapshot = await getDocs(q);
     return snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
@@ -51,18 +51,18 @@ export const transactionService = {
     const payload = { ...data, userId, updatedAt: new Date().toISOString() };
     
     if (id) {
-      const docRef = doc(db, 'transactions', id);
+      const docRef = doc(getActiveDb(), 'transactions', id);
       await updateDoc(docRef, payload);
       return { id, ...payload };
     } else {
       payload.createdAt = new Date().toISOString();
-      const docRef = await addDoc(collection(db, 'transactions'), payload);
+      const docRef = await addDoc(collection(getActiveDb(), 'transactions'), payload);
       return { id: docRef.id, ...payload };
     }
   },
   
   async delete(id: string) {
-    const docRef = doc(db, 'transactions', id);
+    const docRef = doc(getActiveDb(), 'transactions', id);
     await deleteDoc(docRef);
     return { success: true };
   }
