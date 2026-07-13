@@ -74,7 +74,14 @@ const GOLD_CACHE_DURATION = 6 * 60 * 60 * 1000;
 
 const app = express();
 const PORT = 3000;
-const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
+// AI initialization will be done lazily inside the route
+let ai: GoogleGenAI | null = null;
+const getAI = () => {
+  if (!ai && process.env.GEMINI_API_KEY) {
+    ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
+  }
+  return ai;
+};
 
 app.use(express.json());
 
@@ -252,11 +259,16 @@ app.use(express.json());
 Budgets: ${JSON.stringify(budgets)}
 Current Spending: ${JSON.stringify(currentSpendingData)}`;
       
-      const response = await ai.models.generateContent({
+      const aiInstance = getAI();
+      if (!aiInstance) {
+        return res.status(500).json({ error: "Gemini API key is not configured." });
+      }
+      
+      const response = await aiInstance.models.generateContent({
         model: "gemini-3.1-pro-preview",
         contents: [{ role: 'user', parts: [{ text: message }] }],
         config: {
-          systemInstruction: `You are AURA_CORE. User input: ${message}
+          systemInstruction: `You are Asisten Trakr. User input: ${message}
 CONTEXT:${masterDataContext}. You must return UI Markdown and ---JSON_DATA--- with a transaction object if a transaction should be logged.`
         }
       });

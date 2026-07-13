@@ -12,7 +12,7 @@ export default function FloatingActionButtons({ onAddTransaction, onOpenChat }: 
       <button
         onClick={onOpenChat}
         className="h-14 w-14 bg-slate-900 hover:bg-slate-800 text-cyan-400 rounded-full flex items-center justify-center shadow-lg shadow-slate-900/20 transition-all duration-300 hover:scale-110 active:scale-95 cursor-pointer relative group"
-        title="Tanya AURA_CORE"
+        title="Tanya Asisten Trakr"
       >
         <Bot size={28} />
         <span className="absolute -top-1 -right-1 flex h-3 w-3">

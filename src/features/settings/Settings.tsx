@@ -65,7 +65,7 @@ export default function Settings({ user, setActiveTab }: SettingsProps) {
 
           {/* Quick info card in sidebar */}
           <div className="bg-slate-50 p-4 border border-slate-200/60 rounded-xl" id="settings-info-card">
-            <h4 className="text-xs font-bold text-slate-700">AURA_CORE v1.2.0</h4>
+            <h4 className="text-xs font-bold text-slate-700">Asisten Trakr v1.2.0</h4>
             <p className="text-[11px] text-slate-500 mt-1 leading-relaxed">
               Sistem manajemen keuangan personal terintegrasi dengan enkripsi tingkat militer dan analitik cerdas.
             </p>

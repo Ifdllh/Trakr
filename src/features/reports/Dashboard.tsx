@@ -1252,7 +1252,7 @@ export default function Dashboard({
         </div>
       )}
 
-      {/* MODAL 4: KONSULTASI AI */}
+      {/* MODAL 4: KONSULTASI */}
       {showChatModal && (
         <div className="fixed inset-0 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4 z-50">
           <div className="bg-white rounded-3xl max-w-md w-full p-6 shadow-2xl relative border border-gray-100 animate-in fade-in zoom-in-95 duration-150">
@@ -1263,7 +1263,7 @@ export default function Dashboard({
                 </div>
                 <div>
                   <h4 className="text-base font-extrabold text-slate-950">Asisten Finansial Trakr</h4>
-                  <p className="text-[10px] text-gray-400">Konsultasikan strategi keuangan dengan AI Pintar</p>
+                  <p className="text-[10px] text-gray-400">Konsultasikan strategi keuangan dengan Asisten Trakr</p>
                 </div>
               </div>
               <button 
@@ -1276,7 +1276,7 @@ export default function Dashboard({
 
             <div className="space-y-4 my-6 text-xs text-gray-600 leading-relaxed">
               <div className="bg-indigo-50 text-indigo-950 p-4 rounded-2xl">
-                <strong>Halo, {displayUserName}!</strong> Saya adalah AI Asisten Trakr. Berdasarkan pola pengeluaran Anda bulan ini, berikut adalah anjuran taktis:
+                <strong>Halo, {displayUserName}!</strong> Saya adalah Asisten Trakr. Berdasarkan pola pengeluaran Anda bulan ini, berikut adalah anjuran taktis:
                 <ul className="list-disc pl-4 mt-2 space-y-1">
                   <li>Pertahankan tingkat konsumsi makanan harian Anda yang hemat.</li>
                   <li>Amati pengeluaran akhir pekan pada kategori Hiburan.</li>
@@ -1291,7 +1291,7 @@ export default function Dashboard({
                   className="flex-1 px-3.5 py-2.5 border border-gray-200 rounded-xl text-xs outline-none focus:ring-2 focus:ring-indigo-500 font-medium"
                 />
                 <button 
-                  onClick={() => alert("Asisten AI Trakr akan segera menjawab!")}
+                  onClick={() => alert("Asisten Trakr akan segera menjawab!")}
                   className="px-4 bg-indigo-600 text-white font-bold rounded-xl text-xs hover:bg-indigo-700 transition-colors cursor-pointer"
                 >
                   Kirim

@@ -16,7 +16,7 @@ interface Message {
 
 export default function AuraChat({ onClose, onRefreshData }: AuraChatProps) {
   const [messages, setMessages] = useState<Message[]>([
-    { role: 'assistant', content: "Halo! Saya AURA_CORE, asisten keuangan cerdas Anda. Ketikkan transaksi Anda (misal: 'Makan McD 50rb') atau tanyakan status budget Anda." }
+    { role: 'assistant', content: "Halo! Saya Asisten Trakr, asisten keuangan cerdas Anda. Ketikkan transaksi Anda (misal: 'Makan McD 50rb') atau tanyakan status budget Anda." }
   ]);
   const [input, setInput] = useState('');
   const [isLoading, setIsLoading] = useState(false);
@@ -52,7 +52,7 @@ export default function AuraChat({ onClose, onRefreshData }: AuraChatProps) {
       
     } catch (error) {
       console.error("AI Chat error:", error);
-      setMessages(prev => [...prev, { role: 'assistant', content: "Maaf, sistem AURA_CORE sedang mengalami gangguan." }]);
+      setMessages(prev => [...prev, { role: 'assistant', content: "Maaf, sistem Asisten Trakr sedang mengalami gangguan." }]);
     } finally {
       setIsLoading(false);
     }
@@ -67,7 +67,7 @@ export default function AuraChat({ onClose, onRefreshData }: AuraChatProps) {
             <Bot size={20} className="text-cyan-400" />
           </div>
           <div>
-            <h3 className="font-bold text-sm tracking-wide text-cyan-50">AURA_CORE</h3>
+            <h3 className="font-bold text-sm tracking-wide text-cyan-50">Asisten Trakr</h3>
             <p className="text-[10px] text-cyan-400/80 font-mono">FINANCIAL OS v2.0</p>
           </div>
         </div>
@@ -112,7 +112,7 @@ export default function AuraChat({ onClose, onRefreshData }: AuraChatProps) {
           >
             <div className="bg-white border border-gray-100 rounded-2xl rounded-bl-none px-4 py-3 shadow-sm flex items-center gap-2 text-xs text-gray-500 font-mono">
               <Loader2 size={14} className="animate-spin text-cyan-600" />
-              <span>AURA_CORE IS THINKING...</span>
+              <span>Asisten Trakr IS THINKING...</span>
             </div>
           </motion.div>
         )}
@@ -126,7 +126,7 @@ export default function AuraChat({ onClose, onRefreshData }: AuraChatProps) {
             type="text"
             value={input}
             onChange={(e) => setInput(e.target.value)}
-            placeholder="Log transaksi atau tanya AURA..."
+            placeholder="Log transaksi atau tanya Asisten..."
             className="w-full pl-4 pr-12 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-cyan-500/20 focus:border-cyan-500 transition-all placeholder:text-gray-400 text-slate-800"
           />
           <button
