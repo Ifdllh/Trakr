@@ -158,6 +158,16 @@ export default function Auth({ onSuccess }: AuthProps) {
           )}
 
           <div className="flex flex-col gap-3">
+            {!hasPrdConfig && import.meta.env.PROD && (
+              <div className="mb-4 bg-blue-50 border border-blue-200 p-4 rounded-xl text-xs text-blue-800 leading-relaxed shadow-sm">
+                <p className="font-bold mb-1">Catatan Deployment Vercel:</p>
+                <p>Aplikasi ini belum dikonfigurasi dengan Firebase Production Anda. Saat ini menggunakan database Sandbox/Dev default.</p>
+                <p className="mt-2">
+                  Untuk menggunakan database Production, tambahkan semua variabel <strong>VITE_PRD_FIREBASE_*</strong> (seperti <code className="bg-blue-100 px-1 py-0.5 rounded">VITE_PRD_FIREBASE_PROJECT_ID</code>) di menu <strong>Settings &gt; Environment Variables</strong> pada dashboard Vercel Anda, lalu lakukan <strong>Redeploy</strong>.
+                </p>
+              </div>
+            )}
+
             {hasPrdConfig ? (
               <>
                 <div className="text-center mb-1">
