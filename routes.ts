@@ -1,8 +1,5 @@
 import { AuthRequest, requireAuth } from "./src/middleware/auth.js";
-import { db } from "./src/db/index.js";
-import * as schema from "./src/db/schema.js";
-import { eq, and } from "drizzle-orm";
-
+import { getFirestoreDb } from "./src/lib/firebase-admin.js";
 
 const parseInteger = (val: any) => {
   if (val === null || val === undefined || val === '') return null;
@@ -35,25 +32,25 @@ const cleanPayload = (payload: any) => {
   return result;
 };
 
-const getTable = (collectionName: string) => {
-  const map: Record<string, any> = {
-    'customCategories': schema.masterCategories,
-    'customAccounts': schema.masterAccounts,
-    'accounts': schema.masterAccounts,
-    'customContacts': schema.masterContacts,
-    'contacts': schema.masterContacts,
-    'customTags': schema.masterTags,
-    'tags': schema.masterTags,
-    'customPeriods': schema.masterPeriods,
-    'periods': schema.masterPeriods,
-    'customAssets': schema.masterAssets,
-    'assets': schema.masterAssets,
-    'budgetAllocations': schema.budgetAllocations,
-    'budgets': schema.budgetAllocations,
-    'transactions': schema.transactions,
-    'globalBudgets': schema.globalBudgets
+const getCollectionName = (collectionName: string) => {
+  const map: Record<string, string> = {
+    'customCategories': 'customCategories',
+    'customAccounts': 'customAccounts',
+    'accounts': 'customAccounts',
+    'customContacts': 'customContacts',
+    'contacts': 'customContacts',
+    'customTags': 'customTags',
+    'tags': 'customTags',
+    'customPeriods': 'customPeriods',
+    'periods': 'customPeriods',
+    'customAssets': 'customAssets',
+    'assets': 'customAssets',
+    'budgetAllocations': 'budgetAllocations',
+    'budgets': 'budgetAllocations',
+    'transactions': 'transactions',
+    'globalBudgets': 'globalBudgets'
   };
-  return map[collectionName];
+  return map[collectionName] || collectionName;
 };
 
 export function setupApiRoutes(app: any) {
@@ -61,14 +58,11 @@ export function setupApiRoutes(app: any) {
   app.get("/api/masterdata/:collection", requireAuth, async (req: AuthRequest, res: any, next: any) => {
     try {
       const userId = req.userId!;
-      const collectionName = req.params.collection;
-      const table = getTable(collectionName);
+      const collectionName = getCollectionName(req.params.collection);
       
-      if (!table) {
-        return res.status(404).json({ error: "Collection not found" });
-      }
-
-      const docs = await db.select().from(table).where(eq(table.userId, userId));
+      const firestore = getFirestoreDb(req.authEnv || 'dev');
+      const snapshot = await firestore.collection('users').doc(userId).collection(collectionName).get();
+      const docs = snapshot.docs.map(doc => doc.data());
       res.json(docs);
     } catch (e) {
       next(e);
@@ -79,17 +73,15 @@ export function setupApiRoutes(app: any) {
   app.post("/api/masterdata/:collection", requireAuth, async (req: AuthRequest, res: any, next: any) => {
     try {
       const userId = req.userId!;
-      const collectionName = req.params.collection;
-      const table = getTable(collectionName);
+      const collectionName = getCollectionName(req.params.collection);
       
-      if (!table) {
-        return res.status(404).json({ error: "Collection not found" });
-      }
-
-      const payload = { ...cleanPayload(req.body), userId };
-
-      const result = await db.insert(table).values(payload).returning();
-      res.json(result[0]);
+      const payload = cleanPayload(req.body);
+      const id = Date.now() + Math.floor(Math.random() * 1000);
+      const docData = { ...payload, id, userId, createdAt: new Date().toISOString() };
+      
+      const firestore = getFirestoreDb(req.authEnv || 'dev');
+      await firestore.collection('users').doc(userId).collection(collectionName).doc(String(id)).set(docData);
+      res.json(docData);
     } catch (e) {
       next(e);
     }
@@ -99,24 +91,24 @@ export function setupApiRoutes(app: any) {
   app.put("/api/masterdata/:collection/:id", requireAuth, async (req: AuthRequest, res: any, next: any) => {
     try {
       const userId = req.userId!;
-      const collectionName = req.params.collection;
+      const collectionName = getCollectionName(req.params.collection);
       const id = parseInt(req.params.id, 10);
       if (isNaN(id)) return res.status(400).json({ error: 'Invalid ID format' });
-      const table = getTable(collectionName);
       
-      if (!table) {
-        return res.status(404).json({ error: "Collection not found" });
-      }
-
       const payload = cleanPayload(req.body);
       delete payload.userId;
-
-      const result = await db.update(table)
-        .set(payload)
-        .where(and(eq(table.id, id), eq(table.userId, userId)))
-        .returning();
-        
-      res.json(result[0]);
+      
+      const firestore = getFirestoreDb(req.authEnv || 'dev');
+      const docRef = firestore.collection('users').doc(userId).collection(collectionName).doc(String(id));
+      const docSnapshot = await docRef.get();
+      if (!docSnapshot.exists) {
+        return res.status(404).json({ error: "Document not found" });
+      }
+      
+      const currentData = docSnapshot.data() || {};
+      const updatedData = { ...currentData, ...payload, updatedAt: new Date().toISOString() };
+      await docRef.set(updatedData);
+      res.json(updatedData);
     } catch (e) {
       next(e);
     }
@@ -126,16 +118,12 @@ export function setupApiRoutes(app: any) {
   app.delete("/api/masterdata/:collection/:id", requireAuth, async (req: AuthRequest, res: any, next: any) => {
     try {
       const userId = req.userId!;
-      const collectionName = req.params.collection;
+      const collectionName = getCollectionName(req.params.collection);
       const id = parseInt(req.params.id, 10);
       if (isNaN(id)) return res.status(400).json({ error: 'Invalid ID format' });
-      const table = getTable(collectionName);
       
-      if (!table) {
-        return res.status(404).json({ error: "Collection not found" });
-      }
-
-      await db.delete(table).where(and(eq(table.id, id), eq(table.userId, userId)));
+      const firestore = getFirestoreDb(req.authEnv || 'dev');
+      await firestore.collection('users').doc(userId).collection(collectionName).doc(String(id)).delete();
       res.json({ success: true });
     } catch (e) {
       next(e);
@@ -146,7 +134,9 @@ export function setupApiRoutes(app: any) {
   app.get("/api/transactions", requireAuth, async (req: AuthRequest, res: any, next: any) => {
     try {
       const userId = req.userId!;
-      const docs = await db.select().from(schema.transactions).where(eq(schema.transactions.userId, userId));
+      const firestore = getFirestoreDb(req.authEnv || 'dev');
+      const snapshot = await firestore.collection('users').doc(userId).collection('transactions').get();
+      const docs = snapshot.docs.map(doc => doc.data());
       res.json(docs);
     } catch (e) {
       next(e);
@@ -157,18 +147,24 @@ export function setupApiRoutes(app: any) {
   app.post("/api/transactions", requireAuth, async (req: AuthRequest, res: any, next: any) => {
     try {
       const userId = req.userId!;
+      const firestore = getFirestoreDb(req.authEnv || 'dev');
       
       if (Array.isArray(req.body)) {
-        const payloads = req.body.map(item => {
-          const payload = { ...cleanPayload(item), userId };
-          return payload;
-        });
-        const results = await db.insert(schema.transactions).values(payloads).returning();
+        const results = [];
+        for (const item of req.body) {
+          const payload = cleanPayload(item);
+          const id = Date.now() + Math.floor(Math.random() * 1000);
+          const docData = { ...payload, id, userId, createdAt: new Date().toISOString() };
+          await firestore.collection('users').doc(userId).collection('transactions').doc(String(id)).set(docData);
+          results.push(docData);
+        }
         res.json(results);
       } else {
-        const payload = { ...cleanPayload(req.body), userId };
-        const result = await db.insert(schema.transactions).values(payload).returning();
-        res.json(result[0]);
+        const payload = cleanPayload(req.body);
+        const id = Date.now() + Math.floor(Math.random() * 1000);
+        const docData = { ...payload, id, userId, createdAt: new Date().toISOString() };
+        await firestore.collection('users').doc(userId).collection('transactions').doc(String(id)).set(docData);
+        res.json(docData);
       }
     } catch (e) {
       next(e);
@@ -184,12 +180,18 @@ export function setupApiRoutes(app: any) {
       
       const payload = cleanPayload(req.body);
       delete payload.userId;
-
-      const result = await db.update(schema.transactions)
-        .set(payload)
-        .where(and(eq(schema.transactions.id, id), eq(schema.transactions.userId, userId)))
-        .returning();
-      res.json(result[0]);
+      
+      const firestore = getFirestoreDb(req.authEnv || 'dev');
+      const docRef = firestore.collection('users').doc(userId).collection('transactions').doc(String(id));
+      const docSnapshot = await docRef.get();
+      if (!docSnapshot.exists) {
+        return res.status(404).json({ error: "Transaction not found" });
+      }
+      
+      const currentData = docSnapshot.data() || {};
+      const updatedData = { ...currentData, ...payload, updatedAt: new Date().toISOString() };
+      await docRef.set(updatedData);
+      res.json(updatedData);
     } catch (e) {
       next(e);
     }
@@ -202,8 +204,8 @@ export function setupApiRoutes(app: any) {
       const id = parseInt(req.params.id, 10);
       if (isNaN(id)) return res.status(400).json({ error: 'Invalid ID format' });
       
-      await db.delete(schema.transactions)
-        .where(and(eq(schema.transactions.id, id), eq(schema.transactions.userId, userId)));
+      const firestore = getFirestoreDb(req.authEnv || 'dev');
+      await firestore.collection('users').doc(userId).collection('transactions').doc(String(id)).delete();
       res.json({ success: true });
     } catch (e) {
       next(e);

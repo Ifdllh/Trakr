@@ -10,7 +10,7 @@ export const createPool = () => {
       ssl: {
         rejectUnauthorized: false,
       },
-      connectionTimeoutMillis: 15000,
+      connectionTimeoutMillis: 3000,
     });
   }
   return new Pool({
@@ -18,7 +18,7 @@ export const createPool = () => {
     user: process.env.SQL_USER,
     password: process.env.SQL_PASSWORD,
     database: process.env.SQL_DB_NAME,
-    connectionTimeoutMillis: 15000,
+    connectionTimeoutMillis: 3000,
   });
 };
 

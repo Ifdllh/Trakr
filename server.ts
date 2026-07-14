@@ -1,6 +1,4 @@
-import { db as sqlDb } from "./src/db/index.js";
-import * as schema from "./src/db/schema.js";
-import { eq, and } from "drizzle-orm";
+import { getFirestoreDb } from "./src/lib/firebase-admin.js";
 import express from "express";
 import axios from "axios";
 import path from "path";
@@ -228,13 +226,18 @@ app.post("/api/transactions/upload", requireAuth, (req: AuthRequest, res, next) 
     try {
       const { message } = req.body;
       const userId = req.userId!;
+      const firestore = getFirestoreDb(req.authEnv || 'dev');
       
-      // Fetch data from Cloud SQL
-      const [categories, periods, budgets] = await Promise.all([
-        sqlDb.select().from(schema.masterCategories).where(eq(schema.masterCategories.userId, userId)),
-        sqlDb.select().from(schema.masterPeriods).where(eq(schema.masterPeriods.userId, userId)),
-        sqlDb.select().from(schema.globalBudgets).where(eq(schema.globalBudgets.userId, userId))
+      // Fetch data from Firestore
+      const [categoriesSnap, periodsSnap, budgetsSnap] = await Promise.all([
+        firestore.collection('users').doc(userId).collection('customCategories').get(),
+        firestore.collection('users').doc(userId).collection('customPeriods').get(),
+        firestore.collection('users').doc(userId).collection('globalBudgets').get()
       ]);
+      
+      const categories = categoriesSnap.docs.map(doc => doc.data());
+      const periods = periodsSnap.docs.map(doc => doc.data());
+      const budgets = budgetsSnap.docs.map(doc => doc.data());
       
       const txDate = new Date();
       const matchedPeriod = periods.find((p: any) => {
@@ -246,9 +249,13 @@ app.post("/api/transactions/upload", requireAuth, (req: AuthRequest, res, next) 
       
       let currentSpendingData: any = {};
       if (matchedPeriod) {
-        const transactions = await sqlDb.select()
-          .from(schema.transactions)
-          .where(and(eq(schema.transactions.userId, userId), eq(schema.transactions.periodId, matchedPeriod.id)));
+        const txSnap = await firestore.collection('users')
+          .doc(userId)
+          .collection('transactions')
+          .where('periodId', '==', Number(matchedPeriod.id))
+          .get();
+          
+        const transactions = txSnap.docs.map(doc => doc.data());
           
         transactions.forEach((tx: any) => {
           if (tx.type !== 'Dr' && tx.type !== 'pengeluaran') return;
@@ -268,7 +275,7 @@ app.post("/api/transactions/upload", requireAuth, (req: AuthRequest, res, next) 
       }
       
       const response = await aiInstance.models.generateContent({
-        model: "gemini-3.1-pro-preview",
+        model: "gemini-2.5-flash",
         contents: [{ role: 'user', parts: [{ text: message }] }],
         config: {
           systemInstruction: `You are Asisten Trakr. User input: ${message}\nCONTEXT:${masterDataContext}. You must return UI Markdown and ---JSON_DATA--- with a transaction object if a transaction should be logged.`
@@ -286,7 +293,9 @@ app.post("/api/transactions/upload", requireAuth, (req: AuthRequest, res, next) 
           jsonData = jsonMatch ? JSON.parse(jsonMatch[0]) : JSON.parse(parts[1].trim());
           if (jsonData?.transaction) {
              const txData = jsonData.transaction;
-             await sqlDb.insert(schema.transactions).values({
+             const id = Date.now() + Math.floor(Math.random() * 1000);
+             const docData = {
+               id,
                userId,
                type: txData.type || 'Dr',
                amount: (isNaN(Number(txData.amount)) ? 0 : Number(txData.amount)) || 0,
@@ -294,8 +303,10 @@ app.post("/api/transactions/upload", requireAuth, (req: AuthRequest, res, next) 
                subcategory: txData.subcategory || '',
                description: txData.description || '',
                date: txDate.toISOString(),
-               periodId: matchedPeriod ? matchedPeriod.id : null,
-             });
+               periodId: matchedPeriod ? Number(matchedPeriod.id) : null,
+               createdAt: new Date().toISOString()
+             };
+             await firestore.collection('users').doc(userId).collection('transactions').doc(String(id)).set(docData);
           }
         } catch(e) {}
       }

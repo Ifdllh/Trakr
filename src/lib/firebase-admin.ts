@@ -1,5 +1,6 @@
 import { initializeApp, getApps } from 'firebase-admin/app';
 import { getAuth } from 'firebase-admin/auth';
+import { getFirestore } from 'firebase-admin/firestore';
 import { readFileSync } from 'fs';
 import { join } from 'path';
 import * as dotenv from 'dotenv';
@@ -45,3 +46,13 @@ if (prdProjectId && !getApps().find(app => app.name === 'prd')) {
 
 export const adminAuthDev = getAuth(devApp);
 export const adminAuthPrd = prdApp ? getAuth(prdApp) : null;
+
+export const firestoreDev = getFirestore(devApp);
+export const firestorePrd = prdApp ? getFirestore(prdApp) : null;
+
+export function getFirestoreDb(authEnv: 'dev' | 'prd') {
+  if (authEnv === 'prd' && firestorePrd) {
+    return firestorePrd;
+  }
+  return firestoreDev;
+}

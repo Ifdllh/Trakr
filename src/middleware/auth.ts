@@ -1,10 +1,9 @@
 import { Request, Response, NextFunction } from "express";
 import { adminAuthDev, adminAuthPrd } from "../lib/firebase-admin.js";
-import { getOrCreateUser } from "../db/users.js";
 
 export interface AuthRequest extends Request {
   user?: any;
-  userId?: number;
+  userId?: string;
   authEnv?: 'dev' | 'prd';
 }
 
@@ -28,20 +27,15 @@ export const requireAuth = async (req: AuthRequest, res: Response, next: NextFun
 
     // Check if user is a guest (anonymous or has guest email)
     const isGuest = decodedToken.firebase?.sign_in_provider === 'anonymous' || decodedToken.email?.includes('guest');
-    
-    // Get or create user in Cloud SQL
-    let email = decodedToken.email || 'guest@example.com';
-    let uid = decodedToken.uid;
-    const sqlUser = await getOrCreateUser(uid, email);
 
     req.user = {
       ...decodedToken,
       isGuest,
       uid: decodedToken.uid,
     };
-    req.userId = sqlUser.id;
+    req.userId = decodedToken.uid;
 
-    if (isGuest) {
+    if (req.user.isGuest) {
       // Enforce guest read-only sandbox restrictions for write requests
       if (req.method !== "GET") {
         return res.status(403).json({ error: "Fitur ini dinonaktifkan untuk akun Tamu" });
@@ -50,7 +44,6 @@ export const requireAuth = async (req: AuthRequest, res: Response, next: NextFun
 
     next();
   } catch (error) {
-
     return res.status(403).json({ error: "Unauthorized: Invalid token" });
   }
 };
