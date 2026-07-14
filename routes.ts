@@ -1,5 +1,8 @@
 import { AuthRequest, requireAuth } from "./src/middleware/auth.js";
-import { getFirestoreDb } from "./src/lib/firebase-admin.js";
+import { db } from "./src/db/index.ts";
+import * as schema from "./src/db/schema.ts";
+import { eq, and } from "drizzle-orm";
+import { getOrCreateUser } from "./src/db/users.ts";
 
 const parseInteger = (val: any) => {
   if (val === null || val === undefined || val === '') return null;
@@ -32,37 +35,38 @@ const cleanPayload = (payload: any) => {
   return result;
 };
 
-const getCollectionName = (collectionName: string) => {
-  const map: Record<string, string> = {
-    'customCategories': 'customCategories',
-    'customAccounts': 'customAccounts',
-    'accounts': 'customAccounts',
-    'customContacts': 'customContacts',
-    'contacts': 'customContacts',
-    'customTags': 'customTags',
-    'tags': 'customTags',
-    'customPeriods': 'customPeriods',
-    'periods': 'customPeriods',
-    'customAssets': 'customAssets',
-    'assets': 'customAssets',
-    'budgetAllocations': 'budgetAllocations',
-    'budgets': 'budgetAllocations',
-    'transactions': 'transactions',
-    'globalBudgets': 'globalBudgets'
+const getTable = (collectionName: string) => {
+  const map: Record<string, any> = {
+    'customCategories': schema.masterCategories,
+    'customAccounts': schema.masterAccounts,
+    'accounts': schema.masterAccounts,
+    'customContacts': schema.masterContacts,
+    'contacts': schema.masterContacts,
+    'customTags': schema.masterTags,
+    'tags': schema.masterTags,
+    'customPeriods': schema.masterPeriods,
+    'periods': schema.masterPeriods,
+    'customAssets': schema.masterAssets,
+    'assets': schema.masterAssets,
+    'budgetAllocations': schema.budgetAllocations,
+    'budgets': schema.budgetAllocations,
+    'transactions': schema.transactions,
+    'globalBudgets': schema.globalBudgets
   };
-  return map[collectionName] || collectionName;
+  return map[collectionName];
 };
 
 export function setupApiRoutes(app: any) {
   // GET masterdata
   app.get("/api/masterdata/:collection", requireAuth, async (req: AuthRequest, res: any, next: any) => {
     try {
-      const userId = req.userId!;
-      const collectionName = getCollectionName(req.params.collection);
+      const table = getTable(req.params.collection);
+      if (!table) return res.status(400).json({ error: 'Invalid collection name' });
       
-      const firestore = getFirestoreDb(req.authEnv || 'dev');
-      const snapshot = await firestore.collection('users').doc(userId).collection(collectionName).get();
-      const docs = snapshot.docs.map(doc => doc.data());
+      const dbUser = await getOrCreateUser(req.user.uid, req.user.email || '');
+      const userId = dbUser.id;
+      
+      const docs = await db.select().from(table).where(eq(table.userId, userId));
       res.json(docs);
     } catch (e) {
       next(e);
@@ -72,16 +76,17 @@ export function setupApiRoutes(app: any) {
   // POST masterdata
   app.post("/api/masterdata/:collection", requireAuth, async (req: AuthRequest, res: any, next: any) => {
     try {
-      const userId = req.userId!;
-      const collectionName = getCollectionName(req.params.collection);
+      const table = getTable(req.params.collection);
+      if (!table) return res.status(400).json({ error: 'Invalid collection name' });
+      
+      const dbUser = await getOrCreateUser(req.user.uid, req.user.email || '');
+      const userId = dbUser.id;
       
       const payload = cleanPayload(req.body);
-      const id = Date.now() + Math.floor(Math.random() * 1000);
-      const docData = { ...payload, id, userId, createdAt: new Date().toISOString() };
+      const docData = { ...payload, userId };
       
-      const firestore = getFirestoreDb(req.authEnv || 'dev');
-      await firestore.collection('users').doc(userId).collection(collectionName).doc(String(id)).set(docData);
-      res.json(docData);
+      const inserted = await db.insert(table).values(docData).returning();
+      res.json(inserted[0]);
     } catch (e) {
       next(e);
     }
@@ -90,25 +95,27 @@ export function setupApiRoutes(app: any) {
   // PUT masterdata
   app.put("/api/masterdata/:collection/:id", requireAuth, async (req: AuthRequest, res: any, next: any) => {
     try {
-      const userId = req.userId!;
-      const collectionName = getCollectionName(req.params.collection);
+      const table = getTable(req.params.collection);
+      if (!table) return res.status(400).json({ error: 'Invalid collection name' });
+      
+      const dbUser = await getOrCreateUser(req.user.uid, req.user.email || '');
+      const userId = dbUser.id;
+      
       const id = parseInt(req.params.id, 10);
       if (isNaN(id)) return res.status(400).json({ error: 'Invalid ID format' });
       
       const payload = cleanPayload(req.body);
       delete payload.userId;
       
-      const firestore = getFirestoreDb(req.authEnv || 'dev');
-      const docRef = firestore.collection('users').doc(userId).collection(collectionName).doc(String(id));
-      const docSnapshot = await docRef.get();
-      if (!docSnapshot.exists) {
+      const updated = await db.update(table)
+        .set(payload)
+        .where(and(eq(table.id, id), eq(table.userId, userId)))
+        .returning();
+      
+      if (updated.length === 0) {
         return res.status(404).json({ error: "Document not found" });
       }
-      
-      const currentData = docSnapshot.data() || {};
-      const updatedData = { ...currentData, ...payload, updatedAt: new Date().toISOString() };
-      await docRef.set(updatedData);
-      res.json(updatedData);
+      res.json(updated[0]);
     } catch (e) {
       next(e);
     }
@@ -117,13 +124,16 @@ export function setupApiRoutes(app: any) {
   // DELETE masterdata
   app.delete("/api/masterdata/:collection/:id", requireAuth, async (req: AuthRequest, res: any, next: any) => {
     try {
-      const userId = req.userId!;
-      const collectionName = getCollectionName(req.params.collection);
+      const table = getTable(req.params.collection);
+      if (!table) return res.status(400).json({ error: 'Invalid collection name' });
+      
+      const dbUser = await getOrCreateUser(req.user.uid, req.user.email || '');
+      const userId = dbUser.id;
+      
       const id = parseInt(req.params.id, 10);
       if (isNaN(id)) return res.status(400).json({ error: 'Invalid ID format' });
       
-      const firestore = getFirestoreDb(req.authEnv || 'dev');
-      await firestore.collection('users').doc(userId).collection(collectionName).doc(String(id)).delete();
+      await db.delete(table).where(and(eq(table.id, id), eq(table.userId, userId)));
       res.json({ success: true });
     } catch (e) {
       next(e);
@@ -133,10 +143,10 @@ export function setupApiRoutes(app: any) {
   // GET transactions
   app.get("/api/transactions", requireAuth, async (req: AuthRequest, res: any, next: any) => {
     try {
-      const userId = req.userId!;
-      const firestore = getFirestoreDb(req.authEnv || 'dev');
-      const snapshot = await firestore.collection('users').doc(userId).collection('transactions').get();
-      const docs = snapshot.docs.map(doc => doc.data());
+      const dbUser = await getOrCreateUser(req.user.uid, req.user.email || '');
+      const userId = dbUser.id;
+      
+      const docs = await db.select().from(schema.transactions).where(eq(schema.transactions.userId, userId));
       res.json(docs);
     } catch (e) {
       next(e);
@@ -146,25 +156,21 @@ export function setupApiRoutes(app: any) {
   // POST transactions
   app.post("/api/transactions", requireAuth, async (req: AuthRequest, res: any, next: any) => {
     try {
-      const userId = req.userId!;
-      const firestore = getFirestoreDb(req.authEnv || 'dev');
+      const dbUser = await getOrCreateUser(req.user.uid, req.user.email || '');
+      const userId = dbUser.id;
       
       if (Array.isArray(req.body)) {
         const results = [];
         for (const item of req.body) {
           const payload = cleanPayload(item);
-          const id = Date.now() + Math.floor(Math.random() * 1000);
-          const docData = { ...payload, id, userId, createdAt: new Date().toISOString() };
-          await firestore.collection('users').doc(userId).collection('transactions').doc(String(id)).set(docData);
-          results.push(docData);
+          const inserted = await db.insert(schema.transactions).values({ ...payload, userId }).returning();
+          results.push(inserted[0]);
         }
         res.json(results);
       } else {
         const payload = cleanPayload(req.body);
-        const id = Date.now() + Math.floor(Math.random() * 1000);
-        const docData = { ...payload, id, userId, createdAt: new Date().toISOString() };
-        await firestore.collection('users').doc(userId).collection('transactions').doc(String(id)).set(docData);
-        res.json(docData);
+        const inserted = await db.insert(schema.transactions).values({ ...payload, userId }).returning();
+        res.json(inserted[0]);
       }
     } catch (e) {
       next(e);
@@ -174,24 +180,24 @@ export function setupApiRoutes(app: any) {
   // PUT transactions
   app.put("/api/transactions/:id", requireAuth, async (req: AuthRequest, res: any, next: any) => {
     try {
-      const userId = req.userId!;
+      const dbUser = await getOrCreateUser(req.user.uid, req.user.email || '');
+      const userId = dbUser.id;
+      
       const id = parseInt(req.params.id, 10);
       if (isNaN(id)) return res.status(400).json({ error: 'Invalid ID format' });
       
       const payload = cleanPayload(req.body);
       delete payload.userId;
       
-      const firestore = getFirestoreDb(req.authEnv || 'dev');
-      const docRef = firestore.collection('users').doc(userId).collection('transactions').doc(String(id));
-      const docSnapshot = await docRef.get();
-      if (!docSnapshot.exists) {
+      const updated = await db.update(schema.transactions)
+        .set(payload)
+        .where(and(eq(schema.transactions.id, id), eq(schema.transactions.userId, userId)))
+        .returning();
+        
+      if (updated.length === 0) {
         return res.status(404).json({ error: "Transaction not found" });
       }
-      
-      const currentData = docSnapshot.data() || {};
-      const updatedData = { ...currentData, ...payload, updatedAt: new Date().toISOString() };
-      await docRef.set(updatedData);
-      res.json(updatedData);
+      res.json(updated[0]);
     } catch (e) {
       next(e);
     }
@@ -200,12 +206,13 @@ export function setupApiRoutes(app: any) {
   // DELETE transactions
   app.delete("/api/transactions/:id", requireAuth, async (req: AuthRequest, res: any, next: any) => {
     try {
-      const userId = req.userId!;
+      const dbUser = await getOrCreateUser(req.user.uid, req.user.email || '');
+      const userId = dbUser.id;
+      
       const id = parseInt(req.params.id, 10);
       if (isNaN(id)) return res.status(400).json({ error: 'Invalid ID format' });
       
-      const firestore = getFirestoreDb(req.authEnv || 'dev');
-      await firestore.collection('users').doc(userId).collection('transactions').doc(String(id)).delete();
+      await db.delete(schema.transactions).where(and(eq(schema.transactions.id, id), eq(schema.transactions.userId, userId)));
       res.json({ success: true });
     } catch (e) {
       next(e);

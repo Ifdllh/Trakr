@@ -104,18 +104,56 @@ export function useAppData(user: FirebaseUser | null, isGuest: boolean, showGlob
         masterDataService.get('globalBudgets')
       ]);
 
-      setTransactions((Array.isArray(txRes) ? txRes : []).map((d: any) => ({...d, id: d.id.toString(), date: d.date || d.createdAt, accountId: d.accountId?.toString(), assetId: d.assetId?.toString(), tagId: d.tagId?.toString(), contactId: d.contactId?.toString(), periodId: d.periodId?.toString()})));
-      setPeriods((Array.isArray(periodsRes) ? periodsRes : []).map((d: any) => ({...d, id: d.id.toString()})));
-      setAccounts((Array.isArray(accountsRes) ? accountsRes : []).map((d: any) => ({...d, id: d.id.toString()})));
-      setAssets((Array.isArray(assetsRes) ? assetsRes : []).map((d: any) => ({...d, id: d.id.toString()})));
-      setTags((Array.isArray(tagsRes) ? tagsRes : []).map((d: any) => ({...d, id: d.id.toString()})));
-      setContacts((Array.isArray(contactsRes) ? contactsRes : []).map((d: any) => ({...d, id: d.id.toString()})));
-      setCustomCategories((Array.isArray(customCatRes) ? customCatRes : []).map((d: any) => ({...d, id: d.id.toString()})));
-      setBudgets((Array.isArray(budgetsRes) ? budgetsRes : []).map((d: any) => ({...d, id: d.id.toString(), periodId: d.periodId?.toString(), globalBudgetId: d.globalBudgetId?.toString()})));
-      setGlobalBudgets((Array.isArray(globalBudgetsRes) ? globalBudgetsRes : []).map((d: any) => ({...d, id: d.id.toString(), periodId: d.periodId?.toString(), totalTargetAmount: Number(d.totalTargetAmount)})));
+      setTransactions((Array.isArray(txRes) ? txRes : []).map((d: any) => ({
+        ...d,
+        id: d.id ? d.id.toString() : String(Math.random()),
+        date: d.date || d.createdAt,
+        accountId: d.accountId?.toString(),
+        assetId: d.assetId?.toString(),
+        tagId: d.tagId?.toString(),
+        contactId: d.contactId?.toString(),
+        periodId: d.periodId?.toString()
+      })));
+      setPeriods((Array.isArray(periodsRes) ? periodsRes : []).map((d: any) => ({
+        ...d,
+        id: d.id ? d.id.toString() : String(Math.random())
+      })));
+      setAccounts((Array.isArray(accountsRes) ? accountsRes : []).map((d: any) => ({
+        ...d,
+        id: d.id ? d.id.toString() : String(Math.random())
+      })));
+      setAssets((Array.isArray(assetsRes) ? assetsRes : []).map((d: any) => ({
+        ...d,
+        id: d.id ? d.id.toString() : String(Math.random())
+      })));
+      setTags((Array.isArray(tagsRes) ? tagsRes : []).map((d: any) => ({
+        ...d,
+        id: d.id ? d.id.toString() : String(Math.random())
+      })));
+      setContacts((Array.isArray(contactsRes) ? contactsRes : []).map((d: any) => ({
+        ...d,
+        id: d.id ? d.id.toString() : String(Math.random())
+      })));
+      setCustomCategories((Array.isArray(customCatRes) ? customCatRes : []).map((d: any) => ({
+        ...d,
+        id: d.id ? d.id.toString() : String(Math.random())
+      })));
+      setBudgets((Array.isArray(budgetsRes) ? budgetsRes : []).map((d: any) => ({
+        ...d,
+        id: d.id ? d.id.toString() : String(Math.random()),
+        periodId: d.periodId?.toString(),
+        globalBudgetId: d.globalBudgetId?.toString()
+      })));
+      setGlobalBudgets((Array.isArray(globalBudgetsRes) ? globalBudgetsRes : []).map((d: any) => ({
+        ...d,
+        id: d.id ? d.id.toString() : String(Math.random()),
+        periodId: d.periodId?.toString(),
+        totalTargetAmount: Number(d.totalTargetAmount)
+      })));
       setLoadingData(false);
-    } catch (err) {
-
+    } catch (err: any) {
+      console.error('refreshData error:', err);
+      showGlobalToast(err?.message || 'Gagal menyinkronkan data dari server', 'error');
       setLoadingData(false);
     }
   }, [user]);
@@ -186,19 +224,21 @@ export function useAppData(user: FirebaseUser | null, isGuest: boolean, showGlob
       throw new Error('Fitur ini dinonaktifkan untuk akun Tamu');
     }
     try {
+      let resultId = id;
       if (id) {
         await masterDataService.save(collectionName, data, id);
-        await refreshData();
-        return id;
       } else {
         const res = await masterDataService.save(collectionName, data);
-        await refreshData();
-        return res.id;
+        resultId = res.id;
       }
-    } catch (error) {
-
+      await refreshData();
+      queryClient.invalidateQueries({ queryKey: ['masterData'] });
+      queryClient.invalidateQueries({ queryKey: ['budgets'] });
+      return resultId;
+    } catch (error: any) {
       const msg = error.response?.data?.error || error.message || 'Terjadi kesalahan';
       showGlobalToast(msg, 'error');
+      throw error;
     }
   };
 
@@ -211,8 +251,9 @@ export function useAppData(user: FirebaseUser | null, isGuest: boolean, showGlob
     try {
       await masterDataService.delete(collectionName, id);
       await refreshData();
+      queryClient.invalidateQueries({ queryKey: ['masterData'] });
+      queryClient.invalidateQueries({ queryKey: ['budgets'] });
     } catch (error) {
-
       const msg = error.response?.data?.error || error.message || 'Terjadi kesalahan';
       showGlobalToast(msg, 'error');
       throw error;
@@ -233,10 +274,12 @@ export function useAppData(user: FirebaseUser | null, isGuest: boolean, showGlob
         await masterDataService.save('periods', data);
       }
       await refreshData();
-    } catch (error) {
-
+      queryClient.invalidateQueries({ queryKey: ['masterData'] });
+      queryClient.invalidateQueries({ queryKey: ['budgets'] });
+    } catch (error: any) {
       const msg = error.response?.data?.error || error.message || 'Terjadi kesalahan';
       showGlobalToast(msg, 'error');
+      throw error;
     }
   };
 
@@ -249,8 +292,9 @@ export function useAppData(user: FirebaseUser | null, isGuest: boolean, showGlob
     try {
       await masterDataService.delete('periods', id);
       await refreshData();
+      queryClient.invalidateQueries({ queryKey: ['masterData'] });
+      queryClient.invalidateQueries({ queryKey: ['budgets'] });
     } catch (error) {
-
       const msg = error.response?.data?.error || error.message || 'Terjadi kesalahan';
       showGlobalToast(msg, 'error');
     }
@@ -269,8 +313,9 @@ export function useAppData(user: FirebaseUser | null, isGuest: boolean, showGlob
         await masterDataService.save('budgets', allocation);
       }
       await refreshData();
+      queryClient.invalidateQueries({ queryKey: ['masterData'] });
+      queryClient.invalidateQueries({ queryKey: ['budgets'] });
     } catch (error) {
-
       const msg = error.response?.data?.error || error.message || 'Terjadi kesalahan';
       showGlobalToast(msg, 'error');
       throw error;
@@ -290,8 +335,9 @@ export function useAppData(user: FirebaseUser | null, isGuest: boolean, showGlob
         await masterDataService.save('globalBudgets', globalBudget);
       }
       await refreshData();
+      queryClient.invalidateQueries({ queryKey: ['masterData'] });
+      queryClient.invalidateQueries({ queryKey: ['budgets'] });
     } catch (error) {
-
       const msg = error.response?.data?.error || error.message || 'Terjadi kesalahan';
       showGlobalToast(msg, 'error');
       throw error;
@@ -307,8 +353,9 @@ export function useAppData(user: FirebaseUser | null, isGuest: boolean, showGlob
     try {
       await masterDataService.delete('budgets', id);
       await refreshData();
+      queryClient.invalidateQueries({ queryKey: ['masterData'] });
+      queryClient.invalidateQueries({ queryKey: ['budgets'] });
     } catch (error) {
-
       const msg = error.response?.data?.error || error.message || 'Terjadi kesalahan';
       showGlobalToast(msg, 'error');
     }

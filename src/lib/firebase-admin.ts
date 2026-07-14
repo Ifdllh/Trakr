@@ -25,19 +25,23 @@ if (!projectId) {
 }
 
 function getFirebaseCredential(env: 'dev' | 'prd') {
-  // Check for JSON string
   const envVarName = env === 'prd' ? 'FIREBASE_SERVICE_ACCOUNT_PRD' : 'FIREBASE_SERVICE_ACCOUNT_DEV';
   const fallbackEnvVarName = 'FIREBASE_SERVICE_ACCOUNT';
   const saString = process.env[envVarName] || process.env[fallbackEnvVarName];
 
+  console.log(`[Firebase Admin - ${env}] Resolving credentials. Key source: ${process.env[envVarName] ? envVarName : (process.env[fallbackEnvVarName] ? fallbackEnvVarName : 'None')}`);
+
   if (saString) {
     let cleanSaString = saString.trim();
+    console.log(`[Firebase Admin - ${env}] Found Service Account string of length ${cleanSaString.length}. Starts with: "${cleanSaString.substring(0, 10)}..."`);
+    
     // Strip surrounding quotes if present
     if (cleanSaString.startsWith('"') && cleanSaString.endsWith('"')) {
       cleanSaString = cleanSaString.slice(1, -1);
-    }
-    if (cleanSaString.startsWith("'") && cleanSaString.endsWith("'")) {
+      console.log(`[Firebase Admin - ${env}] Stripped surrounding double quotes.`);
+    } else if (cleanSaString.startsWith("'") && cleanSaString.endsWith("'")) {
       cleanSaString = cleanSaString.slice(1, -1);
+      console.log(`[Firebase Admin - ${env}] Stripped surrounding single quotes.`);
     }
     
     try {
@@ -46,9 +50,10 @@ function getFirebaseCredential(env: 'dev' | 'prd') {
         // Ensure private key has actual newlines
         serviceAccount.private_key = serviceAccount.private_key.replace(/\\n/g, '\n');
       }
+      console.log(`[Firebase Admin - ${env}] Successfully parsed JSON service account for project: ${serviceAccount.project_id}`);
       return cert(serviceAccount);
     } catch (e: any) {
-      console.error(`Failed to parse ${envVarName} JSON. Falling back:`, e.message);
+      console.error(`[Firebase Admin - ${env}] Failed to parse JSON string. Error: ${e.message}`);
     }
   }
 
@@ -62,6 +67,8 @@ function getFirebaseCredential(env: 'dev' | 'prd') {
   const projId = env === 'prd'
     ? (process.env.VITE_PRD_FIREBASE_PROJECT_ID || process.env.VITE_FIREBASE_PROJECT_ID || projectId)
     : (process.env.VITE_FIREBASE_PROJECT_ID || projectId);
+
+  console.log(`[Firebase Admin - ${env}] Checking individual env vars. PrivateKey: ${privateKey ? 'Found' : 'Missing'}, ClientEmail: ${clientEmail ? 'Found' : 'Missing'}, ProjectId: ${projId}`);
 
   if (privateKey && clientEmail && projId) {
     // Clean private key
@@ -92,6 +99,7 @@ function getFirebaseCredential(env: 'dev' | 'prd') {
       clientEmail = clientEmail.slice(1, -1);
     }
 
+    console.log(`[Firebase Admin - ${env}] Created credential using individual environment variables for project: ${projId}`);
     return cert({
       projectId: projId,
       clientEmail: clientEmail,
@@ -99,6 +107,7 @@ function getFirebaseCredential(env: 'dev' | 'prd') {
     });
   }
 
+  console.warn(`[Firebase Admin - ${env}] No custom credentials found. Falling back to Application Default Credentials.`);
   // Fallback to Application Default Credentials (ADC) in AI Studio
   return undefined;
 }

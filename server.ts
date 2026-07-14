@@ -1,9 +1,13 @@
 import { getFirestoreDb } from "./src/lib/firebase-admin.js";
+import { db as sqlDb } from "./src/db/index.ts";
+import * as schema from "./src/db/schema.ts";
+import { eq, and } from "drizzle-orm";
+import { getOrCreateUser } from "./src/db/users.ts";
 import express from "express";
 import axios from "axios";
 import path from "path";
 import { GoogleGenAI } from "@google/genai";
-import { requireAuth, AuthRequest } from "./src/middleware/auth";
+import { requireAuth, AuthRequest } from "./src/middleware/auth.js";
 import { v2 as cloudinary } from "cloudinary";
 import { CloudinaryStorage } from "multer-storage-cloudinary";
 import multer from "multer";
@@ -225,19 +229,18 @@ app.post("/api/transactions/upload", requireAuth, (req: AuthRequest, res, next) 
   app.post("/api/ai/chat", requireAuth, async (req: AuthRequest, res) => {
     try {
       const { message } = req.body;
-      const userId = req.userId!;
-      const firestore = getFirestoreDb(req.authEnv || 'dev');
+      const firebaseUid = req.userId!;
       
-      // Fetch data from Firestore
-      const [categoriesSnap, periodsSnap, budgetsSnap] = await Promise.all([
-        firestore.collection('users').doc(userId).collection('customCategories').get(),
-        firestore.collection('users').doc(userId).collection('customPeriods').get(),
-        firestore.collection('users').doc(userId).collection('globalBudgets').get()
+      // Resolve database user
+      const dbUser = await getOrCreateUser(firebaseUid, req.user?.email || '');
+      const userId = dbUser.id;
+      
+      // Fetch data from Cloud SQL
+      const [categories, periods, budgets] = await Promise.all([
+        sqlDb.select().from(schema.masterCategories).where(eq(schema.masterCategories.userId, userId)),
+        sqlDb.select().from(schema.masterPeriods).where(eq(schema.masterPeriods.userId, userId)),
+        sqlDb.select().from(schema.globalBudgets).where(eq(schema.globalBudgets.userId, userId))
       ]);
-      
-      const categories = categoriesSnap.docs.map(doc => doc.data());
-      const periods = periodsSnap.docs.map(doc => doc.data());
-      const budgets = budgetsSnap.docs.map(doc => doc.data());
       
       const txDate = new Date();
       const matchedPeriod = periods.find((p: any) => {
@@ -249,15 +252,11 @@ app.post("/api/transactions/upload", requireAuth, (req: AuthRequest, res, next) 
       
       let currentSpendingData: any = {};
       if (matchedPeriod) {
-        const txSnap = await firestore.collection('users')
-          .doc(userId)
-          .collection('transactions')
-          .where('periodId', '==', Number(matchedPeriod.id))
-          .get();
+        const transactionsList = await sqlDb.select()
+          .from(schema.transactions)
+          .where(and(eq(schema.transactions.userId, userId), eq(schema.transactions.periodId, matchedPeriod.id)));
           
-        const transactions = txSnap.docs.map(doc => doc.data());
-          
-        transactions.forEach((tx: any) => {
+        transactionsList.forEach((tx: any) => {
           if (tx.type !== 'Dr' && tx.type !== 'pengeluaran') return;
           const cat = tx.category || 'Unknown';
           const sub = tx.subcategory || 'Unknown';
@@ -293,9 +292,7 @@ app.post("/api/transactions/upload", requireAuth, (req: AuthRequest, res, next) 
           jsonData = jsonMatch ? JSON.parse(jsonMatch[0]) : JSON.parse(parts[1].trim());
           if (jsonData?.transaction) {
              const txData = jsonData.transaction;
-             const id = Date.now() + Math.floor(Math.random() * 1000);
-             const docData = {
-               id,
+             await sqlDb.insert(schema.transactions).values({
                userId,
                type: txData.type || 'Dr',
                amount: (isNaN(Number(txData.amount)) ? 0 : Number(txData.amount)) || 0,
@@ -303,10 +300,8 @@ app.post("/api/transactions/upload", requireAuth, (req: AuthRequest, res, next) 
                subcategory: txData.subcategory || '',
                description: txData.description || '',
                date: txDate.toISOString(),
-               periodId: matchedPeriod ? Number(matchedPeriod.id) : null,
-               createdAt: new Date().toISOString()
-             };
-             await firestore.collection('users').doc(userId).collection('transactions').doc(String(id)).set(docData);
+               periodId: matchedPeriod ? matchedPeriod.id : null,
+             });
           }
         } catch(e) {}
       }

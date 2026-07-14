@@ -210,8 +210,15 @@ export default function App() {
                   {user.displayName || (user.isAnonymous ? 'Pengguna Tamu' : 'Pengguna')}
                   <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span>
                 </span>
-                <span className="text-[10px] text-slate-500 font-mono">
+                <span className="text-[10px] text-slate-500 font-mono flex items-center gap-1.5 justify-end">
                   {user.isAnonymous ? 'Mode Tamu' : user.email}
+                  <span className={`px-1 py-0.5 rounded-[4px] text-[8px] font-extrabold uppercase tracking-wide leading-none border ${
+                    getAuthEnv() === 'prd'
+                      ? 'bg-indigo-50 text-indigo-700 border-indigo-200'
+                      : 'bg-amber-50 text-amber-700 border-amber-200'
+                  }`}>
+                    {getAuthEnv() === 'prd' ? 'PRD' : 'DEV'}
+                  </span>
                 </span>
               </button>
 
@@ -236,6 +243,26 @@ export default function App() {
                       <div className="px-3.5 py-2.5 border-b border-slate-100 mb-1" id="profile-dropdown-header">
                         <p className="text-xs font-bold text-slate-800 truncate">{user.displayName || (user.isAnonymous ? 'Pengguna Tamu' : 'Pengguna')}</p>
                         <p className="text-[10px] text-slate-400 font-mono truncate">{user.email || 'Mode Tamu'}</p>
+                        <div className="mt-2.5 pt-2 border-t border-slate-100 flex flex-col gap-1.5" id="profile-dropdown-db-info">
+                          <div className="flex items-center justify-between text-[10px]">
+                            <span className="text-slate-400 font-medium">Database Aktif:</span>
+                            <span className={`px-1.5 py-0.5 rounded text-[9px] font-bold uppercase tracking-wider border ${
+                              getAuthEnv() === 'prd'
+                                ? 'bg-indigo-50 text-indigo-700 border-indigo-100'
+                                : 'bg-amber-50 text-amber-700 border-amber-100'
+                            }`}>
+                              {getAuthEnv() === 'prd' ? 'PROD (Utama)' : 'DEV (Sandbox)'}
+                            </span>
+                          </div>
+                          <div className="flex items-center justify-between text-[9px]">
+                            <span className="text-slate-400 font-medium">Project ID:</span>
+                            <span className="font-mono text-slate-500 truncate max-w-[120px]" title={getAuthEnv() === 'prd' ? (import.meta.env.VITE_PRD_FIREBASE_PROJECT_ID || 'Belum Terkonfigurasi') : (import.meta.env.VITE_FIREBASE_PROJECT_ID || 'zippy-solution-c7c1c')}>
+                              {getAuthEnv() === 'prd' 
+                                ? (import.meta.env.VITE_PRD_FIREBASE_PROJECT_ID || 'Belum Terkonfigurasi')
+                                : (import.meta.env.VITE_FIREBASE_PROJECT_ID || 'zippy-solution-c7c1c')}
+                            </span>
+                          </div>
+                        </div>
                       </div>
 
                       <button

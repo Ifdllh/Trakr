@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { User, Sliders, Database, Wrench, Shield, Bell, ArrowLeft } from 'lucide-react';
+import { getAuthEnv } from '@/lib/firebase';
 
 interface SettingsProps {
   user: any;
@@ -98,10 +99,28 @@ export default function Settings({ user, setActiveTab }: SettingsProps) {
               <span className="text-[11px] text-slate-400">Email Utama</span>
               <span className="text-[11px] text-slate-600 font-mono">{user?.email || 'Unknown'}</span>
             </div>
-            <div className="flex justify-between items-center py-2">
+            <div className="flex justify-between items-center py-2 border-b border-slate-50">
               <span className="text-[11px] text-slate-400">Status Autentikasi</span>
               <span className="text-[10px] font-bold uppercase px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-100">
                 {user?.isAnonymous ? 'Tamu (Anonymous)' : 'Google OAuth'}
+              </span>
+            </div>
+            <div className="flex justify-between items-center py-2 border-b border-slate-50">
+              <span className="text-[11px] text-slate-400">Database Aktif</span>
+              <span className={`text-[10px] font-bold uppercase px-2 py-0.5 rounded-full border ${
+                getAuthEnv() === 'prd'
+                  ? 'bg-indigo-50 text-indigo-700 border-indigo-100'
+                  : 'bg-amber-50 text-amber-700 border-amber-100'
+              }`}>
+                {getAuthEnv() === 'prd' ? 'Production (PRD)' : 'Sandbox (DEV)'}
+              </span>
+            </div>
+            <div className="flex justify-between items-center py-2">
+              <span className="text-[11px] text-slate-400">Firebase Project ID</span>
+              <span className="text-[11px] text-slate-600 font-mono">
+                {getAuthEnv() === 'prd'
+                  ? (import.meta.env.VITE_PRD_FIREBASE_PROJECT_ID || 'Belum Terkonfigurasi')
+                  : (import.meta.env.VITE_FIREBASE_PROJECT_ID || 'zippy-solution-c7c1c')}
               </span>
             </div>
           </div>

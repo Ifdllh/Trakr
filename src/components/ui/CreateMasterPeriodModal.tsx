@@ -105,7 +105,7 @@ export default function CreateMasterPeriodModal({
     setErrorMessage(null);
     setSuccessMessage(null);
     try {
-      await onSave('periods', values, periodToEdit?.id);
+      await onSave('periods', { ...values, isActive: true }, periodToEdit?.id);
       setSuccessMessage('Periode berhasil disimpan!');
       setTimeout(() => {
         onClose();
