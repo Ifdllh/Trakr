@@ -1,3 +1,9 @@
+import { db as sqlDb } from "./src/db/index.js";
+import * as schema from "./src/db/schema.js";
+import { eq, and } from "drizzle-orm";
+import { db as sqlDb } from "./src/db/index.js";
+import * as schema from "./src/db/schema.js";
+import { eq, and } from "drizzle-orm";
 import express from "express";
 import axios from "axios";
 import path from "path";
@@ -200,7 +206,7 @@ app.post("/api/transactions/upload", requireAuth, (req: AuthRequest, res, next) 
       return res.json(responseData);
       
     } catch (err) {
-      console.error("Gold price fetch error", err);
+
       if (goldPriceCache) {
          return res.json({ ...goldPriceCache.data, cached: true });
       }
@@ -224,22 +230,18 @@ app.post("/api/transactions/upload", requireAuth, (req: AuthRequest, res, next) 
   app.post("/api/ai/chat", requireAuth, async (req: AuthRequest, res) => {
     try {
       const { message } = req.body;
-      const uid = req.user.uid;
-      const db = req.db;
+      const userId = req.userId!;
       
-      // Fetch data from Firestore
-      const [catSnap, periodsSnap, budgetsSnap] = await Promise.all([
-        db.collection('customCategories').where('userId', '==', uid).get(),
-        db.collection('periods').where('userId', '==', uid).get(),
-        db.collection('budgets').where('userId', '==', uid).get()
+      // Fetch data from Cloud SQL
+      const [categories, periods, budgets] = await Promise.all([
+        sqlDb.select().from(schema.masterCategories).where(eq(schema.masterCategories.userId, userId)),
+        sqlDb.select().from(schema.masterPeriods).where(eq(schema.masterPeriods.userId, userId)),
+        sqlDb.select().from(schema.globalBudgets).where(eq(schema.globalBudgets.userId, userId))
       ]);
-      
-      const categories = catSnap.docs.map((d: any) => ({ id: d.id, ...d.data() }));
-      const periods = periodsSnap.docs.map((d: any) => ({ id: d.id, ...d.data() }));
-      const budgets = budgetsSnap.docs.map((d: any) => ({ id: d.id, ...d.data() }));
       
       const txDate = new Date();
       const matchedPeriod = periods.find((p: any) => {
+        if (!p.startDate || !p.endDate) return false;
         const start = new Date(p.startDate);
         const end = new Date(p.endDate);
         return txDate >= start && txDate <= end;
@@ -247,9 +249,11 @@ app.post("/api/transactions/upload", requireAuth, (req: AuthRequest, res, next) 
       
       let currentSpendingData: any = {};
       if (matchedPeriod) {
-        const txSnap = await db.collection('transactions').where('userId', '==', uid).where('periodId', '==', matchedPeriod.id).get();
-        txSnap.docs.forEach((d: any) => {
-          const tx = d.data();
+        const transactions = await sqlDb.select()
+          .from(schema.transactions)
+          .where(and(eq(schema.transactions.userId, userId), eq(schema.transactions.periodId, matchedPeriod.id)));
+          
+        transactions.forEach((tx: any) => {
           if (tx.type !== 'Dr' && tx.type !== 'pengeluaran') return;
           const cat = tx.category || 'Unknown';
           const sub = tx.subcategory || 'Unknown';
@@ -259,9 +263,7 @@ app.post("/api/transactions/upload", requireAuth, (req: AuthRequest, res, next) 
         });
       }
       
-      const masterDataContext = `Categories: ${JSON.stringify(categories)}
-Budgets: ${JSON.stringify(budgets)}
-Current Spending: ${JSON.stringify(currentSpendingData)}`;
+      const masterDataContext = `Categories: ${JSON.stringify(categories)}\nBudgets: ${JSON.stringify(budgets)}\nCurrent Spending: ${JSON.stringify(currentSpendingData)}`;
       
       const aiInstance = getAI();
       if (!aiInstance) {
@@ -272,8 +274,7 @@ Current Spending: ${JSON.stringify(currentSpendingData)}`;
         model: "gemini-3.1-pro-preview",
         contents: [{ role: 'user', parts: [{ text: message }] }],
         config: {
-          systemInstruction: `You are Asisten Trakr. User input: ${message}
-CONTEXT:${masterDataContext}. You must return UI Markdown and ---JSON_DATA--- with a transaction object if a transaction should be logged.`
+          systemInstruction: `You are Asisten Trakr. User input: ${message}\nCONTEXT:${masterDataContext}. You must return UI Markdown and ---JSON_DATA--- with a transaction object if a transaction should be logged.`
         }
       });
       
@@ -288,16 +289,15 @@ CONTEXT:${masterDataContext}. You must return UI Markdown and ---JSON_DATA--- wi
           jsonData = jsonMatch ? JSON.parse(jsonMatch[0]) : JSON.parse(parts[1].trim());
           if (jsonData?.transaction) {
              const txData = jsonData.transaction;
-             await db.collection('transactions').add({
-               userId: uid,
+             await sqlDb.insert(schema.transactions).values({
+               userId,
                type: txData.type || 'Dr',
-               amount: Number(txData.amount) || 0,
+               amount: (isNaN(Number(txData.amount)) ? 0 : Number(txData.amount)) || 0,
                category: txData.category || 'AI Logged',
                subcategory: txData.subcategory || '',
                description: txData.description || '',
                date: txDate.toISOString(),
                periodId: matchedPeriod ? matchedPeriod.id : null,
-               createdAt: new Date().toISOString()
              });
           }
         } catch(e) {}
@@ -308,14 +308,21 @@ CONTEXT:${masterDataContext}. You must return UI Markdown and ---JSON_DATA--- wi
     }
   });
 
-app.use((err: any, req: any, res: any, next: any) => { console.error("Express Error:", err); res.status(500).json({ error: err.message || "Internal server error" }); });
+import { setupApiRoutes } from "./routes.js";
+setupApiRoutes(app);
+
+app.use((err: any, req: any, res: any, next: any) => { 
+
+  res.status(500).json({ error: err.message || "Internal server error" }); 
+});
+
 if (process.env.NODE_ENV !== "production") {
   (async () => {
     const { createServer: createViteServer } = await import("vite");
     const vite = await createViteServer({ server: { middlewareMode: true }, appType: "spa" });
     app.use(vite.middlewares);
     app.listen(PORT, "0.0.0.0", () => {
-      console.log(`Server running on port ${PORT}`);
+
     });
   })();
 } else {
@@ -325,7 +332,7 @@ if (process.env.NODE_ENV !== "production") {
   
   if (!process.env.VERCEL) {
     app.listen(PORT, "0.0.0.0", () => {
-      console.log(`Server running on port ${PORT}`);
+
     });
   }
 }

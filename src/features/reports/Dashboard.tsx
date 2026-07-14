@@ -1,22 +1,20 @@
 import React, { useState, useMemo, useEffect, useRef } from 'react';
 import { startOfMonth, subMonths, addMonths, isToday, isYesterday, format } from 'date-fns';
 import { id as idLocale } from 'date-fns/locale';
-import { useQuery } from '@tanstack/react-query';
-import { api } from '@/lib/api';
 import { useGetMasterData, useSaveMasterData } from '@/services/useMasterData';
 import { useGetTransactions } from '@/features/transactions/useTransactions';
 import GoldPriceTracker from './GoldPriceTracker';
 import BudgetMonitor from './BudgetMonitor';
-import { Category, Transaction } from '@/types';
+import { Category } from '@/types';
 import { 
   AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer
 } from 'recharts';
 import { curveCardinal } from 'd3-shape';
 import { 
   ArrowUpRight, ArrowDownRight, Wallet, TrendingUp, TrendingDown, 
-  Calendar, Target, AlertTriangle, ShieldCheck, CreditCard, Copy, Check,
-  ChevronDown, ChevronLeft, ChevronRight, Search, Bell, Info, MessageSquare, ExternalLink,
-  Award, HelpCircle, Settings2, X, ArrowRightLeft, Clock, Repeat
+  Calendar, AlertTriangle, ShieldCheck, CreditCard, Copy, Check,
+  ChevronLeft, ChevronRight, Search, Info, MessageSquare,
+  Award, HelpCircle, Settings2, X, Repeat
 } from 'lucide-react';
 import * as LucideIcons from 'lucide-react';
 
@@ -78,6 +76,10 @@ export default function Dashboard({
   
   const { data: accounts = [] } = useGetMasterData('accounts');
   const currentDate = new Date();
+  const [searchQuery, setSearchQuery] = useState("");
+  const [copied, setCopied] = useState(false);
+  
+  const hasInitializedPeriod = useRef(false);
   const [dashboardDate, setDashboardDate] = useState<Date>(startOfMonth(new Date()));
   const selectedMonth = dashboardDate.getMonth() + 1;
   const selectedYear = dashboardDate.getFullYear();
@@ -164,15 +166,12 @@ export default function Dashboard({
   const [editingBudget, setEditingBudget] = useState(false);
   const [tempBudget, setTempBudget] = useState(monthlyBudget.toString());
   
-  const hasInitializedPeriod = useRef(false);
-
+  
   useEffect(() => {
     setTempBudget(monthlyBudget.toString());
   }, [monthlyBudget]);
 
-  const [copied, setCopied] = useState(false);
-  const [searchQuery, setSearchQuery] = useState('');
-  
+      
   // Modals for extra details
   const [showRetirementModal, setShowRetirementModal] = useState(false);
   const [showWalletModal, setShowWalletModal] = useState(false);
@@ -425,6 +424,11 @@ export default function Dashboard({
         });
       }
       setEditingBudget(false);
+  const handleCopyCard = () => {
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
+  };
+  const handleSearchSubmit = (e: any) => { e.preventDefault(); };
     }
   };
 

@@ -3,7 +3,7 @@ import { useCreateTransaction } from '@/features/transactions/useTransactions';
 import { useGetMasterData } from '@/services/useMasterData';
 import { api } from '@/lib/api';
 import { Category, Transaction, TransactionType, MasterAccount, MasterAsset, MasterContact, MasterTag } from '@/types';
-import { PlusCircle, Calendar, FileText, DollarSign, X, Check, ChevronDown, ChevronUp, Plus, Trash2 } from 'lucide-react';
+import { PlusCircle, Calendar, FileText, X, Check, ChevronDown, ChevronUp, Plus, Trash2 } from 'lucide-react';
 import { NumericFormat } from 'react-number-format';
 import DatePicker from 'react-datepicker';
 import "react-datepicker/dist/react-datepicker.css";
@@ -79,7 +79,8 @@ export default function TransactionForm({
   const splitSum = splitRows.reduce((sum, r) => sum + (parseFloat(r.amount) || 0), 0);
   const isSplitBalanced = Math.abs(splitSum - totalGrandAmount) < 0.01;
   
-  const { mutate: createTransaction, isPending: isCreating } = useCreateTransaction();
+  
+  const isCreating = false;
   const { data: periods = [] } = useGetMasterData('periods');
   const [matchedPeriod, setMatchedPeriod] = useState<any>(null);
 
@@ -103,7 +104,8 @@ export default function TransactionForm({
   // Quick Add Modal State
   const [quickAddType, setQuickAddType] = useState<string | null>(null);
   const [quickAddName, setQuickAddName] = useState('');
-  const [quickAddSub, setQuickAddSub] = useState('');
+  
+  const [quickAddSub, setQuickAddSub] = useState("");
   const [isSubCategoryModalOpen, setIsSubCategoryModalOpen] = useState(false);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
 
@@ -202,7 +204,7 @@ export default function TransactionForm({
         throw new Error('Url aman tidak ditemukan dalam respon.');
       }
     } catch (err: any) {
-      console.error(err);
+
       const errorMessage = err?.response?.data?.error || err?.message || 'Gagal mengunggah struk.';
       setToastMessage(`Gagal mengunggah struk: ${errorMessage}`);
       setError(`Gagal mengunggah struk: ${errorMessage}`);
@@ -392,7 +394,7 @@ export default function TransactionForm({
       setQuickAddName('');
       setQuickAddSub('');
     } catch (e) {
-      console.error(e);
+
     }
   };
 

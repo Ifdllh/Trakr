@@ -1,6 +1,5 @@
 import React, { useState } from 'react';
 import { User, Sliders, Database, Wrench, Shield, Bell, ArrowLeft } from 'lucide-react';
-import { motion } from 'motion/react';
 
 interface SettingsProps {
   user: any;

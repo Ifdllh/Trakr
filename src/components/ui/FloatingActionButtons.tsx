@@ -1,4 +1,3 @@
-import React from 'react';
 import { Plus, Bot } from 'lucide-react';
 
 interface FloatingActionButtonsProps {

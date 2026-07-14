@@ -56,8 +56,9 @@ export default function CreateMasterAccountModal({ onClose, onSave, onSuccess, a
         onClose();
       }, 700);
     } catch (error: any) {
-      setFormMessage({ type: 'error', text: error.message || 'Terjadi kesalahan' });
       setIsSubmitting(false);
+      setFormMessage({ type: 'error', text: error.message || 'Terjadi kesalahan' });
+      
     }
   };
 

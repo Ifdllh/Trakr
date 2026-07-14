@@ -2,7 +2,6 @@ import React, { useState, useEffect } from 'react';
 import CreateMasterAccountModal from '@/components/ui/CreateMasterAccountModal';
 import CreateMasterCategoryModal from '@/components/ui/CreateMasterCategoryModal';
 import CreateMasterPeriodModal from '@/components/ui/CreateMasterPeriodModal';
-import { api } from '@/lib/api';
 import { masterDataService } from '@/services/dbServices';
 import { 
   Category, BudgetPeriod,
@@ -10,7 +9,7 @@ import {
   Transaction, BudgetAllocation
 } from '@/types';
 import { 
-  BookOpen, FolderHeart, Sparkles, HelpCircle, Calendar, Plus, Trash2, 
+  FolderHeart, Sparkles, HelpCircle, Calendar, Plus, Trash2, 
   Wallet, TrendingUp, Tags, Users, ChevronDown, Edit2, Search, MoreVertical, 
   Pencil, X 
 } from 'lucide-react';

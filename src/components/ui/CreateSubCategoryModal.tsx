@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Plus, HelpCircle, X } from 'lucide-react';
+import { HelpCircle, X } from 'lucide-react';
 import * as LucideIcons from 'lucide-react';
 
 const COMMON_ICONS = [
@@ -62,8 +62,9 @@ export default function CreateSubCategoryModal({
         onClose();
       }, 700);
     } catch (error: any) {
-      setFormMessage({ type: 'error', text: error.message || 'Terjadi kesalahan' });
       setIsSubmitting(false);
+      setFormMessage({ type: 'error', text: error.message || 'Terjadi kesalahan' });
+      
     }
   };
 

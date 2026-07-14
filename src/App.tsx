@@ -118,7 +118,7 @@ export default function App() {
       await signOut(authToSignOut);
       setUser(null);
     } catch (err) {
-      console.error("Error signing out:", err);
+
     }
   };
 
@@ -304,7 +304,7 @@ export default function App() {
         {loadingData && (
           <div className="mb-4 bg-indigo-50 border border-indigo-100 text-indigo-700 text-xs font-semibold px-4 py-2.5 rounded-xl flex items-center gap-2">
             <RefreshCw size={14} className="animate-spin" />
-            Menyinkronkan data keuangan secara real-time dengan Cloud Firestore...
+            Menyinkronkan data keuangan secara real-time dengan Cloud SQL...
           </div>
         )}
 

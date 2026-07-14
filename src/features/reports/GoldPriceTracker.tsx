@@ -70,7 +70,7 @@ export default function GoldPriceTracker() {
         throw new Error('Gagal memuat struktur data emas yang valid.');
       }
     } catch (err: any) {
-      console.error('Error in GoldPriceTracker:', err);
+
       setError('Gagal menghubungkan ke server harga emas. Silakan coba lagi.');
     } finally {
       setLoading(false);

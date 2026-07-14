@@ -167,8 +167,9 @@ export default function CreateMasterCategoryModal({
         onClose();
       }, 700);
     } catch (error: any) {
-      setFormMessage({ type: 'error', text: error.message || 'Terjadi kesalahan' });
       setIsSubmitting(false);
+      setFormMessage({ type: 'error', text: error.message || 'Terjadi kesalahan' });
+      
     }
   };
 

@@ -1,6 +1,7 @@
 import { defineConfig } from "drizzle-kit";
 import * as dotenv from "dotenv";
 
+// Load environment variables from .env file.
 dotenv.config();
 
 const sqlHost = process.env.SQL_HOST;
@@ -21,9 +22,10 @@ if (!password) {
   throw new Error("SQL_ADMIN_PASSWORD must be set in environment variables.");
 }
 
+
 export default defineConfig({
   schema: "./src/db/schema.ts",
-  out: "./drizzle",
+  out: "./drizzle", // Output directory for migrations.
   dialect: "postgresql",
   schemaFilter: ["public"],
   dbCredentials: {
@@ -31,7 +33,7 @@ export default defineConfig({
     user: user,
     password: password,
     database: sqlDbName,
-    ssl: false,
+    ssl: false, // Typically false when connecting via Cloud SQL Auth Proxy.
   },
-  verbose: true,
+  verbose: true, // Enable verbose output.
 });

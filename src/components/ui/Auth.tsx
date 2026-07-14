@@ -29,7 +29,7 @@ export default function Auth({ onSuccess }: AuthProps) {
           onSuccess();
         }
       } catch (err: any) {
-        console.error("Redirect error", err);
+
         if (err.code === 'auth/unauthorized-domain' || err.message?.includes('unauthorized-domain')) {
           setDomainError(true);
         } else {
@@ -71,13 +71,13 @@ export default function Auth({ onSuccess }: AuthProps) {
         setLoading(false);
         return;
       }
-      console.error(err);
+
       if (err.code === 'auth/popup-blocked') {
         setError('Popup diblokir, mengalihkan halaman...');
         try {
           await signInWithRedirect(authToUse, googleProvider);
         } catch (redirectErr: any) {
-          console.error(redirectErr);
+
           if (redirectErr.code === 'auth/unauthorized-domain' || redirectErr.message?.includes('unauthorized-domain')) {
             setDomainError(true);
           } else {

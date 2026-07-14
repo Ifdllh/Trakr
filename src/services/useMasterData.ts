@@ -5,7 +5,8 @@ export const useGetMasterData = (collectionName: string) => {
   return useQuery({
     queryKey: ['masterData', collectionName],
     queryFn: async () => {
-      return await masterDataService.get(collectionName);
+      const data = await masterDataService.get(collectionName);
+      return Array.isArray(data) ? data : [];
     },
   });
 };

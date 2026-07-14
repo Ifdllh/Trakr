@@ -1,6 +1,5 @@
 import { initializeApp, getApps } from 'firebase-admin/app';
 import { getAuth } from 'firebase-admin/auth';
-import { getFirestore } from 'firebase-admin/firestore';
 import firebaseConfig from '../../firebase-applet-config.json';
 import * as dotenv from 'dotenv';
 
@@ -27,5 +26,3 @@ if (process.env.VITE_PRD_FIREBASE_PROJECT_ID && !getApps().find(app => app.name 
 
 export const adminAuthDev = getAuth(devApp);
 export const adminAuthPrd = prdApp ? getAuth(prdApp) : null;
-export const dbDev = getFirestore(devApp);
-export const dbPrd = prdApp ? getFirestore(prdApp) : null;

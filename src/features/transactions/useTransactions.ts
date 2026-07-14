@@ -6,9 +6,10 @@ export const useGetTransactions = (filters?: any) => {
   return useQuery({
     queryKey: ['transactions', filters],
     queryFn: async () => {
-      // NOTE: Using frontend filtering since Firestore complex queries require indices.
-      let data = await transactionService.get();
       
+      let data = await transactionService.get();
+      if (!Array.isArray(data)) data = [];
+
       if (filters) {
         if (filters.period_id) {
           data = data.filter((t: any) => t.periodId === filters.period_id);

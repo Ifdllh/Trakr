@@ -26,3 +26,13 @@ api.interceptors.request.use(async (config) => {
 }, (error) => {
   return Promise.reject(error);
 });
+
+api.interceptors.response.use(
+  (response) => response,
+  (error) => {
+    if (error.response && error.response.data && error.response.data.error) {
+      error.message = error.response.data.error;
+    }
+    return Promise.reject(error);
+  }
+);

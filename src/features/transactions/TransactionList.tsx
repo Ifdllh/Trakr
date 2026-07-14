@@ -2,9 +2,9 @@ import { useState, useMemo } from 'react';
 import { useGetTransactions } from '@/features/transactions/useTransactions';
 import { Transaction, Category, BudgetPeriod, MasterAccount } from '@/types';
 import { 
-  Trash2, Download, Edit2, Search, Filter, HelpCircle, 
-  ArrowUpRight, ArrowDownRight, ArrowLeftRight, Tag, BookOpen, AlertCircle,
-  ChevronDown, ChevronUp, Layers, Paperclip, Receipt, X
+  Trash2, Download, Edit2, Search, Filter, 
+  ArrowLeftRight, BookOpen,
+  ChevronDown, ChevronUp, Paperclip, Receipt, X
 } from 'lucide-react';
 import * as LucideIcons from 'lucide-react';
 import * as XLSX from 'xlsx';

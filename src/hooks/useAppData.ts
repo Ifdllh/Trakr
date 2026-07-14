@@ -1,6 +1,5 @@
 import { useState, useEffect, useMemo, useCallback } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
-import { api } from '@/lib/api';
 import { masterDataService, transactionService } from '@/services/dbServices';
 import { 
   MasterAccount, MasterAsset, MasterTag, MasterContact,
@@ -24,7 +23,7 @@ export function useAppData(user: FirebaseUser | null, isGuest: boolean, showGlob
   
   const [monthlyBudget, setMonthlyBudget] = useState<number>(0);
   const [loadingData, setLoadingData] = useState(false);
-  const [triggerAddMasterData, setTriggerAddMasterData] = useState(0);
+  const [triggerAddMasterData] = useState(0);
 
   const mergedCategories = useMemo(() => {
     let base = JSON.parse(JSON.stringify(PREDEFINED_CATEGORIES)) as Category[];
@@ -105,18 +104,18 @@ export function useAppData(user: FirebaseUser | null, isGuest: boolean, showGlob
         masterDataService.get('globalBudgets')
       ]);
 
-      setTransactions(txRes.map((d: any) => ({...d, id: d.id.toString(), date: d.date || d.createdAt, accountId: d.accountId?.toString(), assetId: d.assetId?.toString(), tagId: d.tagId?.toString(), contactId: d.contactId?.toString(), periodId: d.periodId?.toString()})));
-      setPeriods(periodsRes.map((d: any) => ({...d, id: d.id.toString()})));
-      setAccounts(accountsRes.map((d: any) => ({...d, id: d.id.toString()})));
-      setAssets(assetsRes.map((d: any) => ({...d, id: d.id.toString()})));
-      setTags(tagsRes.map((d: any) => ({...d, id: d.id.toString()})));
-      setContacts(contactsRes.map((d: any) => ({...d, id: d.id.toString()})));
-      setCustomCategories(customCatRes.map((d: any) => ({...d, id: d.id.toString()})));
-      setBudgets(budgetsRes.map((d: any) => ({...d, id: d.id.toString(), periodId: d.periodId?.toString(), globalBudgetId: d.globalBudgetId?.toString()})));
-      setGlobalBudgets(globalBudgetsRes.map((d: any) => ({...d, id: d.id.toString(), periodId: d.periodId?.toString(), totalTargetAmount: Number(d.totalTargetAmount)})));
+      setTransactions((Array.isArray(txRes) ? txRes : []).map((d: any) => ({...d, id: d.id.toString(), date: d.date || d.createdAt, accountId: d.accountId?.toString(), assetId: d.assetId?.toString(), tagId: d.tagId?.toString(), contactId: d.contactId?.toString(), periodId: d.periodId?.toString()})));
+      setPeriods((Array.isArray(periodsRes) ? periodsRes : []).map((d: any) => ({...d, id: d.id.toString()})));
+      setAccounts((Array.isArray(accountsRes) ? accountsRes : []).map((d: any) => ({...d, id: d.id.toString()})));
+      setAssets((Array.isArray(assetsRes) ? assetsRes : []).map((d: any) => ({...d, id: d.id.toString()})));
+      setTags((Array.isArray(tagsRes) ? tagsRes : []).map((d: any) => ({...d, id: d.id.toString()})));
+      setContacts((Array.isArray(contactsRes) ? contactsRes : []).map((d: any) => ({...d, id: d.id.toString()})));
+      setCustomCategories((Array.isArray(customCatRes) ? customCatRes : []).map((d: any) => ({...d, id: d.id.toString()})));
+      setBudgets((Array.isArray(budgetsRes) ? budgetsRes : []).map((d: any) => ({...d, id: d.id.toString(), periodId: d.periodId?.toString(), globalBudgetId: d.globalBudgetId?.toString()})));
+      setGlobalBudgets((Array.isArray(globalBudgetsRes) ? globalBudgetsRes : []).map((d: any) => ({...d, id: d.id.toString(), periodId: d.periodId?.toString(), totalTargetAmount: Number(d.totalTargetAmount)})));
       setLoadingData(false);
     } catch (err) {
-      console.error("Failed to fetch data:", err);
+
       setLoadingData(false);
     }
   }, [user]);
@@ -136,7 +135,9 @@ export function useAppData(user: FirebaseUser | null, isGuest: boolean, showGlob
     try {
       setMonthlyBudget(budget);
     } catch (error) {
-      console.error(error);
+
+      const msg = error.response?.data?.error || error.message || 'Terjadi kesalahan';
+      showGlobalToast(msg, 'error');
     }
   };
 
@@ -155,7 +156,9 @@ export function useAppData(user: FirebaseUser | null, isGuest: boolean, showGlob
       await refreshData();
       queryClient.invalidateQueries({ queryKey: ['transactions'] });
     } catch (error) {
-      console.error(error);
+
+      const msg = error.response?.data?.error || error.message || 'Terjadi kesalahan';
+      showGlobalToast(msg, 'error');
     }
   };
 
@@ -170,7 +173,9 @@ export function useAppData(user: FirebaseUser | null, isGuest: boolean, showGlob
       await refreshData();
       queryClient.invalidateQueries({ queryKey: ['transactions'] });
     } catch (error) {
-      console.error(error);
+
+      const msg = error.response?.data?.error || error.message || 'Terjadi kesalahan';
+      showGlobalToast(msg, 'error');
     }
   };
 
@@ -191,7 +196,9 @@ export function useAppData(user: FirebaseUser | null, isGuest: boolean, showGlob
         return res.id;
       }
     } catch (error) {
-      console.error(error);
+
+      const msg = error.response?.data?.error || error.message || 'Terjadi kesalahan';
+      showGlobalToast(msg, 'error');
     }
   };
 
@@ -205,7 +212,9 @@ export function useAppData(user: FirebaseUser | null, isGuest: boolean, showGlob
       await masterDataService.delete(collectionName, id);
       await refreshData();
     } catch (error) {
-      console.error(error);
+
+      const msg = error.response?.data?.error || error.message || 'Terjadi kesalahan';
+      showGlobalToast(msg, 'error');
       throw error;
     }
   };
@@ -225,7 +234,9 @@ export function useAppData(user: FirebaseUser | null, isGuest: boolean, showGlob
       }
       await refreshData();
     } catch (error) {
-      console.error(error);
+
+      const msg = error.response?.data?.error || error.message || 'Terjadi kesalahan';
+      showGlobalToast(msg, 'error');
     }
   };
 
@@ -239,7 +250,9 @@ export function useAppData(user: FirebaseUser | null, isGuest: boolean, showGlob
       await masterDataService.delete('periods', id);
       await refreshData();
     } catch (error) {
-      console.error(error);
+
+      const msg = error.response?.data?.error || error.message || 'Terjadi kesalahan';
+      showGlobalToast(msg, 'error');
     }
   };
 
@@ -257,7 +270,9 @@ export function useAppData(user: FirebaseUser | null, isGuest: boolean, showGlob
       }
       await refreshData();
     } catch (error) {
-      console.error(error);
+
+      const msg = error.response?.data?.error || error.message || 'Terjadi kesalahan';
+      showGlobalToast(msg, 'error');
       throw error;
     }
   };
@@ -276,7 +291,9 @@ export function useAppData(user: FirebaseUser | null, isGuest: boolean, showGlob
       }
       await refreshData();
     } catch (error) {
-      console.error(error);
+
+      const msg = error.response?.data?.error || error.message || 'Terjadi kesalahan';
+      showGlobalToast(msg, 'error');
       throw error;
     }
   };
@@ -291,7 +308,9 @@ export function useAppData(user: FirebaseUser | null, isGuest: boolean, showGlob
       await masterDataService.delete('budgets', id);
       await refreshData();
     } catch (error) {
-      console.error(error);
+
+      const msg = error.response?.data?.error || error.message || 'Terjadi kesalahan';
+      showGlobalToast(msg, 'error');
     }
   };
 

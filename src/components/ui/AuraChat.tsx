@@ -1,6 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { Bot, Send, X, Loader2 } from 'lucide-react';
-import { motion, AnimatePresence } from 'motion/react';
+import { motion } from 'motion/react';
 import { api } from '@/lib/api';
 import ReactMarkdown from 'react-markdown';
 
@@ -51,7 +51,7 @@ export default function AuraChat({ onClose, onRefreshData }: AuraChatProps) {
       }
       
     } catch (error) {
-      console.error("AI Chat error:", error);
+
       setMessages(prev => [...prev, { role: 'assistant', content: "Maaf, sistem Asisten Trakr sedang mengalami gangguan." }]);
     } finally {
       setIsLoading(false);

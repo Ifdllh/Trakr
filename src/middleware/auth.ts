@@ -1,10 +1,11 @@
 import { Request, Response, NextFunction } from "express";
-import { adminAuthDev, adminAuthPrd, dbDev, dbPrd } from "../lib/firebase-admin";
+import { adminAuthDev, adminAuthPrd } from "../lib/firebase-admin.js";
+import { getOrCreateUser } from "../db/users.js";
 
 export interface AuthRequest extends Request {
   user?: any;
+  userId?: number;
   authEnv?: 'dev' | 'prd';
-  db?: any; // firestore instance
 }
 
 export const requireAuth = async (req: AuthRequest, res: Response, next: NextFunction) => {
@@ -16,8 +17,7 @@ export const requireAuth = async (req: AuthRequest, res: Response, next: NextFun
   const token = authHeader.split(" ")[1];
   const authEnv = req.headers['x-auth-env'] === 'prd' ? 'prd' : 'dev';
   req.authEnv = authEnv;
-  req.db = authEnv === 'prd' && dbPrd ? dbPrd : dbDev;
-  
+
   try {
     let decodedToken;
     if (authEnv === 'prd' && adminAuthPrd) {
@@ -25,26 +25,32 @@ export const requireAuth = async (req: AuthRequest, res: Response, next: NextFun
     } else {
       decodedToken = await adminAuthDev.verifyIdToken(token);
     }
-    
+
     // Check if user is a guest (anonymous or has guest email)
     const isGuest = decodedToken.firebase?.sign_in_provider === 'anonymous' || decodedToken.email?.includes('guest');
     
+    // Get or create user in Cloud SQL
+    let email = decodedToken.email || 'guest@example.com';
+    let uid = decodedToken.uid;
+    const sqlUser = await getOrCreateUser(uid, email);
+
     req.user = {
       ...decodedToken,
       isGuest,
-      uid: decodedToken.uid
+      uid: decodedToken.uid,
     };
-    
+    req.userId = sqlUser.id;
+
     if (isGuest) {
       // Enforce guest read-only sandbox restrictions for write requests
       if (req.method !== "GET") {
         return res.status(403).json({ error: "Fitur ini dinonaktifkan untuk akun Tamu" });
       }
     }
-    
+
     next();
   } catch (error) {
-    console.error(`Error verifying Firebase ID token (${authEnv}):`, error);
+
     return res.status(403).json({ error: "Unauthorized: Invalid token" });
   }
 };

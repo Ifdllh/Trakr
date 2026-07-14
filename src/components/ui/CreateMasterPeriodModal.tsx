@@ -2,7 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
-import { Plus, X, Calendar } from 'lucide-react';
+import { Plus, Calendar } from 'lucide-react';
 
 const indonesianMonths: Record<string, number> = {
   januari: 0, jan: 0,

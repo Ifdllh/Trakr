@@ -1,4 +1,4 @@
-import React, { useMemo } from 'react';
+import { useMemo } from 'react';
 import { Settings, Info, HelpCircle, Wallet, TrendingUp } from 'lucide-react';
 import * as LucideIcons from 'lucide-react';
 import { useGetMasterData } from '@/services/useMasterData';

@@ -22,7 +22,6 @@ import { useForm, useFieldArray } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import { Transaction, Category, BudgetAllocation, BudgetPeriod, GlobalBudget, MasterAccount, MasterAsset, MasterTag, MasterContact } from '@/types';
-import { api } from '@/lib/api';
 import { 
   useGetAggregatedBudgets, 
   useDeleteCategoryBudget, 
@@ -49,7 +48,6 @@ const budgetSchema = z.object({
   path: ["categories"] // Highlights category list errors
 });
 
-type BudgetFormData = z.infer<typeof budgetSchema>;
 
 interface BudgetManagerProps {
   categories: Category[];
@@ -221,7 +219,7 @@ export default function BudgetManager({
   }, [expenseCategories, currentBudgets, activeGlobalBudget]);
 
   // 2. Form Setup using react-hook-form
-  const { register, control, handleSubmit, setValue, getValues, watch, reset, formState: { errors } } = useForm({
+  const { register, control, handleSubmit, setValue, watch, reset, formState: { errors } } = useForm({
     resolver: zodResolver(budgetSchema),
     defaultValues: {
       globalBudget: activeGlobalBudget?.totalTargetAmount || 0,
@@ -285,7 +283,7 @@ export default function BudgetManager({
         setTimeout(() => setToastMessage(null), 3000);
       }
     } catch (error) {
-      console.error("Error auto-generating budgets:", error);
+
       setSubmitError("Gagal mengambil rekomendasi anggaran.");
     }
   };
@@ -331,7 +329,7 @@ export default function BudgetManager({
       setTimeout(() => setToastMessage(null), 3000);
       setIsFormOpen(false);
     } catch (err: any) {
-      console.error(err);
+
       setSubmitError(err.message || 'Gagal menyimpan anggaran.');
     } finally {
       setIsSubmitting(false);
@@ -352,7 +350,7 @@ export default function BudgetManager({
       queryClient.invalidateQueries({ queryKey: ['budgets', selectedPeriod] });
       queryClient.invalidateQueries({ queryKey: ['budgetStatus', selectedPeriod] });
     } catch (err) {
-      console.error(err);
+
       alert('Gagal menghapus anggaran');
     }
   };
