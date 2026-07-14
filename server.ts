@@ -1,9 +1,6 @@
 import { db as sqlDb } from "./src/db/index.js";
 import * as schema from "./src/db/schema.js";
 import { eq, and } from "drizzle-orm";
-import { db as sqlDb } from "./src/db/index.js";
-import * as schema from "./src/db/schema.js";
-import { eq, and } from "drizzle-orm";
 import express from "express";
 import axios from "axios";
 import path from "path";
@@ -336,3 +333,5 @@ if (process.env.NODE_ENV !== "production") {
     });
   }
 }
+
+export default app;
