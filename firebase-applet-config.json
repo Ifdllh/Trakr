@@ -3,8 +3,10 @@
   "appId": "1:743855898049:web:ca50c3ef0413162c7ac340",
   "apiKey": "AIzaSyD2M1YY1BXpB7V7_RPDHuTaSLvxK3jsFQI",
   "authDomain": "zippy-solution-c7c1c.firebaseapp.com",
+  "firestoreDatabaseId": "ai-studio-pencatatkeuangan-b60ed876-789d-44d7-a761-8eef645626e0",
   "storageBucket": "zippy-solution-c7c1c.firebasestorage.app",
   "messagingSenderId": "743855898049",
   "measurementId": "",
-  "oAuthClientId": "743855898049-fovigdv19jgrin3o0j76cpudn8qgco95.apps.googleusercontent.com"
+  "oAuthClientId": "743855898049-fovigdv19jgrin3o0j76cpudn8qgco95.apps.googleusercontent.com",
+  "recaptchaSiteKey": ""
 }

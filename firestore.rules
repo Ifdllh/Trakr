@@ -138,6 +138,9 @@ service cloud.firestore {
       match /customCategories/{categoryId} {
         allow read, write: if isAuthenticated() && isOwner(userId);
       }
+      match /globalBudgets/{budgetId} {
+        allow read, write: if isAuthenticated() && isOwner(userId);
+      }
     }
   }
 }

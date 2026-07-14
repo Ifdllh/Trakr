@@ -36,8 +36,18 @@ export const prdAuth = _prdAuth;
 export const googleProvider = new GoogleAuthProvider();
 
 export function getAuthEnv(): 'dev' | 'prd' {
+  const isDevPreview = typeof window !== 'undefined' && (
+    window.location.hostname.includes('ais-dev') || 
+    window.location.hostname.includes('ais-pre') || 
+    window.location.hostname.startsWith('ais-') ||
+    window.location.hostname.includes('run.app') ||
+    window.location.hostname.includes('googleusercontent.com') ||
+    window.location.hostname.includes('localhost') || 
+    window.location.hostname.includes('127.0.0.1')
+  );
+
   // Always prefer production database when running in Vercel/Production
-  if (import.meta.env.PROD && import.meta.env.VITE_PRD_FIREBASE_PROJECT_ID) {
+  if (!isDevPreview && import.meta.env.PROD && import.meta.env.VITE_PRD_FIREBASE_PROJECT_ID) {
     if (!prdAuth) {
 
       // We still return 'prd' to force the UI to handle it as a production state, 
@@ -60,7 +70,17 @@ export function setAuthEnv(env: 'dev' | 'prd') {
 }
 
 export function getActiveAuth(): Auth {
-  if (import.meta.env.PROD && import.meta.env.VITE_PRD_FIREBASE_PROJECT_ID) {
+  const isDevPreview = typeof window !== 'undefined' && (
+    window.location.hostname.includes('ais-dev') || 
+    window.location.hostname.includes('ais-pre') || 
+    window.location.hostname.startsWith('ais-') ||
+    window.location.hostname.includes('run.app') ||
+    window.location.hostname.includes('googleusercontent.com') ||
+    window.location.hostname.includes('localhost') || 
+    window.location.hostname.includes('127.0.0.1')
+  );
+
+  if (!isDevPreview && import.meta.env.PROD && import.meta.env.VITE_PRD_FIREBASE_PROJECT_ID) {
     if (!prdAuth) {
        throw new Error("Production Firebase Database is not configured. Please set VITE_PRD_FIREBASE_PROJECT_ID and redeploy.");
     }

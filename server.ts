@@ -1,8 +1,4 @@
 import { getFirestoreDb } from "./src/lib/firebase-admin.js";
-import { db as sqlDb } from "./src/db/index.ts";
-import * as schema from "./src/db/schema.ts";
-import { eq, and } from "drizzle-orm";
-import { getOrCreateUser } from "./src/db/users.ts";
 import express from "express";
 import axios from "axios";
 import path from "path";
@@ -229,18 +225,19 @@ app.post("/api/transactions/upload", requireAuth, (req: AuthRequest, res, next) 
   app.post("/api/ai/chat", requireAuth, async (req: AuthRequest, res) => {
     try {
       const { message } = req.body;
-      const firebaseUid = req.userId!;
+      const userId = req.userId!;
+      const firestore = getFirestoreDb(req.authEnv || 'dev');
       
-      // Resolve database user
-      const dbUser = await getOrCreateUser(firebaseUid, req.user?.email || '');
-      const userId = dbUser.id;
-      
-      // Fetch data from Cloud SQL
-      const [categories, periods, budgets] = await Promise.all([
-        sqlDb.select().from(schema.masterCategories).where(eq(schema.masterCategories.userId, userId)),
-        sqlDb.select().from(schema.masterPeriods).where(eq(schema.masterPeriods.userId, userId)),
-        sqlDb.select().from(schema.globalBudgets).where(eq(schema.globalBudgets.userId, userId))
+      // Fetch data from Firestore
+      const [categoriesSnap, periodsSnap, budgetsSnap] = await Promise.all([
+        firestore.collection('users').doc(userId).collection('customCategories').get(),
+        firestore.collection('users').doc(userId).collection('periods').get(),
+        firestore.collection('users').doc(userId).collection('budgets').get()
       ]);
+      
+      const categories = categoriesSnap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+      const periods = periodsSnap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+      const budgets = budgetsSnap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
       
       const txDate = new Date();
       const matchedPeriod = periods.find((p: any) => {
@@ -252,9 +249,13 @@ app.post("/api/transactions/upload", requireAuth, (req: AuthRequest, res, next) 
       
       let currentSpendingData: any = {};
       if (matchedPeriod) {
-        const transactionsList = await sqlDb.select()
-          .from(schema.transactions)
-          .where(and(eq(schema.transactions.userId, userId), eq(schema.transactions.periodId, matchedPeriod.id)));
+        const txSnap = await firestore.collection('users')
+          .doc(userId)
+          .collection('transactions')
+          .where('periodId', '==', matchedPeriod.id)
+          .get();
+          
+        const transactionsList = txSnap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
           
         transactionsList.forEach((tx: any) => {
           if (tx.type !== 'Dr' && tx.type !== 'pengeluaran') return;
@@ -292,7 +293,7 @@ app.post("/api/transactions/upload", requireAuth, (req: AuthRequest, res, next) 
           jsonData = jsonMatch ? JSON.parse(jsonMatch[0]) : JSON.parse(parts[1].trim());
           if (jsonData?.transaction) {
              const txData = jsonData.transaction;
-             await sqlDb.insert(schema.transactions).values({
+             await firestore.collection('users').doc(userId).collection('transactions').add({
                userId,
                type: txData.type || 'Dr',
                amount: (isNaN(Number(txData.amount)) ? 0 : Number(txData.amount)) || 0,
@@ -301,6 +302,7 @@ app.post("/api/transactions/upload", requireAuth, (req: AuthRequest, res, next) 
                description: txData.description || '',
                date: txDate.toISOString(),
                periodId: matchedPeriod ? matchedPeriod.id : null,
+               createdAt: new Date().toISOString()
              });
           }
         } catch(e) {}

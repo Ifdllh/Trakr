@@ -1,5 +1,5 @@
 import { Request, Response, NextFunction } from "express";
-import { adminAuthDev, adminAuthPrd } from "../lib/firebase-admin.js";
+import { adminAuthDev, adminAuthPrd, authContext } from "../lib/firebase-admin.js";
 
 export interface AuthRequest extends Request {
   user?: any;
@@ -42,7 +42,9 @@ export const requireAuth = async (req: AuthRequest, res: Response, next: NextFun
       }
     }
 
-    next();
+    authContext.run({ token }, () => {
+      next();
+    });
   } catch (error) {
     return res.status(403).json({ error: "Unauthorized: Invalid token" });
   }
