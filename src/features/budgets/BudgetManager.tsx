@@ -22,6 +22,7 @@ import { useForm, useFieldArray } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import { Transaction, Category, BudgetAllocation, BudgetPeriod, GlobalBudget, MasterAccount, MasterAsset, MasterTag, MasterContact } from '@/types';
+import { useToast } from '@/context/ToastContext';
 import { 
   useGetAggregatedBudgets, 
   useDeleteCategoryBudget, 
@@ -96,10 +97,9 @@ export default function BudgetManager({
     }
   }, [defaultPeriodId, selectedPeriod]);
 
+  const { showToast } = useToast();
   const [isFormOpen, setIsFormOpen] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [submitError, setSubmitError] = useState<string | null>(null);
-  const [toastMessage, setToastMessage] = useState<string | null>(null);
   const [budgetToDelete, setBudgetToDelete] = useState<string | null>(null);
   const [activeBudgetId, setActiveBudgetId] = useState<string | null>(null);
 
@@ -279,22 +279,19 @@ export default function BudgetManager({
         // Instantly inject historical amounts without massive re-renders
         setValue('categories', fetchedData, { shouldValidate: true });
         
-        setToastMessage('Anggaran berhasil diestimasikan berdasarkan riwayat 3 bulan terakhir!');
-        setTimeout(() => setToastMessage(null), 3000);
+        showToast('Anggaran berhasil diestimasikan berdasarkan riwayat 3 bulan terakhir!', 'success');
       }
-    } catch (error) {
+    } catch (error: any) {
 
-      setSubmitError("Gagal mengambil rekomendasi anggaran.");
+      showToast("Gagal mengambil rekomendasi anggaran.", 'error');
     }
   };
 
   const handleOpenForm = () => {
-    setSubmitError(null);
     setIsFormOpen(true);
   };
 
   const onSubmitForm = async (data: any) => {
-    setSubmitError(null);
     setIsSubmitting(true);
     try {
       // 1. Save / Update Global Budget
@@ -325,12 +322,11 @@ export default function BudgetManager({
       queryClient.invalidateQueries({ queryKey: ['budgets', selectedPeriod] });
       queryClient.invalidateQueries({ queryKey: ['budgetStatus', selectedPeriod] });
 
-      setToastMessage('Seluruh konfigurasi anggaran berhasil disimpan!');
-      setTimeout(() => setToastMessage(null), 3000);
+      showToast('Seluruh konfigurasi anggaran berhasil disimpan!', 'success');
       setIsFormOpen(false);
     } catch (err: any) {
 
-      setSubmitError(err.message || 'Gagal menyimpan anggaran.');
+      showToast(err.message || 'Gagal menyimpan anggaran.', 'error');
     } finally {
       setIsSubmitting(false);
     }
@@ -345,13 +341,12 @@ export default function BudgetManager({
     try {
       await deleteMutation.mutateAsync(budgetToDelete);
       setBudgetToDelete(null);
-      setToastMessage('Anggaran kategori berhasil dihapus');
-      setTimeout(() => setToastMessage(null), 3000);
+      showToast('Anggaran kategori berhasil dihapus', 'success');
       queryClient.invalidateQueries({ queryKey: ['budgets', selectedPeriod] });
       queryClient.invalidateQueries({ queryKey: ['budgetStatus', selectedPeriod] });
-    } catch (err) {
+    } catch (err: any) {
 
-      alert('Gagal menghapus anggaran');
+      showToast(err?.message || 'Gagal menghapus anggaran', 'error');
     }
   };
 
@@ -696,12 +691,6 @@ export default function BudgetManager({
                   Kelola target anggaran global dan distribusikan nominal langsung ke pos pengeluaran kategori.
                 </p>
 
-                {submitError && (
-                  <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-xl flex items-start gap-2 text-xs text-red-600 font-medium">
-                    <AlertTriangle size={16} className="text-red-500 shrink-0 mt-0.5" />
-                    <span>{submitError}</span>
-                  </div>
-                )}
               </div>
 
               <form onSubmit={handleSubmit(onSubmitForm)} className="flex-1 flex flex-col overflow-hidden space-y-4">
@@ -928,20 +917,6 @@ export default function BudgetManager({
               </div>
             </motion.div>
           </div>
-        )}
-      </AnimatePresence>
-
-      <AnimatePresence>
-        {toastMessage && (
-          <motion.div
-            initial={{ opacity: 0, y: 50 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: 50 }}
-            className="fixed bottom-24 left-1/2 -translate-x-1/2 bg-slate-800 text-white px-6 py-3 rounded-2xl shadow-xl flex items-center gap-3 z-50 animate-bounce"
-          >
-            <ShieldCheck size={20} className="text-emerald-400" />
-            <span className="font-bold text-sm">{toastMessage}</span>
-          </motion.div>
         )}
       </AnimatePresence>
 

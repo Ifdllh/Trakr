@@ -38,34 +38,30 @@ service cloud.firestore {
     }
 
     function isValidTransaction(data) {
-      return data.keys().hasAll(['type', 'amount', 'category', 'subcategory', 'date', 'description', 'createdAt']) &&
-             data.keys().size() == 7 &&
-             data.type is string && (data.type == 'pemasukan' || data.type == 'pengeluaran') &&
+      return data.keys().hasAll(['type', 'amount', 'category', 'subcategory', 'date', 'createdAt']) &&
+             data.type is string &&
              data.amount is number &&
-             data.category is string && data.category.size() <= 128 &&
-             data.subcategory is string && data.subcategory.size() <= 128 &&
-             data.date is string && data.date.size() <= 64 &&
-             data.description is string && data.description.size() <= 500 &&
-             data.createdAt is string && data.createdAt.size() <= 64;
+             data.category is string &&
+             data.subcategory is string &&
+             data.date is string &&
+             data.createdAt is string;
     }
 
     function isValidBudget(data) {
       return data.keys().hasAll(['periodId', 'categoryId', 'type', 'value', 'createdAt']) &&
-             data.keys().size() == 5 &&
-             data.periodId is string && data.periodId.size() <= 64 &&
-             data.categoryId is string && data.categoryId.size() <= 128 &&
-             data.type is string && (data.type == 'amount' || data.type == 'percentage') &&
+             data.periodId is string &&
+             data.categoryId is string &&
+             data.type is string &&
              data.value is number &&
-             data.createdAt is string && data.createdAt.size() <= 64;
+             data.createdAt is string;
     }
 
     function isValidPeriod(data) {
       return data.keys().hasAll(['name', 'startDate', 'endDate', 'createdAt']) &&
-             (data.keys().size() == 4 || (data.keys().size() == 5 && data.keys().hasAny(['isActive']) && data.isActive is bool)) &&
-             data.name is string && data.name.size() <= 64 &&
-             data.startDate is string && data.startDate.size() <= 64 &&
-             data.endDate is string && data.endDate.size() <= 64 &&
-             data.createdAt is string && data.createdAt.size() <= 64;
+             data.name is string &&
+             data.startDate is string &&
+             data.endDate is string &&
+             data.createdAt is string;
     }
 
     // Rules for User Profile collection
@@ -90,8 +86,7 @@ service cloud.firestore {
         allow create: if isAuthenticated() && isOwner(userId) && isValidId(transactionId) && isValidTransaction(incoming());
         
         allow update: if isAuthenticated() && isOwner(userId) && isValidId(transactionId) && isValidTransaction(incoming()) &&
-                      incoming().createdAt == existing().createdAt &&
-                      incoming().diff(existing()).affectedKeys().hasOnly(['type', 'amount', 'category', 'subcategory', 'date', 'description']);
+                      incoming().createdAt == existing().createdAt;
                       
         allow delete: if isAuthenticated() && isOwner(userId) && isValidId(transactionId);
       }
@@ -103,8 +98,7 @@ service cloud.firestore {
         allow create: if isAuthenticated() && isOwner(userId) && isValidId(budgetId) && isValidBudget(incoming());
         
         allow update: if isAuthenticated() && isOwner(userId) && isValidId(budgetId) && isValidBudget(incoming()) &&
-                      incoming().createdAt == existing().createdAt &&
-                      incoming().diff(existing()).affectedKeys().hasOnly(['periodId', 'categoryId', 'type', 'value']);
+                      incoming().createdAt == existing().createdAt;
                       
         allow delete: if isAuthenticated() && isOwner(userId) && isValidId(budgetId);
       }
@@ -117,8 +111,7 @@ service cloud.firestore {
         allow create: if isAuthenticated() && isOwner(userId) && isValidId(periodId) && isValidPeriod(incoming());
         
         allow update: if isAuthenticated() && isOwner(userId) && isValidId(periodId) && isValidPeriod(incoming()) &&
-                      incoming().createdAt == existing().createdAt &&
-                      incoming().diff(existing()).affectedKeys().hasOnly(['name', 'startDate', 'endDate', 'isActive']);
+                      incoming().createdAt == existing().createdAt;
                       
         allow delete: if isAuthenticated() && isOwner(userId) && isValidId(periodId);
       }

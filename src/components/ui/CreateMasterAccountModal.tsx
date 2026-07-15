@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { Plus, Wallet, Building, CreditCard, Landmark } from 'lucide-react';
 import { NumericFormat } from 'react-number-format';
+import { useToast } from '@/context/ToastContext';
 
 interface CreateMasterAccountModalProps {
   onClose: () => void;
@@ -25,17 +26,16 @@ const PREDEFINED_COLORS = [
 ];
 
 export default function CreateMasterAccountModal({ onClose, onSave, onSuccess, accountToEdit }: CreateMasterAccountModalProps) {
+  const { showToast } = useToast();
   const [formData, setFormData] = useState<any>(accountToEdit || {
     color: '#4f46e5',
     includeInNetWorth: true
   });
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [formMessage, setFormMessage] = useState<{type: 'error' | 'success', text: string} | null>(null);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsSubmitting(true);
-    setFormMessage(null);
     try {
       const payload = {
         accountName: formData.accountName,
@@ -47,18 +47,21 @@ export default function CreateMasterAccountModal({ onClose, onSave, onSuccess, a
         includeInNetWorth: formData.includeInNetWorth
       };
       const newId = await onSave('accounts', payload, accountToEdit?.id);
-      setFormMessage({ type: 'success', text: 'Data berhasil disimpan!' });
+      
+      if (accountToEdit) {
+        showToast('Rekening berhasil diubah.', 'success');
+      } else {
+        showToast('Rekening berhasil ditambahkan.', 'success');
+      }
       
       if (onSuccess && newId) {
         onSuccess(newId);
       }
-      setTimeout(() => {
-        onClose();
-      }, 700);
+      onClose();
     } catch (error: any) {
       setIsSubmitting(false);
-      setFormMessage({ type: 'error', text: error.message || 'Terjadi kesalahan' });
-      
+      const errMsg = error.message || 'Terjadi kesalahan';
+      showToast(errMsg, 'error');
     }
   };
 
@@ -74,11 +77,6 @@ export default function CreateMasterAccountModal({ onClose, onSave, onSuccess, a
           </button>
         </div>
         <div className="p-6 overflow-y-auto">
-          {formMessage && (
-            <div className={`p-3 mb-4 rounded-xl text-sm font-bold ${formMessage.type === 'error' ? 'bg-red-50 text-red-600' : 'bg-emerald-50 text-emerald-600'}`}>
-              {formMessage.text}
-            </div>
-          )}
           <form onSubmit={handleSubmit} className="space-y-4">
             <div>
               <label className="text-sm font-bold text-gray-700 mb-1 block">Nama Rekening</label>

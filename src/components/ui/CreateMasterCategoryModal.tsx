@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { Plus, HelpCircle } from 'lucide-react';
 import * as LucideIcons from 'lucide-react';
 import { Category } from '@/types';
+import { useToast } from '@/context/ToastContext';
 
 const COMMON_ICONS = [
   'Folder', 'ShoppingBag', 'Utensils', 'Car', 'Receipt', 
@@ -48,6 +49,7 @@ export default function CreateMasterCategoryModal({
   categoryToEdit = null,
   allCategories
 }: CreateMasterCategoryModalProps) {
+  const { showToast } = useToast();
   // If editing, use existing properties
   const [formData, setFormData] = useState<any>(
     categoryToEdit 
@@ -69,12 +71,10 @@ export default function CreateMasterCategoryModal({
   );
   
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [formMessage, setFormMessage] = useState<{type: 'error' | 'success', text: string} | null>(null);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsSubmitting(true);
-    setFormMessage(null);
 
     const nameInput = formData.name?.trim();
 
@@ -100,6 +100,7 @@ export default function CreateMasterCategoryModal({
         }
       }
 
+      let savedId: string | void;
       if (categoryToEdit) {
         // EDIT MODE: We are editing/updating an existing main category
         const isPredefined = isNaN(Number(categoryToEdit.id));
@@ -116,7 +117,7 @@ export default function CreateMasterCategoryModal({
             subcategories: categoryToEdit.subcategories || [],
             isActive: true
           };
-          await onSave('customCategories', dataToSave);
+          savedId = await onSave('customCategories', dataToSave);
         } else {
           // Editing existing custom category: Send update with id
           const dataToSave = {
@@ -130,7 +131,7 @@ export default function CreateMasterCategoryModal({
             subcategories: categoryToEdit.subcategories || [],
             isActive: true
           };
-          await onSave('customCategories', dataToSave, String(categoryToEdit.id));
+          savedId = await onSave('customCategories', dataToSave, String(categoryToEdit.id));
         }
       } else {
         // CREATE MODE:
@@ -144,7 +145,7 @@ export default function CreateMasterCategoryModal({
           // Remove id and userId to prevent db mismatches
           delete (dataToSave as any).id;
           delete (dataToSave as any).userId;
-          await onSave('customCategories', dataToSave, parentCategoryId);
+          savedId = await onSave('customCategories', dataToSave, parentCategoryId);
         } else {
           // Creating new category (or a subcategory that links to a predefined parent)
           const dataToSave = {
@@ -157,19 +158,27 @@ export default function CreateMasterCategoryModal({
             parentCategory: parentCategory || null,
             subcategories: []
           };
-          await onSave('customCategories', dataToSave);
+          savedId = await onSave('customCategories', dataToSave);
         }
       }
       
-      setFormMessage({ type: 'success', text: 'Data berhasil disimpan!' });
+      if (categoryToEdit) {
+        showToast('Kategori berhasil diubah.', 'success');
+      } else if (formData.parentCategory) {
+        showToast('Sub-kategori berhasil ditambahkan.', 'success');
+      } else {
+        showToast('Kategori berhasil ditambahkan.', 'success');
+      }
       
-      setTimeout(() => {
-        onClose();
-      }, 700);
+      if (onSuccess && !categoryToEdit) {
+        onSuccess(savedId || '', nameInput);
+      }
+      
+      onClose();
     } catch (error: any) {
       setIsSubmitting(false);
-      setFormMessage({ type: 'error', text: error.message || 'Terjadi kesalahan' });
-      
+      const errMsg = error.message || 'Terjadi kesalahan';
+      showToast(errMsg, 'error');
     }
   };
 
@@ -185,11 +194,6 @@ export default function CreateMasterCategoryModal({
           </button>
         </div>
         <div className="p-6 overflow-y-auto">
-          {formMessage && (
-            <div className={`p-3 mb-4 rounded-xl text-sm font-bold ${formMessage.type === 'error' ? 'bg-red-50 text-red-600' : 'bg-emerald-50 text-emerald-600'}`}>
-              {formMessage.text}
-            </div>
-          )}
           <form onSubmit={handleSubmit} className="space-y-4">
             <div>
               <label className="text-sm font-bold text-gray-700 mb-1 block">Tipe Master Data</label>

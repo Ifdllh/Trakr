@@ -11,6 +11,7 @@ import CreateMasterAccountModal from "@/components/ui/CreateMasterAccountModal";
 import CreateMasterCategoryModal from "@/components/ui/CreateMasterCategoryModal";
 import CreateSubCategoryModal from "@/components/ui/CreateSubCategoryModal";
 import { z } from 'zod';
+import { useToast } from '@/context/ToastContext';
 
 export const recurringTransactionSchema = z.object({
   isRecurring: z.boolean().default(false),
@@ -97,9 +98,9 @@ export default function TransactionForm({
     });
     setMatchedPeriod(matched || null);
   }, [date, periods]);
+  const { showToast } = useToast();
   const [isAdvancedOpen, setIsAdvancedOpen] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [error, setError] = useState<string | null>(null);
 
   // Quick Add Modal State
   const [quickAddType, setQuickAddType] = useState<string | null>(null);
@@ -107,23 +108,12 @@ export default function TransactionForm({
   
   const [quickAddSub, setQuickAddSub] = useState("");
   const [isSubCategoryModalOpen, setIsSubCategoryModalOpen] = useState(false);
-  const [toastMessage, setToastMessage] = useState<string | null>(null);
-
-  // Auto-dismiss toast message
-  useEffect(() => {
-    if (toastMessage) {
-      const timer = setTimeout(() => setToastMessage(null), 3000);
-      return () => clearTimeout(timer);
-    }
-  }, [toastMessage]);
 
   const handleSubCategoryQuickAddClick = () => {
     if (!category) {
-      setToastMessage('Silakan pilih Kategori Utama terlebih dahulu.');
-      setError('Silakan pilih Kategori Utama terlebih dahulu.');
+      showToast('Silakan pilih Kategori Utama terlebih dahulu.', 'error');
       return;
     }
-    setError(null);
     setIsSubCategoryModalOpen(true);
   };
 
@@ -184,7 +174,6 @@ export default function TransactionForm({
     if (!file) return;
     
     setIsUploading(true);
-    setError(null);
     
     const formData = new FormData();
     formData.append('receipt', file);
@@ -199,15 +188,14 @@ export default function TransactionForm({
       const data = response.data;
       if (data && data.secureUrl) {
         setAttachmentUrl(data.secureUrl);
-        setToastMessage('Struk berhasil diunggah!');
+        showToast('Struk berhasil diunggah!', 'success');
       } else {
         throw new Error('Url aman tidak ditemukan dalam respon.');
       }
     } catch (err: any) {
 
       const errorMessage = err?.response?.data?.error || err?.message || 'Gagal mengunggah struk.';
-      setToastMessage(`Gagal mengunggah struk: ${errorMessage}`);
-      setError(`Gagal mengunggah struk: ${errorMessage}`);
+      showToast(`Gagal mengunggah struk: ${errorMessage}`, 'error');
     } finally {
       setIsUploading(false);
     }
@@ -215,32 +203,31 @@ export default function TransactionForm({
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    setError(null);
 
     const parsedAmount = parseFloat(amount);
     if (isNaN(parsedAmount) || parsedAmount <= 0) {
-      setError('Masukkan jumlah uang yang valid dan lebih dari 0.');
+      showToast('Masukkan jumlah uang yang valid dan lebih dari 0.', 'error');
       return;
     }
     
     if (!accountId) {
-      setError('Pilih sumber dana (Rekening) terlebih dahulu.');
+      showToast('Pilih sumber dana (Rekening) terlebih dahulu.', 'error');
       return;
     }
 
     if (type === 'transfer') {
       if (!destinationAccountId) {
-        setError('Pilih rekening tujuan terlebih dahulu.');
+        showToast('Pilih rekening tujuan terlebih dahulu.', 'error');
         return;
       }
       if (accountId === destinationAccountId) {
-        setError('Rekening sumber dan tujuan tidak boleh sama.');
+        showToast('Rekening sumber dan tujuan tidak boleh sama.', 'error');
         return;
       }
     }
 
     // Validate recurring fields using the Zod schema
-    if (isRecurring) {
+    if (isRecurring && type === 'pengeluaran') {
       try {
         recurringTransactionSchema.parse({
           isRecurring,
@@ -249,9 +236,9 @@ export default function TransactionForm({
         });
       } catch (zodErr: any) {
         if (zodErr instanceof z.ZodError) {
-          setError(zodErr.issues[0]?.message || 'Validasi transaksi rutin gagal.');
+          showToast(zodErr.issues[0]?.message || 'Validasi transaksi rutin gagal.', 'error');
         } else {
-          setError('Validasi transaksi rutin gagal.');
+          showToast('Validasi transaksi rutin gagal.', 'error');
         }
         return;
       }
@@ -266,38 +253,44 @@ export default function TransactionForm({
     if (type !== 'transfer' && isSplit && !transactionToEdit) {
       const validRows = splitRows.filter(r => r.category);
       if (validRows.length < 2) {
-        setError('Harap masukkan rincian pembagian kategori untuk setidaknya 2 baris.');
+        showToast('Harap masukkan rincian pembagian kategori untuk setidaknya 2 baris.', 'error');
         return;
       }
 
       if (!isSplitBalanced) {
-        setError(`Total rincian (${formatIDR(splitSum)}) harus sama dengan Jumlah Uang (${formatIDR(totalGrandAmount)}).`);
+        showToast(`Total rincian (${formatIDR(splitSum)}) harus sama dengan Jumlah Uang (${formatIDR(totalGrandAmount)}).`, 'error');
         return;
       }
 
       const splitGroupId = 'split_' + Math.random().toString(36).substring(2, 15) + '_' + Date.now().toString(36);
 
-      const payloads = validRows.map(row => ({
-        type,
-        amount: parseFloat(row.amount) || 0,
-        category: row.category,
-        subcategory: row.subcategory || '',
-        date,
-        description: row.description || description || `Bagi Transaksi - ${row.category}`,
-        accountId: parseInt(accountId) as unknown as string,
-        assetId: assetId ? (parseInt(assetId) as unknown as string) : undefined,
-        tagId: tagId ? (parseInt(tagId) as unknown as string) : undefined,
-        contactId: contactId ? (parseInt(contactId) as unknown as string) : undefined,
-        periodId: matchedPeriod ? String(matchedPeriod.id) : undefined,
-        splitGroupId: splitGroupId,
-        attachmentUrl: attachmentUrl || null,
-        recurringConfig
-      }));
+      const payloads = validRows.map(row => {
+        const p: any = {
+          type,
+          amount: parseFloat(row.amount) || 0,
+          category: row.category,
+          subcategory: row.subcategory || 'Lainnya',
+          date,
+          accountId: String(accountId),
+          splitGroupId: splitGroupId,
+        };
+
+        const rowDesc = row.description || description || `Bagi Transaksi - ${row.category}`;
+        if (rowDesc) p.description = rowDesc;
+        if (assetId) p.assetId = String(assetId);
+        if (tagId) p.tagId = String(tagId);
+        if (contactId) p.contactId = String(contactId);
+        if (matchedPeriod) p.periodId = String(matchedPeriod.id);
+        if (attachmentUrl) p.attachmentUrl = attachmentUrl;
+        if (recurringConfig) p.recurringConfig = recurringConfig;
+        
+        return p;
+      });
 
       setIsSubmitting(true);
       try {
         await onSave(payloads);
-        setToastMessage('Transaksi bagi (split) berhasil disimpan!');
+        showToast('Transaksi bagi (split) berhasil disimpan!', 'success');
         setAmount('');
         setCategory('');
         setSubcategory('');
@@ -308,45 +301,47 @@ export default function TransactionForm({
         setRecurringEndDate(null);
         onClose();
       } catch (err: any) {
-        setError(err.message || 'Gagal menyimpan transaksi bagi.');
+        showToast(err.message || 'Gagal menyimpan transaksi bagi.', 'error');
       } finally {
         setIsSubmitting(false);
       }
     } else {
       if (!category && type !== 'transfer') {
-        setError('Pilih kategori terlebih dahulu.');
+        showToast('Pilih kategori terlebih dahulu.', 'error');
         return;
       }
 
       if (!subcategory && type !== 'transfer') {
-        setError('Pilih sub-kategori terlebih dahulu.');
+        showToast('Pilih sub-kategori terlebih dahulu.', 'error');
         return;
       }
 
-      const payload = {
+      const payload: any = {
         type,
         amount: parsedAmount,
         category: type === 'transfer' ? 'Transfer' : category,
-        subcategory: type === 'transfer' ? 'Transfer' : subcategory,
+        subcategory: type === 'transfer' ? 'Transfer' : (subcategory || 'Lainnya'),
         date,
-        description,
-        accountId: parseInt(accountId) as unknown as string,
-        destinationAccountId: destinationAccountId ? (parseInt(destinationAccountId) as unknown as string) : undefined,
-        assetId: assetId ? (parseInt(assetId) as unknown as string) : undefined,
-        tagId: tagId ? (parseInt(tagId) as unknown as string) : undefined,
-        contactId: contactId ? (parseInt(contactId) as unknown as string) : undefined,
-        periodId: matchedPeriod ? String(matchedPeriod.id) : undefined,
-        attachmentUrl: attachmentUrl || null,
-        recurringConfig
+        accountId: String(accountId),
       };
+
+      if (description) payload.description = description;
+      if (destinationAccountId) payload.destinationAccountId = String(destinationAccountId);
+      if (assetId) payload.assetId = String(assetId);
+      if (tagId) payload.tagId = String(tagId);
+      if (contactId) payload.contactId = String(contactId);
+      if (matchedPeriod) payload.periodId = String(matchedPeriod.id);
+      if (attachmentUrl) payload.attachmentUrl = attachmentUrl;
+      if (recurringConfig) payload.recurringConfig = recurringConfig;
 
       if (transactionToEdit) {
         setIsSubmitting(true);
         try {
           await onSave(payload, transactionToEdit.id);
+          showToast('Transaksi berhasil diperbarui!', 'success');
           onClose();
         } catch (err: any) {
-          setError(err.message || 'Gagal menyimpan transaksi.');
+          showToast(err.message || 'Gagal menyimpan transaksi.', 'error');
         } finally {
           setIsSubmitting(false);
         }
@@ -354,7 +349,7 @@ export default function TransactionForm({
         setIsSubmitting(true);
         try {
           await onSave(payload);
-          setToastMessage('Transaksi berhasil disimpan!');
+          showToast('Transaksi berhasil disimpan!', 'success');
           setAmount('');
           setCategory('');
           setSubcategory('');
@@ -365,7 +360,7 @@ export default function TransactionForm({
           setRecurringEndDate(null);
           onClose();
         } catch (err: any) {
-          setError(err.message || 'Gagal menyimpan transaksi.');
+          showToast(err.message || 'Gagal menyimpan transaksi.', 'error');
         } finally {
           setIsSubmitting(false);
         }
@@ -379,33 +374,31 @@ export default function TransactionForm({
       if (quickAddType === 'accounts') {
         const newId = await onSaveMasterData('accounts', { accountName: quickAddName, accountType: 'Cash', balance: 0, isActive: true });
         if (typeof newId === 'string') setAccountId(String(newId));
+        showToast('Rekening berhasil ditambahkan.', 'success');
       } else if (quickAddType === 'assets') {
         const newId = await onSaveMasterData('assets', { assetName: quickAddName, assetCategory: 'Gold', currentValue: 0, isActive: true });
         if (typeof newId === 'string') setAssetId(String(newId));
+        showToast('Aset berhasil ditambahkan.', 'success');
       } else if (quickAddType === 'tags') {
         const newId = await onSaveMasterData('tags', { tagName: quickAddName, description: '', isActive: true });
         if (typeof newId === 'string') setTagId(String(newId));
+        showToast('Tag berhasil ditambahkan.', 'success');
       } else if (quickAddType === 'contacts') {
         const newId = await onSaveMasterData('contacts', { contactName: quickAddName, contactType: 'Payee', isActive: true });
         if (typeof newId === 'string') setContactId(String(newId));
+        showToast('Kontak berhasil ditambahkan.', 'success');
       }
 
       setQuickAddType(null);
       setQuickAddName('');
       setQuickAddSub('');
-    } catch (e) {
-
+    } catch (e: any) {
+      showToast(e.message || 'Gagal menambahkan data.', 'error');
     }
   };
 
   return (
     <div className="fixed inset-0 bg-gray-900/40 backdrop-blur-xs flex items-center justify-center p-4 z-50 animate-fade-in font-sans">
-      {toastMessage && (
-        <div className="absolute top-6 left-1/2 -translate-x-1/2 bg-amber-500 text-white px-5 py-3 rounded-2xl text-xs font-bold shadow-xl z-[100] flex items-center gap-2 animate-bounce border border-amber-400">
-          <span>⚠️</span>
-          <span>{toastMessage}</span>
-        </div>
-      )}
       <div className="bg-white rounded-2xl w-full max-w-2xl shadow-2xl overflow-hidden border border-gray-100 flex flex-col max-h-[90vh]">
         {/* Header & Tabs (Sticky) */}
         <div className="bg-gray-50/50 border-b border-gray-100 shrink-0">
@@ -487,11 +480,6 @@ export default function TransactionForm({
         {/* Form Body (Scrollable) */}
         <form onSubmit={handleSubmit} className="flex flex-col overflow-hidden min-h-0 flex-1">
           <div className="p-6 space-y-5 overflow-y-auto flex-1">
-            {error && (
-              <div className="bg-red-50 text-red-700 text-xs font-semibold p-3 rounded-lg border-l-4 border-red-500">
-                {error}
-              </div>
-            )}
 
             {/* Amount Input */}
             <div>
@@ -515,11 +503,11 @@ export default function TransactionForm({
             </div>
 
             {/* Split Transaction Toggle */}
-            {type !== 'transfer' && !transactionToEdit && (
+            {type !== 'transfer' && type !== 'pemasukan' && !transactionToEdit && (
               <div className="flex items-center justify-between bg-slate-50 border border-slate-100 p-3 rounded-xl shrink-0">
                 <div className="flex flex-col">
                   <span className="text-xs font-bold text-slate-700">Bagi Transaksi (Split)</span>
-                  <span className="text-[10px] text-slate-400">Pecah pengeluaran/pemasukan ke beberapa kategori</span>
+                  <span className="text-[10px] text-slate-400">Pecah pengeluaran ke beberapa kategori</span>
                 </div>
                 <button
                   type="button"
@@ -719,6 +707,11 @@ export default function TransactionForm({
                         {cat.name}
                       </option>
                     ))}
+                    {category && !availableCategories.some((cat) => cat.name === category) && (
+                      <option value={category}>
+                        {category}
+                      </option>
+                    )}
                   </select>
                 </div>
 
@@ -785,6 +778,11 @@ export default function TransactionForm({
                         {acc.accountName} - {acc.accountType}
                       </option>
                     ))}
+                    {accountId && !accounts.some((acc) => acc.id === accountId) && (
+                      <option value={accountId}>
+                        Memuat rekening baru...
+                      </option>
+                    )}
                   </select>
                 </div>
                 <div>
@@ -805,6 +803,11 @@ export default function TransactionForm({
                         {acc.accountName} - {acc.accountType}
                       </option>
                     ))}
+                    {destinationAccountId && !accounts.some((acc) => acc.id === destinationAccountId) && (
+                      <option value={destinationAccountId}>
+                        Memuat rekening baru...
+                      </option>
+                    )}
                   </select>
                 </div>
               </div>
@@ -832,6 +835,11 @@ export default function TransactionForm({
                     {acc.accountName} - {acc.accountType}
                   </option>
                 ))}
+                {accountId && !accounts.some((acc) => acc.id === accountId) && (
+                  <option value={accountId}>
+                    Memuat rekening baru...
+                  </option>
+                )}
               </select>
               {accounts.length === 0 && (
                 <p className="mt-1 text-xs text-amber-600 font-medium">⚠️ Anda belum memiliki master data rekening.</p>
@@ -856,11 +864,6 @@ export default function TransactionForm({
                   wrapperClassName="w-full"
                 />
               </div>
-              {isRecurring && type === 'pengeluaran' && (
-                <p className="text-[10px] text-indigo-600 font-bold mt-1.5 flex items-center gap-1">
-                  💡 Ini akan menjadi tanggal mulai (Start Date) dari transaksi rutin Anda.
-                </p>
-              )}
               {matchedPeriod ? (
                 <p className="text-[10px] text-emerald-600 font-bold mt-1.5 flex items-center gap-1">
                   ✓ Masuk ke periode anggaran: {matchedPeriod.name}
@@ -871,73 +874,6 @@ export default function TransactionForm({
                 </p>
               )}
             </div>
-
-            {/* Jadikan Transaksi Rutin / Berulang - Hanya untuk Pengeluaran */}
-            {type === 'pengeluaran' && (
-              <>
-                <div className="flex items-center justify-between p-3 border border-dashed border-gray-200 rounded-xl bg-slate-50/50">
-                  <div className="flex flex-col">
-                    <span className="text-xs font-bold text-gray-800 uppercase tracking-wider">
-                      Jadikan Transaksi Rutin / Berulang
-                    </span>
-                    <span className="text-[10px] text-gray-400">Otomatisasi pencatatan transaksi di masa mendatang</span>
-                  </div>
-                  <button
-                    type="button"
-                    role="switch"
-                    aria-checked={isRecurring}
-                    onClick={() => setIsRecurring(!isRecurring)}
-                    className={`relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 ${
-                      isRecurring ? 'bg-indigo-600' : 'bg-gray-200'
-                    }`}
-                  >
-                    <span
-                      aria-hidden="true"
-                      className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow-sm ring-0 transition duration-200 ease-in-out ${
-                        isRecurring ? 'translate-x-5' : 'translate-x-0'
-                      }`}
-                    />
-                  </button>
-                </div>
-
-                {/* Recurring payment fields config container */}
-                {isRecurring && (
-                  <div className="bg-slate-50 border border-slate-200 p-3.5 rounded-xl space-y-3 shadow-xs">
-                    <div className="grid grid-cols-2 gap-3">
-                      <div>
-                        <label className="block text-[10px] font-extrabold text-gray-500 uppercase tracking-wider mb-1.5">
-                          Frekuensi
-                        </label>
-                        <select
-                          value={recurringFrequency}
-                          onChange={(e) => setRecurringFrequency(e.target.value as any)}
-                          className="block w-full px-3 py-2 border border-gray-200 bg-white rounded-lg text-xs focus:outline-none focus:ring-1 focus:ring-indigo-500 focus:border-indigo-500 font-medium text-gray-700"
-                        >
-                          <option value="DAILY">Harian (Daily)</option>
-                          <option value="WEEKLY">Mingguan (Weekly)</option>
-                          <option value="MONTHLY">Bulanan (Monthly)</option>
-                          <option value="YEARLY">Tahunan (Yearly)</option>
-                        </select>
-                      </div>
-                      <div>
-                        <label className="block text-[10px] font-extrabold text-gray-500 uppercase tracking-wider mb-1.5">
-                          Batas Akhir (Opsional)
-                        </label>
-                        <DatePicker
-                          selected={recurringEndDate}
-                          onChange={(d: Date | null) => setRecurringEndDate(d)}
-                          placeholderText="Tanpa Batas Akhir"
-                          dateFormat="dd/MM/yyyy"
-                          isClearable
-                          className="block w-full px-3 py-2 border border-gray-200 bg-white rounded-lg text-xs focus:outline-none focus:ring-1 focus:ring-indigo-500 focus:border-indigo-500 font-medium text-gray-700"
-                          wrapperClassName="w-full"
-                        />
-                      </div>
-                    </div>
-                  </div>
-                )}
-              </>
-            )}
 
             {/* Notes/Description */}
             <div>
@@ -1180,7 +1116,6 @@ export default function TransactionForm({
             onSave={onSaveMasterData}
             onSuccess={(newId) => {
               setAccountId(String(newId));
-              setQuickAddType(null);
             }}
           />
         )}
@@ -1192,7 +1127,6 @@ export default function TransactionForm({
             initialType={type === 'pengeluaran' ? 'pengeluaran' : 'pemasukan'}
             onSuccess={(newId, categoryName) => {
               setCategory(categoryName);
-              setQuickAddType(null);
             }}
             allCategories={categories}
           />
@@ -1207,7 +1141,6 @@ export default function TransactionForm({
             parentCategoryName={selectedCategoryObj?.name || category}
             onSuccess={(newId, subCategoryName) => {
               setSubcategory(subCategoryName);
-              setIsSubCategoryModalOpen(false);
             }}
           />
         )}

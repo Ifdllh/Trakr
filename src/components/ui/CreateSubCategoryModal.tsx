@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { HelpCircle, X } from 'lucide-react';
 import * as LucideIcons from 'lucide-react';
+import { useToast } from '@/context/ToastContext';
 
 const COMMON_ICONS = [
   'Folder', 'ShoppingBag', 'Utensils', 'Car', 'Receipt', 
@@ -26,20 +27,19 @@ export default function CreateSubCategoryModal({
   parentCategoryName, 
   type 
 }: CreateSubCategoryModalProps) {
+  const { showToast } = useToast();
   const [name, setName] = useState('');
   const [iconName, setIconName] = useState('Folder');
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [formMessage, setFormMessage] = useState<{type: 'error' | 'success', text: string} | null>(null);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!name.trim()) {
-      setFormMessage({ type: 'error', text: 'Nama sub-kategori tidak boleh kosong' });
+      showToast('Nama sub-kategori tidak boleh kosong', 'error');
       return;
     }
 
     setIsSubmitting(true);
-    setFormMessage(null);
 
     try {
       const dataToSave = {
@@ -53,18 +53,16 @@ export default function CreateSubCategoryModal({
       };
       
       const newId = await onSave('customCategories', dataToSave);
-      setFormMessage({ type: 'success', text: 'Sub-kategori berhasil disimpan!' });
+      showToast('Sub-kategori berhasil ditambahkan.', 'success');
       
       if (onSuccess) {
         onSuccess(newId || name.trim(), name.trim());
       }
-      setTimeout(() => {
-        onClose();
-      }, 700);
+      onClose();
     } catch (error: any) {
       setIsSubmitting(false);
-      setFormMessage({ type: 'error', text: error.message || 'Terjadi kesalahan' });
-      
+      const errMsg = error.message || 'Terjadi kesalahan';
+      showToast(errMsg, 'error');
     }
   };
 
@@ -89,15 +87,6 @@ export default function CreateSubCategoryModal({
 
         {/* Body */}
         <div className="p-6 overflow-y-auto space-y-4">
-          {formMessage && (
-            <div className={`p-3 rounded-xl text-sm font-bold border ${
-              formMessage.type === 'error' 
-                ? 'bg-red-50 text-red-600 border-red-100' 
-                : 'bg-emerald-50 text-emerald-600 border-emerald-100'
-            }`}>
-              {formMessage.type === 'error' ? '❌' : '✅'} {formMessage.text}
-            </div>
-          )}
 
           <form onSubmit={handleSubmit} className="space-y-4">
             {/* Visual Parent Lock */}

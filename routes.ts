@@ -1,5 +1,18 @@
 import { AuthRequest, requireAuth } from "./src/middleware/auth.js";
-import { getFirestoreDb } from "./src/lib/firebase-admin.js";
+import { db } from "./src/db/index.js";
+import { eq, and } from "drizzle-orm";
+import { 
+  users, 
+  transactions, 
+  masterCategories, 
+  masterAccounts, 
+  masterContacts, 
+  masterTags, 
+  masterPeriods, 
+  masterAssets, 
+  budgetAllocations, 
+  globalBudgets 
+} from "./src/db/schema.js";
 
 const cleanPayload = (payload: any) => {
   const result = { ...payload };
@@ -7,179 +20,187 @@ const cleanPayload = (payload: any) => {
   delete result.createdAt;
   delete result.updatedAt;
   
-  // Cast amounts to numbers
   const floatFields = ['amount', 'value', 'calculatedAmount', 'totalTargetAmount', 'balance', 'currentValue'];
   for (const field of floatFields) {
     if (result[field] !== undefined) {
       result[field] = parseFloat(result[field]) || 0;
     }
   }
+
+  // Convert string IDs back to numbers for Postgres foreign keys where appropriate
+  const intFields = ['accountId', 'destinationAccountId', 'assetId', 'tagId', 'contactId', 'periodId'];
+  for (const field of intFields) {
+    if (result[field] !== undefined && result[field] !== null) {
+      const parsed = parseInt(result[field]);
+      if (!isNaN(parsed)) {
+        result[field] = parsed;
+      } else {
+        result[field] = null;
+      }
+    }
+  }
   
   return result;
 };
 
-const getFirestoreCollection = (req: AuthRequest, collectionName: string) => {
-  const db = getFirestoreDb(req.authEnv || 'dev');
-  const userId = req.userId!;
-  
-  const map: Record<string, string> = {
-    'customCategories': 'customCategories',
-    'customAccounts': 'accounts',
-    'accounts': 'accounts',
-    'customContacts': 'contacts',
-    'contacts': 'contacts',
-    'customTags': 'tags',
-    'tags': 'tags',
-    'customPeriods': 'periods',
-    'periods': 'periods',
-    'customAssets': 'assets',
-    'assets': 'assets',
-    'budgetAllocations': 'budgets',
-    'budgets': 'budgets',
-    'transactions': 'transactions',
-    'globalBudgets': 'globalBudgets'
+async function getPgUserId(firebaseUid: string): Promise<number> {
+  const result = await db.select().from(users).where(eq(users.uid, firebaseUid)).limit(1);
+  if (result.length > 0) {
+    return result[0].id;
+  }
+  const newUsers = await db.insert(users).values({ uid: firebaseUid, email: 'unknown@example.com' }).returning();
+  return newUsers[0].id;
+}
+
+const getTableForCollection = (collectionName: string) => {
+  const map: Record<string, any> = {
+    'customCategories': masterCategories,
+    'categories': masterCategories,
+    'customAccounts': masterAccounts,
+    'accounts': masterAccounts,
+    'customContacts': masterContacts,
+    'contacts': masterContacts,
+    'customTags': masterTags,
+    'tags': masterTags,
+    'customPeriods': masterPeriods,
+    'periods': masterPeriods,
+    'customAssets': masterAssets,
+    'assets': masterAssets,
+    'budgetAllocations': budgetAllocations,
+    'budgets': budgetAllocations,
+    'transactions': transactions,
+    'globalBudgets': globalBudgets
   };
-  
-  const mappedName = map[collectionName] || collectionName;
-  return db.collection('users').doc(userId).collection(mappedName);
+  return map[collectionName];
 };
 
 export function setupApiRoutes(app: any) {
-  // GET masterdata
   app.get("/api/masterdata/:collection", requireAuth, async (req: AuthRequest, res: any, next: any) => {
     try {
-      const colRef = getFirestoreCollection(req, req.params.collection);
-      const snapshot = await colRef.get();
-      const docs = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+      const pgUserId = await getPgUserId(req.userId!);
+      const table = getTableForCollection(req.params.collection);
+      if (!table) return res.status(404).json({ error: "Collection not found" });
+      
+      const docs = await db.select().from(table).where(eq(table.userId, pgUserId));
       res.json(docs);
     } catch (e) {
       next(e);
     }
   });
 
-  // POST masterdata
   app.post("/api/masterdata/:collection", requireAuth, async (req: AuthRequest, res: any, next: any) => {
     try {
-      const colRef = getFirestoreCollection(req, req.params.collection);
-      const payload = cleanPayload(req.body);
-      const docData = { 
-        ...payload, 
-        createdAt: new Date().toISOString() 
-      };
+      const pgUserId = await getPgUserId(req.userId!);
+      const table = getTableForCollection(req.params.collection);
+      if (!table) return res.status(404).json({ error: "Collection not found" });
       
-      const docRef = await colRef.add(docData);
-      res.json({ id: docRef.id, ...docData });
+      const payload = cleanPayload(req.body);
+      payload.userId = pgUserId;
+      
+      const inserted = await db.insert(table).values(payload).returning();
+      res.json(inserted[0]);
     } catch (e) {
       next(e);
     }
   });
 
-  // PUT masterdata
   app.put("/api/masterdata/:collection/:id", requireAuth, async (req: AuthRequest, res: any, next: any) => {
     try {
-      const colRef = getFirestoreCollection(req, req.params.collection);
-      const id = req.params.id;
+      const pgUserId = await getPgUserId(req.userId!);
+      const table = getTableForCollection(req.params.collection);
+      if (!table) return res.status(404).json({ error: "Collection not found" });
+      
+      const id = parseInt(req.params.id);
+      if (isNaN(id)) return res.status(400).json({ error: "Invalid ID" });
+
       const payload = cleanPayload(req.body);
       
-      const docData = { 
-        ...payload, 
-        updatedAt: new Date().toISOString() 
-      };
-      
-      await colRef.doc(id).set(docData, { merge: true });
-      const updatedDoc = await colRef.doc(id).get();
-      res.json({ id: updatedDoc.id, ...updatedDoc.data() });
+      const updated = await db.update(table)
+        .set(payload)
+        .where(and(eq(table.id, id), eq(table.userId, pgUserId)))
+        .returning();
+        
+      res.json(updated[0]);
     } catch (e) {
       next(e);
     }
   });
 
-  // DELETE masterdata
   app.delete("/api/masterdata/:collection/:id", requireAuth, async (req: AuthRequest, res: any, next: any) => {
     try {
-      const colRef = getFirestoreCollection(req, req.params.collection);
-      const id = req.params.id;
-      await colRef.doc(id).delete();
+      const pgUserId = await getPgUserId(req.userId!);
+      const table = getTableForCollection(req.params.collection);
+      if (!table) return res.status(404).json({ error: "Collection not found" });
+      
+      const id = parseInt(req.params.id);
+      if (isNaN(id)) return res.status(400).json({ error: "Invalid ID" });
+
+      await db.delete(table).where(and(eq(table.id, id), eq(table.userId, pgUserId)));
       res.json({ success: true });
     } catch (e) {
       next(e);
     }
   });
 
-  // GET transactions
   app.get("/api/transactions", requireAuth, async (req: AuthRequest, res: any, next: any) => {
     try {
-      const colRef = getFirestoreCollection(req, "transactions");
-      const snapshot = await colRef.get();
-      const docs = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+      const pgUserId = await getPgUserId(req.userId!);
+      const docs = await db.select().from(transactions).where(eq(transactions.userId, pgUserId));
       res.json(docs);
     } catch (e) {
       next(e);
     }
   });
 
-  // POST transactions
   app.post("/api/transactions", requireAuth, async (req: AuthRequest, res: any, next: any) => {
     try {
-      const colRef = getFirestoreCollection(req, "transactions");
+      const pgUserId = await getPgUserId(req.userId!);
       
       if (Array.isArray(req.body)) {
-        const results = [];
-        const dbInstance = getFirestoreDb(req.authEnv || 'dev');
-        const batch = dbInstance.batch();
-        
-        for (const item of req.body) {
-          const payload = cleanPayload(item);
-          const docRef = colRef.doc();
-          const docData = {
-            ...payload,
-            createdAt: new Date().toISOString()
-          };
-          batch.set(docRef, docData);
-          results.push({ id: docRef.id, ...docData });
-        }
-        await batch.commit();
-        res.json(results);
+        const payloads = req.body.map(item => {
+          const p = cleanPayload(item);
+          p.userId = pgUserId;
+          return p;
+        });
+        const inserted = await db.insert(transactions).values(payloads).returning();
+        res.json(inserted);
       } else {
         const payload = cleanPayload(req.body);
-        const docData = {
-          ...payload,
-          createdAt: new Date().toISOString()
-        };
-        const docRef = await colRef.add(docData);
-        res.json({ id: docRef.id, ...docData });
+        payload.userId = pgUserId;
+        const inserted = await db.insert(transactions).values(payload).returning();
+        res.json(inserted[0]);
       }
     } catch (e) {
       next(e);
     }
   });
 
-  // PUT transactions
   app.put("/api/transactions/:id", requireAuth, async (req: AuthRequest, res: any, next: any) => {
     try {
-      const colRef = getFirestoreCollection(req, "transactions");
-      const id = req.params.id;
+      const pgUserId = await getPgUserId(req.userId!);
+      const id = parseInt(req.params.id);
+      if (isNaN(id)) return res.status(400).json({ error: "Invalid ID" });
+
       const payload = cleanPayload(req.body);
       
-      const docData = {
-        ...payload,
-        updatedAt: new Date().toISOString()
-      };
-      
-      await colRef.doc(id).set(docData, { merge: true });
-      const updatedDoc = await colRef.doc(id).get();
-      res.json({ id: updatedDoc.id, ...updatedDoc.data() });
+      const updated = await db.update(transactions)
+        .set(payload)
+        .where(and(eq(transactions.id, id), eq(transactions.userId, pgUserId)))
+        .returning();
+        
+      res.json(updated[0]);
     } catch (e) {
       next(e);
     }
   });
 
-  // DELETE transactions
   app.delete("/api/transactions/:id", requireAuth, async (req: AuthRequest, res: any, next: any) => {
     try {
-      const colRef = getFirestoreCollection(req, "transactions");
-      const id = req.params.id;
-      await colRef.doc(id).delete();
+      const pgUserId = await getPgUserId(req.userId!);
+      const id = parseInt(req.params.id);
+      if (isNaN(id)) return res.status(400).json({ error: "Invalid ID" });
+
+      await db.delete(transactions).where(and(eq(transactions.id, id), eq(transactions.userId, pgUserId)));
       res.json({ success: true });
     } catch (e) {
       next(e);

@@ -3,6 +3,7 @@ import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import { Plus, Calendar } from 'lucide-react';
+import { useToast } from '@/context/ToastContext';
 
 const indonesianMonths: Record<string, number> = {
   januari: 0, jan: 0,
@@ -84,9 +85,8 @@ export default function CreateMasterPeriodModal({
   onSave,
   periodToEdit
 }: CreateMasterPeriodModalProps) {
+  const { showToast } = useToast();
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [errorMessage, setErrorMessage] = useState<string | null>(null);
-  const [successMessage, setSuccessMessage] = useState<string | null>(null);
 
   const { register, handleSubmit, setValue, watch, formState: { errors } } = useForm<PeriodFormValues>({
     resolver: zodResolver(periodSchema),
@@ -102,16 +102,12 @@ export default function CreateMasterPeriodModal({
 
   const onSubmit = async (values: PeriodFormValues) => {
     setIsSubmitting(true);
-    setErrorMessage(null);
-    setSuccessMessage(null);
     try {
       await onSave('periods', { ...values, isActive: true }, periodToEdit?.id);
-      setSuccessMessage('Periode berhasil disimpan!');
-      setTimeout(() => {
-        onClose();
-      }, 1000);
+      showToast('Periode berhasil disimpan.', 'success');
+      onClose();
     } catch (err: any) {
-      setErrorMessage(err.message || 'Gagal menyimpan master data periode.');
+      showToast(err.message || 'Gagal menyimpan master data periode.', 'error');
     } finally {
       setIsSubmitting(false);
     }
@@ -160,16 +156,6 @@ export default function CreateMasterPeriodModal({
           </button>
         </div>
         <div className="p-6 overflow-y-auto">
-          {errorMessage && (
-            <div className="p-3 mb-4 bg-red-50 text-red-600 rounded-xl text-xs font-bold border border-red-100">
-              {errorMessage}
-            </div>
-          )}
-          {successMessage && (
-            <div className="p-3 mb-4 bg-emerald-50 text-emerald-600 rounded-xl text-xs font-bold border border-emerald-100">
-              {successMessage}
-            </div>
-          )}
           <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
             <div>
               <label className="text-xs font-black text-slate-500 uppercase mb-1.5 block">Nama Periode Baru</label>

@@ -180,6 +180,7 @@ class MockDb {
   }
 
   async restSetDoc(path: string, data: any, options: any) {
+    console.log("[MockDb] restSetDoc", path, JSON.stringify(data));
     const url = `https://firestore.googleapis.com/v1/projects/${this.projectId}/databases/${this.databaseId}/documents/${path}`;
     const fields: any = {};
     for (const k of Object.keys(data)) {

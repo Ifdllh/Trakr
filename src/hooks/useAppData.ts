@@ -7,9 +7,11 @@ import {
   Category, PREDEFINED_CATEGORIES
 } from '@/types';
 import { User as FirebaseUser } from 'firebase/auth';
+import { useToast } from '@/context/ToastContext';
 
-export function useAppData(user: FirebaseUser | null, isGuest: boolean, showGlobalToast: (msg: string, type?: 'success' | 'error' | 'info') => void) {
+export function useAppData(user: FirebaseUser | null, isGuest: boolean) {
   const queryClient = useQueryClient();
+  const { showToast } = useToast();
   
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [budgets, setBudgets] = useState<BudgetAllocation[]>([]);
@@ -153,7 +155,7 @@ export function useAppData(user: FirebaseUser | null, isGuest: boolean, showGlob
       setLoadingData(false);
     } catch (err: any) {
       console.error('refreshData error:', err);
-      showGlobalToast(err?.message || 'Gagal menyinkronkan data dari server', 'error');
+      showToast(err?.message || 'Gagal menyinkronkan data dari server', 'error');
       setLoadingData(false);
     }
   }, [user]);
@@ -175,14 +177,14 @@ export function useAppData(user: FirebaseUser | null, isGuest: boolean, showGlob
     } catch (error) {
 
       const msg = error.response?.data?.error || error.message || 'Terjadi kesalahan';
-      showGlobalToast(msg, 'error');
+      showToast(msg, 'error');
     }
   };
 
   const handleSaveTransaction = async (transactionData: any, id?: string) => {
     if (!user) return;
     if (isGuest) {
-      showGlobalToast('Fitur ini dinonaktifkan untuk akun Tamu', 'error');
+      showToast('Fitur ini dinonaktifkan untuk akun Tamu', 'error');
       throw new Error('Fitur ini dinonaktifkan untuk akun Tamu');
     }
     try {
@@ -196,14 +198,14 @@ export function useAppData(user: FirebaseUser | null, isGuest: boolean, showGlob
     } catch (error) {
 
       const msg = error.response?.data?.error || error.message || 'Terjadi kesalahan';
-      showGlobalToast(msg, 'error');
+      showToast(msg, 'error');
     }
   };
 
   const handleDeleteTransaction = async (id: string) => {
     if (!user) return;
     if (isGuest) {
-      showGlobalToast('Fitur ini dinonaktifkan untuk akun Tamu', 'error');
+      showToast('Fitur ini dinonaktifkan untuk akun Tamu', 'error');
       return;
     }
     try {
@@ -213,14 +215,14 @@ export function useAppData(user: FirebaseUser | null, isGuest: boolean, showGlob
     } catch (error) {
 
       const msg = error.response?.data?.error || error.message || 'Terjadi kesalahan';
-      showGlobalToast(msg, 'error');
+      showToast(msg, 'error');
     }
   };
 
   const handleSaveMasterData = async (collectionName: string, data: any, id?: string): Promise<string | void> => {
     if (!user) return;
     if (isGuest) {
-      showGlobalToast('Fitur ini dinonaktifkan untuk akun Tamu', 'error');
+      showToast('Fitur ini dinonaktifkan untuk akun Tamu', 'error');
       throw new Error('Fitur ini dinonaktifkan untuk akun Tamu');
     }
     try {
@@ -237,7 +239,7 @@ export function useAppData(user: FirebaseUser | null, isGuest: boolean, showGlob
       return resultId;
     } catch (error: any) {
       const msg = error.response?.data?.error || error.message || 'Terjadi kesalahan';
-      showGlobalToast(msg, 'error');
+      showToast(msg, 'error');
       throw error;
     }
   };
@@ -245,7 +247,7 @@ export function useAppData(user: FirebaseUser | null, isGuest: boolean, showGlob
   const handleDeleteMasterData = async (collectionName: string, id: string) => {
     if (!user) return;
     if (isGuest) {
-      showGlobalToast('Fitur ini dinonaktifkan untuk akun Tamu', 'error');
+      showToast('Fitur ini dinonaktifkan untuk akun Tamu', 'error');
       throw new Error('Fitur ini dinonaktifkan untuk akun Tamu');
     }
     try {
@@ -255,7 +257,7 @@ export function useAppData(user: FirebaseUser | null, isGuest: boolean, showGlob
       queryClient.invalidateQueries({ queryKey: ['budgets'] });
     } catch (error) {
       const msg = error.response?.data?.error || error.message || 'Terjadi kesalahan';
-      showGlobalToast(msg, 'error');
+      showToast(msg, 'error');
       throw error;
     }
   };
@@ -263,7 +265,7 @@ export function useAppData(user: FirebaseUser | null, isGuest: boolean, showGlob
   const handleSavePeriod = async (name: string, id?: string) => {
     if (!user) return;
     if (isGuest) {
-      showGlobalToast('Fitur ini dinonaktifkan untuk akun Tamu', 'error');
+      showToast('Fitur ini dinonaktifkan untuk akun Tamu', 'error');
       throw new Error('Fitur ini dinonaktifkan untuk akun Tamu');
     }
     try {
@@ -278,7 +280,7 @@ export function useAppData(user: FirebaseUser | null, isGuest: boolean, showGlob
       queryClient.invalidateQueries({ queryKey: ['budgets'] });
     } catch (error: any) {
       const msg = error.response?.data?.error || error.message || 'Terjadi kesalahan';
-      showGlobalToast(msg, 'error');
+      showToast(msg, 'error');
       throw error;
     }
   };
@@ -286,7 +288,7 @@ export function useAppData(user: FirebaseUser | null, isGuest: boolean, showGlob
   const handleDeletePeriod = async (id: string) => {
     if (!user) return;
     if (isGuest) {
-      showGlobalToast('Fitur ini dinonaktifkan untuk akun Tamu', 'error');
+      showToast('Fitur ini dinonaktifkan untuk akun Tamu', 'error');
       throw new Error('Fitur ini dinonaktifkan untuk akun Tamu');
     }
     try {
@@ -296,14 +298,14 @@ export function useAppData(user: FirebaseUser | null, isGuest: boolean, showGlob
       queryClient.invalidateQueries({ queryKey: ['budgets'] });
     } catch (error) {
       const msg = error.response?.data?.error || error.message || 'Terjadi kesalahan';
-      showGlobalToast(msg, 'error');
+      showToast(msg, 'error');
     }
   };
 
   const handleSaveBudgetAllocation = async (allocation: any, id?: string) => {
     if (!user) return;
     if (isGuest) {
-      showGlobalToast('Fitur ini dinonaktifkan untuk akun Tamu', 'error');
+      showToast('Fitur ini dinonaktifkan untuk akun Tamu', 'error');
       throw new Error('Fitur ini dinonaktifkan untuk akun Tamu');
     }
     try {
@@ -317,7 +319,7 @@ export function useAppData(user: FirebaseUser | null, isGuest: boolean, showGlob
       queryClient.invalidateQueries({ queryKey: ['budgets'] });
     } catch (error) {
       const msg = error.response?.data?.error || error.message || 'Terjadi kesalahan';
-      showGlobalToast(msg, 'error');
+      showToast(msg, 'error');
       throw error;
     }
   };
@@ -325,7 +327,7 @@ export function useAppData(user: FirebaseUser | null, isGuest: boolean, showGlob
   const handleSaveGlobalBudget = async (globalBudget: any, id?: string) => {
     if (!user) return;
     if (isGuest) {
-      showGlobalToast('Fitur ini dinonaktifkan untuk akun Tamu', 'error');
+      showToast('Fitur ini dinonaktifkan untuk akun Tamu', 'error');
       throw new Error('Fitur ini dinonaktifkan untuk akun Tamu');
     }
     try {
@@ -339,7 +341,7 @@ export function useAppData(user: FirebaseUser | null, isGuest: boolean, showGlob
       queryClient.invalidateQueries({ queryKey: ['budgets'] });
     } catch (error) {
       const msg = error.response?.data?.error || error.message || 'Terjadi kesalahan';
-      showGlobalToast(msg, 'error');
+      showToast(msg, 'error');
       throw error;
     }
   };
@@ -347,7 +349,7 @@ export function useAppData(user: FirebaseUser | null, isGuest: boolean, showGlob
   const handleDeleteBudgetAllocation = async (id: string) => {
     if (!user) return;
     if (isGuest) {
-      showGlobalToast('Fitur ini dinonaktifkan untuk akun Tamu', 'error');
+      showToast('Fitur ini dinonaktifkan untuk akun Tamu', 'error');
       return;
     }
     try {
@@ -357,7 +359,7 @@ export function useAppData(user: FirebaseUser | null, isGuest: boolean, showGlob
       queryClient.invalidateQueries({ queryKey: ['budgets'] });
     } catch (error) {
       const msg = error.response?.data?.error || error.message || 'Terjadi kesalahan';
-      showGlobalToast(msg, 'error');
+      showToast(msg, 'error');
     }
   };
 

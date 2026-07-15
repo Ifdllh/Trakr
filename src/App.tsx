@@ -9,6 +9,7 @@ import {
 import { devAuth, prdAuth, setAuthEnv, getAuthEnv } from '@/lib/firebase';
 import { Transaction } from '@/types';
 import Auth from '@/components/ui/Auth';
+import { Routes, Route, Navigate, useNavigate, useLocation } from 'react-router-dom';
 import Dashboard from '@/features/reports/Dashboard';
 import TransactionForm from '@/features/transactions/TransactionForm';
 import TransactionList from '@/features/transactions/TransactionList';
@@ -16,7 +17,6 @@ import CategoryManager from '@/features/transactions/CategoryManager';
 import BudgetManager from '@/features/budgets/BudgetManager';
 import Settings from '@/features/settings/Settings';
 import FloatingActionButtons from '@/components/ui/FloatingActionButtons';
-import AuraChat from '@/components/ui/AuraChat';
 import BrandLogo from '@/components/ui/BrandLogo';
 import { motion, AnimatePresence } from 'motion/react';
 import { 
@@ -29,21 +29,6 @@ export default function App() {
   const [user, setUser] = useState<FirebaseUser | null>(null);
   const isGuest = user?.isAnonymous || user?.email?.includes('guest') || false;
 
-  const [globalToast, setGlobalToast] = useState<{ message: string; type: 'success' | 'error' | 'info' } | null>(null);
-
-  const showGlobalToast = (message: string, type: 'success' | 'error' | 'info' = 'error') => {
-    setGlobalToast({ message, type });
-  };
-
-  useEffect(() => {
-    if (globalToast) {
-      const timer = setTimeout(() => {
-        setGlobalToast(null);
-      }, 4000);
-      return () => clearTimeout(timer);
-    }
-  }, [globalToast]);
-
   const [authChecked, setAuthChecked] = useState(false);
 
   const {
@@ -53,12 +38,46 @@ export default function App() {
     handleSaveTransaction, handleDeleteTransaction, handleSaveMasterData,
     handleDeleteMasterData, handleSavePeriod, handleDeletePeriod,
     handleSaveBudgetAllocation, handleSaveGlobalBudget, handleDeleteBudgetAllocation
-  } = useAppData(user, isGuest, showGlobalToast);
+  } = useAppData(user, isGuest);
+
+  const navigate = useNavigate();
+  const location = useLocation();
 
   // UI Tabs & Modals
-  const [activeTab, setActiveTab] = useState<'dashboard' | 'transactions' | 'categories' | 'budgets' | 'settings'>('dashboard');
+  const [activeTab, _setActiveTab] = useState<'dashboard' | 'transactions' | 'categories' | 'budgets' | 'settings'>('dashboard');
+  
+  const setActiveTab = (tab: 'dashboard' | 'transactions' | 'categories' | 'budgets' | 'settings') => {
+    _setActiveTab(tab);
+    navigate('/' + tab);
+  };
+
+  // Synchronize URL path with activeTab state
+  useEffect(() => {
+    if (user) {
+      const path = location.pathname;
+      if (path === '/' || path === '/login') {
+        navigate('/dashboard', { replace: true });
+        _setActiveTab('dashboard');
+      } else {
+        const tab = path.replace('/', '');
+        if (['dashboard', 'transactions', 'categories', 'budgets', 'settings'].includes(tab)) {
+          if (activeTab !== tab) {
+            _setActiveTab(tab as any);
+          }
+        } else {
+          // If unknown path, go to dashboard
+          navigate('/dashboard', { replace: true });
+          _setActiveTab('dashboard');
+        }
+      }
+    } else if (authChecked) {
+      if (location.pathname !== '/login') {
+        navigate('/login', { replace: true });
+      }
+    }
+  }, [location.pathname, user, authChecked, navigate, activeTab]);
+
   const [isFormOpen, setIsFormOpen] = useState(false);
-  const [isChatOpen, setIsChatOpen] = useState(false);
   const [editingTransaction, setEditingTransaction] = useState<Transaction | null>(null);
   const [formInitialType, setFormInitialType] = useState<'pemasukan' | 'pengeluaran'>('pengeluaran');
   const [isLogoutModalOpen, setLogoutModalOpen] = useState(false);
@@ -138,13 +157,12 @@ export default function App() {
     );
   }
 
-  // Show Auth login screen if not authenticated
-  if (!user) {
-    return <Auth onSuccess={() => {}} />;
-  }
-
   return (
-    <div className="min-h-screen bg-slate-50/50 text-slate-800 font-sans flex flex-col">
+    <Routes>
+      <Route path="/login" element={!user ? <Auth onSuccess={() => navigate('/dashboard')} /> : <Navigate to="/dashboard" replace />} />
+      <Route path="/*" element={
+        user ? (
+          <div className="min-h-screen bg-slate-50/50 text-slate-800 font-sans flex flex-col">
       
       {isGuest && (
         <div className="bg-indigo-600 text-white text-center py-2 px-4 text-xs font-semibold tracking-wide flex items-center justify-center gap-2 shadow-inner shrink-0" id="guest-mode-warning-banner">
@@ -198,11 +216,11 @@ export default function App() {
             </nav>
 
             {/* Right Profile Info & Logout */}
-            <div className="flex items-center gap-3 relative" id="profile-container">
+            <div className="flex items-center relative" id="profile-container">
               {/* User indicator Button */}
               <button
                 onClick={() => setIsProfileDropdownOpen(!isProfileDropdownOpen)}
-                className="hidden sm:flex flex-col text-right hover:opacity-85 active:scale-98 transition-all focus:outline-none py-1 px-2 rounded-lg hover:bg-slate-50 border border-transparent hover:border-slate-100"
+                className="flex flex-col text-right hover:opacity-85 active:scale-98 transition-all focus:outline-none py-1.5 px-3 -mr-3 rounded-xl hover:bg-slate-50 border border-transparent hover:border-slate-100"
                 id="profile-dropdown-trigger"
                 title="Menu Akun"
               >
@@ -292,20 +310,6 @@ export default function App() {
                   </>
                 )}
               </AnimatePresence>
-
-              {/* Mobile direct settings button (or desktop standalone backup) */}
-              <button
-                onClick={() => setActiveTab('settings')}
-                className={`p-2.5 rounded-xl transition-all border bg-white ${
-                  activeTab === 'settings'
-                    ? 'text-indigo-600 border-indigo-200 bg-indigo-50/30'
-                    : 'text-gray-400 hover:text-slate-600 border-gray-100'
-                }`}
-                title="Pengaturan"
-                id="header-settings-btn"
-              >
-                <SettingsIcon size={16} />
-              </button>
             </div>
 
           </div>
@@ -417,17 +421,7 @@ export default function App() {
           setEditingTransaction(null);
           setIsFormOpen(true);
         }}
-        onOpenChat={() => setIsChatOpen(true)}
       />
-      
-      <AnimatePresence>
-        {isChatOpen && (
-          <AuraChat 
-            onClose={() => setIsChatOpen(false)}
-            onRefreshData={refreshData}
-          />
-        )}
-      </AnimatePresence>
 
       {/* Bottom Nav Bar for Mobile Devices */}
       <footer className="md:hidden bg-white border-t border-slate-200 sticky bottom-0 z-40 py-2 shadow-[0_-2px_10px_rgba(0,0,0,0.03)] pb-safe">
@@ -555,29 +549,11 @@ export default function App() {
           </motion.div>
         )}
       </AnimatePresence>
-
-      {/* Global Toast Notification */}
-      <AnimatePresence>
-        {globalToast && (
-          <motion.div 
-            initial={{ opacity: 0, y: 50 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: 50 }}
-            className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 pointer-events-none"
-            id="global-toast-container"
-          >
-            <div className={`px-5 py-3 rounded-xl text-xs font-bold shadow-xl flex items-center gap-2 border ${
-              globalToast.type === 'error' 
-                ? 'bg-rose-50 border-rose-200 text-rose-700' 
-                : 'bg-emerald-50 border-emerald-200 text-emerald-700'
-            }`}>
-              <span>{globalToast.type === 'error' ? '⚠️' : '✅'}</span>
-              <span>{globalToast.message}</span>
-            </div>
-          </motion.div>
-        )}
-      </AnimatePresence>
-
     </div>
+        ) : (
+          <Navigate to="/login" replace />
+        )
+      } />
+    </Routes>
   );
 }

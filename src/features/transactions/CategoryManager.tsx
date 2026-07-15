@@ -3,13 +3,14 @@ import CreateMasterAccountModal from '@/components/ui/CreateMasterAccountModal';
 import CreateMasterCategoryModal from '@/components/ui/CreateMasterCategoryModal';
 import CreateMasterPeriodModal from '@/components/ui/CreateMasterPeriodModal';
 import { masterDataService } from '@/services/dbServices';
+import { useToast } from '@/context/ToastContext';
 import { 
   Category, BudgetPeriod,
   MasterAccount, MasterAsset, MasterTag, MasterContact,
   Transaction, BudgetAllocation
 } from '@/types';
 import { 
-  FolderHeart, Sparkles, HelpCircle, Calendar, Plus, Trash2, 
+  HelpCircle, Calendar, Plus, Trash2, 
   Wallet, TrendingUp, Tags, Users, ChevronDown, Edit2, Search, MoreVertical, 
   Pencil, X 
 } from 'lucide-react';
@@ -43,8 +44,8 @@ interface DeleteConfirmationModalProps {
 }
 
 function DeleteConfirmationModal({ onClose, onConfirm, title, message }: DeleteConfirmationModalProps) {
+  const { showToast } = useToast();
   const [isDeleting, setIsDeleting] = useState(false);
-  const [error, setError] = useState<string | null>(null);
 
   return (
     <div className="fixed inset-0 z-[70] flex items-center justify-center bg-black/50 backdrop-blur-sm p-4 animate-fade-in">
@@ -53,12 +54,6 @@ function DeleteConfirmationModal({ onClose, onConfirm, title, message }: DeleteC
           ⚠️ {title}
         </h4>
         <p className="text-xs text-gray-500 leading-relaxed font-medium">{message}</p>
-        
-        {error && (
-          <div className="p-3 bg-red-50 border border-red-100 text-red-600 rounded-xl text-xs font-bold leading-normal">
-            {error}
-          </div>
-        )}
 
         <div className="flex gap-3 pt-2">
           <button
@@ -71,13 +66,12 @@ function DeleteConfirmationModal({ onClose, onConfirm, title, message }: DeleteC
           <button
             onClick={async () => {
               setIsDeleting(true);
-              setError(null);
               try {
                 await onConfirm();
                 onClose();
               } catch (err: any) {
                 const errMsg = err.response?.data?.error || err.response?.data?.message || err.message || 'Gagal menghapus';
-                setError(errMsg);
+                showToast(errMsg, 'error');
               } finally {
                 setIsDeleting(false);
               }
@@ -101,9 +95,9 @@ interface RenameSubcategoryModalProps {
 }
 
 function RenameSubcategoryModal({ onClose, onConfirm, oldName }: RenameSubcategoryModalProps) {
+  const { showToast } = useToast();
   const [newName, setNewName] = useState(oldName);
   const [isSaving, setIsSaving] = useState(false);
-  const [error, setError] = useState('');
 
   return (
     <div className="fixed inset-0 z-[70] flex items-center justify-center bg-black/50 backdrop-blur-sm p-4 animate-fade-in">
@@ -111,7 +105,6 @@ function RenameSubcategoryModal({ onClose, onConfirm, oldName }: RenameSubcatego
         <h4 className="text-sm font-extrabold text-gray-900 flex items-center gap-2">
           📝 Ubah Nama Sub-Kategori
         </h4>
-        {error && <p className="text-xs text-red-600 font-bold">{error}</p>}
         <div>
           <label className="text-[10px] font-black text-gray-400 uppercase mb-1.5 block">Nama Sub-Kategori</label>
           <input
@@ -139,12 +132,11 @@ function RenameSubcategoryModal({ onClose, onConfirm, oldName }: RenameSubcatego
                 return;
               }
               setIsSaving(true);
-              setError('');
               try {
                 await onConfirm(trimmed);
                 onClose();
               } catch (err: any) {
-                setError(err.message || 'Gagal mengubah nama');
+                showToast(err.message || 'Gagal mengubah nama', 'error');
               } finally {
                 setIsSaving(false);
               }
@@ -166,6 +158,7 @@ export default function CategoryManager({
   onSaveMasterData, onDeleteMasterData, onRefreshData,
   globalAddTrigger
 }: CategoryManagerProps) {
+  const { showToast } = useToast();
   const [activeTab, setActiveTab] = useState<'pengeluaran' | 'pemasukan' | 'periode' | 'rekening' | 'aset' | 'tag' | 'kontak'>('pengeluaran');
   
   const deletePeriodMutation = useDeletePeriod();
@@ -185,18 +178,6 @@ export default function CategoryManager({
   const [isFormOpen, setIsFormOpen] = useState(false);
   const [formData, setFormData] = useState<any>({ iconName: 'Folder' });
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [formMessage, setFormMessage] = useState<{type: 'error' | 'success', text: string} | null>(null);
-  const [toast, setToast] = useState<{ type: 'error' | 'success', message: string } | null>(null);
-
-  // Auto-dismiss toast
-  useEffect(() => {
-    if (toast) {
-      const timer = setTimeout(() => {
-        setToast(null);
-      }, 5000);
-      return () => clearTimeout(timer);
-    }
-  }, [toast]);
 
   useEffect(() => {
     if (globalAddTrigger && globalAddTrigger > 0) {
@@ -257,14 +238,14 @@ export default function CategoryManager({
     setDeletingPeriodId(p.id);
     deletePeriodMutation.mutate(p.id, {
       onSuccess: () => {
-        setToast({ type: 'success', message: `Periode "${p.name}" berhasil dihapus!` });
+        showToast(`Periode "${p.name}" berhasil dihapus!`, 'success');
         onRefreshData?.();
         setDeletingPeriodId(null);
         setDeleteConfirmPeriod(null);
       },
       onError: (err: any) => {
         const errMsg = err.response?.data?.error || err.response?.data?.message || err.message || 'Gagal menghapus periode';
-        setToast({ type: 'error', message: errMsg });
+        showToast(errMsg, 'error');
         setDeletingPeriodId(null);
         setDeleteConfirmPeriod(null);
       }
@@ -433,9 +414,6 @@ export default function CategoryManager({
         <div>
           <h3 className="text-base font-extrabold text-gray-900">📚 Master Data</h3>
           <p className="text-xs text-gray-400">Master database kategori dan periode untuk klasifikasi dan anggaran</p>
-        </div>
-        <div className="inline-flex items-center gap-1.5 text-xs text-indigo-700 bg-indigo-50 px-3.5 py-1.5 rounded-full font-bold border border-indigo-100">
-          <Sparkles size={14} className="animate-spin-slow" /> Standar Keuangan Pribadi
         </div>
       </div>
 
@@ -962,18 +940,14 @@ export default function CategoryManager({
                   formData.parentCategory ? 'Sub-Kategori' : 'Kategori'
                 }
               </h3>
-              <button onClick={() => setIsFormOpen(false)} className="text-gray-400 hover:bg-gray-200 p-2 rounded-full cursor-pointer"><Plus size={20} className="rotate-45" /></button>
+              <button onClick={() => setIsFormOpen(false)} className="text-gray-400 hover:bg-gray-200 p-2 rounded-full cursor-pointer">
+                <Plus size={20} className="rotate-45" />
+              </button>
             </div>
             <div className="p-6 overflow-y-auto">
-              {formMessage && (
-                <div className={`p-3 mb-4 rounded-xl text-sm font-bold ${formMessage.type === 'error' ? 'bg-red-50 text-red-600' : 'bg-emerald-50 text-emerald-600'}`}>
-                  {formMessage.text}
-                </div>
-              )}
               <form onSubmit={async (e) => {
                 e.preventDefault();
                 setIsSubmitting(true);
-                setFormMessage(null);
                 let collectionName = '';
                 if (activeTab === 'aset') collectionName = 'assets';
                 else if (activeTab === 'tag') collectionName = 'tags';
@@ -982,14 +956,11 @@ export default function CategoryManager({
                 
                 try {
                   await onSaveMasterData(collectionName, formData, formData.id);
-                  setFormMessage({ type: 'success', text: 'Data berhasil disimpan!' });
-                  setTimeout(() => {
-                    setIsFormOpen(false);
-                    setFormData({});
-                    setFormMessage(null);
-                  }, 1000);
-                } catch (error) {
-                  setFormMessage({ type: 'error', text: 'Gagal menyimpan data' });
+                  showToast('Data berhasil disimpan!', 'success');
+                  setIsFormOpen(false);
+                  setFormData({});
+                } catch (error: any) {
+                  showToast(error?.message || 'Gagal menyimpan data', 'error');
                 } finally {
                   setIsSubmitting(false);
                 }
@@ -1075,17 +1046,17 @@ export default function CategoryManager({
             try {
               if (deleteTarget.type === 'category' && deleteTarget.category) {
                 await handleDeleteCategory(deleteTarget.category);
-                setToast({ type: 'success', message: `Kategori "${deleteTarget.category.name}" berhasil dihapus!` });
+                showToast(`Kategori "${deleteTarget.category.name}" berhasil dihapus!`, 'success');
               } else if (deleteTarget.type === 'subcategory' && deleteTarget.category && deleteTarget.subName) {
                 await handleDeleteSubcategory(deleteTarget.category, deleteTarget.subName);
-                setToast({ type: 'success', message: `Sub-kategori "${deleteTarget.subName}" berhasil dihapus!` });
+                showToast(`Sub-kategori "${deleteTarget.subName}" berhasil dihapus!`, 'success');
               } else if (deleteTarget.type === 'account' && deleteTarget.account) {
                 await onDeleteMasterData('accounts', String(deleteTarget.account.id));
-                setToast({ type: 'success', message: `Rekening "${deleteTarget.account.accountName}" berhasil dihapus!` });
+                showToast(`Rekening "${deleteTarget.account.accountName}" berhasil dihapus!`, 'success');
               }
             } catch (err: any) {
               const errMsg = err.response?.data?.error || err.response?.data?.message || err.message || 'Gagal menghapus';
-              setToast({ type: 'error', message: errMsg });
+              showToast(errMsg, 'error');
               throw err;
             }
           }}
@@ -1101,34 +1072,6 @@ export default function CategoryManager({
             await handleRenameSubcategory(renameTarget.category, renameTarget.oldName, newName);
           }}
         />
-      )}
-
-      {/* Information Tip */}
-      <div className="bg-blue-50/50 p-4 rounded-xl border border-blue-100 text-xs text-blue-700 flex items-start gap-2.5 mt-6">
-        <FolderHeart size={18} className="text-blue-500 shrink-0 mt-0.5" />
-        <div className="space-y-1">
-          <p className="font-bold">Mengapa Master Data ini Penting?</p>
-          <p className="leading-normal text-blue-600 font-medium">
-            Struktur kategori, sub-kategori, dan periode yang konsisten memastikan visualisasi keuangan Anda akurat. Trakr menggunakan master data ini untuk melacak anggaran dan pengeluaran secara optimal.
-          </p>
-        </div>
-      </div>
-
-      {/* Floating Toast Notification */}
-      {toast && (
-        <div className="fixed bottom-6 right-6 z-[100] flex items-center gap-3 bg-white border border-gray-100 rounded-2xl p-4 shadow-xl max-w-sm animate-fade-in font-sans">
-          <div className={`h-8 w-8 rounded-xl flex items-center justify-center shrink-0 ${toast.type === 'error' ? 'bg-red-50 text-red-600' : 'bg-emerald-50 text-emerald-600'}`}>
-            {toast.type === 'error' ? <LucideIcons.AlertTriangle size={16} /> : <LucideIcons.CheckCircle size={16} />}
-          </div>
-          <div className="flex-1 min-w-0">
-            <p className="text-xs font-extrabold text-gray-900 leading-normal">
-              {toast.message}
-            </p>
-          </div>
-          <button onClick={() => setToast(null)} className="text-gray-400 hover:text-gray-600 p-1 cursor-pointer">
-            <X size={14} />
-          </button>
-        </div>
       )}
 
       {/* Delete Confirmation Modal */}

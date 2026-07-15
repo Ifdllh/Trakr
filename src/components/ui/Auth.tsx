@@ -8,12 +8,14 @@ import { devAuth, prdAuth, googleProvider, setAuthEnv, getAuthEnv, getActiveAuth
 import { motion } from 'motion/react';
 import { AlertCircle } from 'lucide-react';
 import BrandLogo from './BrandLogo';
+import { useNavigate } from 'react-router-dom';
 
 interface AuthProps {
   onSuccess: () => void;
 }
 
 export default function Auth({ onSuccess }: AuthProps) {
+  const navigate = useNavigate();
   const [error, setError] = useState<string | null>(null);
   const [restrictedError, setRestrictedError] = useState(false);
   const [domainError, setDomainError] = useState(false);
@@ -27,6 +29,7 @@ export default function Auth({ onSuccess }: AuthProps) {
         const result = await getRedirectResult(authToUse);
         if (result) {
           onSuccess();
+          navigate('/dashboard');
         }
       } catch (err: any) {
 
@@ -38,7 +41,7 @@ export default function Auth({ onSuccess }: AuthProps) {
       }
     };
     checkRedirect();
-  }, [onSuccess]);
+  }, [onSuccess, navigate]);
 
   const handleGoogleLogin = async (env: 'dev' | 'prd') => {
     setError(null);
@@ -60,6 +63,7 @@ export default function Auth({ onSuccess }: AuthProps) {
     try {
       await signInWithPopup(authToUse, googleProvider);
       onSuccess();
+      navigate('/dashboard');
     } catch (err: any) {
       if (err.code === 'auth/unauthorized-domain' || err.message?.includes('unauthorized-domain')) {
         setDomainError(true);
