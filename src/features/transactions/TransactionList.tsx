@@ -324,7 +324,7 @@ export default function TransactionList({ categories, periods, accounts = [], on
             </p>
           </div>
         ) : (
-          <div className="space-y-6">
+          <div className="space-y-6 pb-32 md:pb-6">
             {sortedDates.map((date) => {
               const dayTransactions = groupedTransactions[date];
               const totalIncome = dayTransactions.filter(t => t.type === 'pemasukan').reduce((sum, t) => sum + t.amount, 0);
@@ -538,20 +538,20 @@ export default function TransactionList({ categories, periods, accounts = [], on
                                                     e.stopPropagation();
                                                     onEdit(child);
                                                   }}
-                                                  className="p-1 rounded text-gray-400 hover:text-indigo-600 hover:bg-indigo-50 transition-colors cursor-pointer"
+                                                  className="p-2 sm:p-1 rounded text-gray-400 hover:text-indigo-600 hover:bg-indigo-50 transition-colors cursor-pointer"
                                                   title="Ubah Transaksi"
                                                 >
-                                                  <Edit2 size={13} />
+                                                  <Edit2 size={15} className="sm:w-[13px] sm:h-[13px]" />
                                                 </button>
                                                 <button
                                                   onClick={(e) => {
                                                     e.stopPropagation();
                                                     setConfirmDeleteId(child.id);
                                                   }}
-                                                  className="p-1 rounded text-gray-400 hover:text-red-500 hover:bg-red-50 transition-colors cursor-pointer"
+                                                  className="p-2 sm:p-1 rounded text-gray-400 hover:text-red-500 hover:bg-red-50 transition-colors cursor-pointer"
                                                   title="Hapus Transaksi"
                                                 >
-                                                  <Trash2 size={13} />
+                                                  <Trash2 size={15} className="sm:w-[13px] sm:h-[13px]" />
                                                 </button>
                                               </>
                                             )}
@@ -666,17 +666,17 @@ export default function TransactionList({ categories, periods, accounts = [], on
                                   <>
                                     <button
                                       onClick={() => onEdit(t)}
-                                      className="p-1.5 rounded-lg text-gray-400 hover:text-indigo-600 hover:bg-indigo-50 transition-colors cursor-pointer"
+                                      className="p-2.5 sm:p-1.5 rounded-lg text-gray-400 hover:text-indigo-600 hover:bg-indigo-50 transition-colors cursor-pointer"
                                       title="Ubah Transaksi"
                                     >
-                                      <Edit2 size={16} />
+                                      <Edit2 size={18} className="sm:w-4 sm:h-4" />
                                     </button>
                                     <button
                                       onClick={() => setConfirmDeleteId(t.id)}
-                                      className="p-1.5 rounded-lg text-gray-400 hover:text-red-500 hover:bg-red-50 transition-colors cursor-pointer"
+                                      className="p-2.5 sm:p-1.5 rounded-lg text-gray-400 hover:text-red-500 hover:bg-red-50 transition-colors cursor-pointer"
                                       title="Hapus Transaksi"
                                     >
-                                      <Trash2 size={16} />
+                                      <Trash2 size={18} className="sm:w-4 sm:h-4" />
                                     </button>
                                   </>
                                 )}
