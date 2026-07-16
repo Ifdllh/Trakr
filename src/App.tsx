@@ -167,11 +167,17 @@ export default function App() {
 
     const handleUser = (currentUser: User | null, env: 'dev' | 'prd') => {
       handleCheck();
-      if (currentUser) {
-        setAuthEnv(env);
+      const currentEnv = getAuthEnv();
+      
+      // Only accept state changes from the actively selected environment
+      if (env === currentEnv) {
         setUser(currentUser);
-      } else if (getAuthEnv() === env) {
-        setUser(null);
+      } else if (currentUser && env !== currentEnv) {
+        // If we detect a login in the non-active environment, sign it out to prevent confusion
+        const authObj = env === 'prd' ? prdAuth : devAuth;
+        if (authObj) {
+          authObj.signOut().catch(() => {});
+        }
       }
     };
     
@@ -353,26 +359,6 @@ export default function App() {
       {/* Main Content Arena */}
       <main className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-8">
         
-        {/* Dynamic header / Floating logger actions */}
-        {activeTab !== 'settings' && (
-          <div className="pb-2 mb-4 border-b border-slate-200">
-            <h2 className="text-xl font-bold text-slate-800 tracking-tight">
-              {activeTab === 'dashboard' && 'Dasbor Finansial'}
-              {activeTab === 'transactions' && 'Daftar Transaksi'}
-              {activeTab === 'categories' && 'Manajemen Master Data'}
-              {activeTab === 'budgets' && 'Anggaran'}
-            </h2>
-          </div>
-        )}
-
-        {/* Real-time Loader Overlay when syncing Firestore */}
-        {loadingData && (
-          <div className="mb-4 bg-indigo-50 border border-indigo-100 text-indigo-700 text-xs font-semibold px-4 py-2.5 rounded-xl flex items-center gap-2">
-            <RefreshCw size={14} className="animate-spin" />
-            Menyinkronkan data keuangan secara real-time dengan Cloud SQL...
-          </div>
-        )}
-
         {/* Tab Viewport with smooth entry transitions */}
         <AnimatePresence mode="wait">
           <motion.div

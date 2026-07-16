@@ -91,20 +91,15 @@ export function useAppData(user: FirebaseUser | null, isGuest: boolean) {
   const refreshData = useCallback(async () => {
     if (!user) return;
     try {
-      const [
-        txRes, periodsRes, accountsRes, assetsRes, tagsRes,
-        contactsRes, customCatRes, budgetsRes, globalBudgetsRes
-      ] = await Promise.all([
-        transactionService.get(),
-        masterDataService.get('periods'),
-        masterDataService.get('accounts'),
-        masterDataService.get('assets'),
-        masterDataService.get('tags'),
-        masterDataService.get('contacts'),
-        masterDataService.get('customCategories'),
-        masterDataService.get('budgets'),
-        masterDataService.get('globalBudgets')
-      ]);
+      const txRes = await transactionService.get();
+      const periodsRes = await masterDataService.get('periods');
+      const accountsRes = await masterDataService.get('accounts');
+      const assetsRes = await masterDataService.get('assets');
+      const tagsRes = await masterDataService.get('tags');
+      const contactsRes = await masterDataService.get('contacts');
+      const customCatRes = await masterDataService.get('customCategories');
+      const budgetsRes = await masterDataService.get('budgets');
+      const globalBudgetsRes = await masterDataService.get('globalBudgets');
 
       setTransactions((Array.isArray(txRes) ? txRes : []).map((d: any) => ({
         ...d,

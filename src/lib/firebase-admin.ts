@@ -119,30 +119,50 @@ class MockDb {
   }
 
   async restGetCollection(path: string) {
-    const url = `https://firestore.googleapis.com/v1/projects/${this.projectId}/databases/${this.databaseId}/documents/${path}`;
+    const parts = path.split('/');
+    const collectionId = parts.pop();
+    const parentPath = parts.join('/');
+    
+    const baseUrl = `https://firestore.googleapis.com/v1/projects/${this.projectId}/databases/${this.databaseId}/documents`;
+    const url = parentPath ? `${baseUrl}/${parentPath}:runQuery` : `${baseUrl}:runQuery`;
+    
     const res = await fetch(url, {
-      headers: { 'Authorization': `Bearer ${this.token}` }
+      method: 'POST',
+      headers: { 
+        'Authorization': `Bearer ${this.token}`,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        structuredQuery: {
+          from: [{ collectionId }]
+        }
+      })
     });
+
     if (!res.ok) {
       if (res.status === 404) return { size: 0, docs: [] };
       const text = await res.text();
-      throw new Error(`Firestore REST GET collection failed: ${res.status} ${text}`);
+      throw new Error(`Firestore REST GET collection failed for path ${path}: ${res.status} ${text}`);
     }
     const data = await res.json();
-    const docs = (data.documents || []).map((doc: any) => {
-      const parts = doc.name.split('/');
-      const id = parts[parts.length - 1];
-      const fields: any = {};
-      const docFields = doc.fields || {};
-      for (const k of Object.keys(docFields)) {
-        fields[k] = fromFirestoreValue(docFields[k]);
-      }
-      return {
-        id,
-        data: () => fields,
-        ...fields
-      };
-    });
+    
+    const docs = data
+      .filter((item: any) => item.document)
+      .map((item: any) => {
+        const doc = item.document;
+        const docParts = doc.name.split('/');
+        const id = docParts[docParts.length - 1];
+        const fields: any = {};
+        const docFields = doc.fields || {};
+        for (const k of Object.keys(docFields)) {
+          fields[k] = fromFirestoreValue(docFields[k]);
+        }
+        return {
+          id,
+          data: () => fields,
+          ...fields
+        };
+      });
     return {
       size: docs.length,
       docs

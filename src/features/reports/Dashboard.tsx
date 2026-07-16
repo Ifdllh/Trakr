@@ -321,17 +321,44 @@ export default function Dashboard({
 
   // Expense breakdown by category for circular chart and legend list
   const expenseCategoriesBreakdown = useMemo(() => {
-    const total = rawExpenseDistribution.reduce((sum: number, item: any) => sum + (Number(item.amount) || 0), 0);
-    
+    let rawMapped = rawExpenseDistribution
+      .map((item: any) => ({
+        name: item.category,
+        value: Number(item.amount) || 0
+      }))
+      .filter((i: any) => i.value > 0);
+
+    // 1. Sort descending
+    rawMapped.sort((a: any, b: any) => b.value - a.value);
+
+    // 2. Group into 'Lainnya' if more than 5
+    if (rawMapped.length > 5) {
+      const top5 = rawMapped.slice(0, 5);
+      const others = rawMapped.slice(5);
+      const othersValue = others.reduce((sum: number, curr: any) => sum + curr.value, 0);
+      if (othersValue > 0) {
+        top5.push({
+          name: 'Lainnya',
+          value: othersValue
+        });
+      }
+      rawMapped = top5;
+    }
+
+    const total = rawMapped.reduce((sum: number, item: any) => sum + item.value, 0);
     const fallbackColors = ['#3b82f6', '#f97316', '#ef4444', '#22c55e', '#a855f7', '#06b6d4', '#ec4899', '#64748b'];
     
-    const mapped = rawExpenseDistribution.map((item: any, idx: number) => {
-      const cat = categories.find(c => c.name === item.category || c.id === (item.category || '').toLowerCase());
-      const catColor = cat?.colorHex || cat?.color_hex || fallbackColors[idx % fallbackColors.length];
-      const percentage = total > 0 ? formatPercentage(Number(item.amount) || 0, total) : 0;
+    let mapped = rawMapped.map((item: any, idx: number) => {
+      let catColor = '#94a3b8'; // default neutral color for Lainnya
+      if (item.name !== 'Lainnya') {
+        const cat = categories.find(c => c.name === item.name || c.id === (item.name || '').toLowerCase());
+        catColor = cat?.colorHex || cat?.color_hex || fallbackColors[idx % fallbackColors.length];
+      }
+      
+      const percentage = total > 0 ? formatPercentage(item.value, total) : 0;
       return {
-        name: item.category,
-        value: Number(item.amount) || 0,
+        name: item.name,
+        value: item.value,
         color: catColor,
         percentage
       };

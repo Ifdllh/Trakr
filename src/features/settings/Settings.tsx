@@ -4,6 +4,7 @@ import { getAuthEnv, getActiveAuth } from '@/lib/firebase';
 import { updateProfile } from 'firebase/auth';
 import { useToast } from '@/context/ToastContext';
 import { api } from '@/lib/api';
+import { seed2026Data } from '@/lib/seed2026';
 
 const compressImage = (file: File, maxWidth = 200, quality = 0.7): Promise<string> => {
   return new Promise((resolve, reject) => {
@@ -427,6 +428,21 @@ export default function Settings({ user, dbUser, onProfileUpdate, setActiveTab }
                         : (import.meta.env.VITE_FIREBASE_PROJECT_ID || 'zippy-solution-c7c1c')}
                     </span>
                   </div>
+
+                  {getAuthEnv() === 'dev' && (
+                    <div className="pt-4 border-t border-slate-200/50 flex flex-col gap-3">
+                      <span className="text-xs font-semibold text-slate-800">Developer Actions</span>
+                      <button
+                        type="button"
+                        onClick={async () => {
+                          await seed2026Data((msg) => showToast(msg, 'success'));
+                        }}
+                        className="text-xs w-full py-2 bg-indigo-50 text-indigo-700 font-semibold rounded-lg hover:bg-indigo-100 transition-colors border border-indigo-200"
+                      >
+                        Populate Data 2026
+                      </button>
+                    </div>
+                  )}
                 </div>
               </div>
             </>
