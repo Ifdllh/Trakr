@@ -20,6 +20,7 @@ import * as LucideIcons from 'lucide-react';
 
 interface DashboardProps {
   user: any; // Firebase User object
+  dbUser?: any; // Firestore User profile object
   categories: Category[];
   onOpenForm: (type: 'pemasukan' | 'pengeluaran') => void;
   setActiveTab: (tab: 'dashboard' | 'transactions' | 'categories' | 'budgets') => void;
@@ -64,10 +65,21 @@ export const formatPercentage = (value: number, total: number): number => {
 
 export default function Dashboard({ 
   user,
+  dbUser,
   categories, 
   onOpenForm, 
   setActiveTab 
 }: DashboardProps) {
+  const currentUserData = useMemo(() => {
+    if (!user) return null;
+    return {
+      ...user,
+      displayName: dbUser?.displayName || user.displayName || '',
+      photoURL: dbUser?.photoURL || user.photoURL || '',
+      phoneNumber: dbUser?.phoneNumber || user.phoneNumber || ''
+    };
+  }, [user, dbUser]);
+
   const { data: transactions = [] } = useGetTransactions();
   const { data: budgets = [] } = useGetMasterData('budgets');
   const { data: periods = [] } = useGetMasterData('periods');
@@ -209,11 +221,11 @@ export default function Dashboard({
 
   // Format Display Name or email
   const displayUserName = useMemo(() => {
+    if (currentUserData?.displayName) return currentUserData.displayName;
     if (user?.isAnonymous) return 'Pengguna Tamu';
-    if (user?.displayName) return user.displayName;
     if (user?.email) return user.email.split('@')[0];
     return 'Pengguna Tamu';
-  }, [user]);
+  }, [user, currentUserData]);
 
   // Available years from transactions or current year
   const availableYears = useMemo(() => {
@@ -556,9 +568,9 @@ export default function Dashboard({
       <div className="flex flex-col md:flex-row justify-between items-start md:items-end gap-6 pb-2">
         {/* Left Side: Avatar & Personalized Greeting */}
         <div className="flex items-center gap-4">
-          {user?.photoURL ? (
+          {currentUserData?.photoURL ? (
             <img 
-              src={user.photoURL} 
+              src={currentUserData.photoURL} 
               alt={displayUserName} 
               className="h-12 w-12 rounded-full object-cover border border-gray-100 shadow-sm shrink-0"
               referrerPolicy="no-referrer"

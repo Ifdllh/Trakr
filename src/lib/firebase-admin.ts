@@ -376,9 +376,9 @@ export function getFirestoreDb(authEnv: 'dev' | 'prd') {
   }
 
   if (authEnv === 'prd' && token && !prdCredential) {
-    const prdDbId = process.env.VITE_PRD_FIREBASE_DATABASE_ID || '(default)';
+    const prdDbId = process.env.VITE_PRD_FIREBASE_DATABASE_ID || databaseId || '(default)';
     console.log(`[Firebase Admin - prd] Using authenticated user REST client fallback for database: ${prdDbId}`);
-    return new MockDb(token, prdProjectId || 'trakr-10674', prdDbId) as any;
+    return new MockDb(token, prdProjectId || projectId || 'zippy-solution-c7c1c', prdDbId) as any;
   }
 
   if (authEnv === 'prd' && firestorePrd) {

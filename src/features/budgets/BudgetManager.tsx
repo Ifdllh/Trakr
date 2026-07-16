@@ -16,11 +16,13 @@ import {
   TrendingUp, 
   Info, 
   Sparkles,
-  HelpCircle
+  HelpCircle,
+  Loader2
 } from 'lucide-react';
 import { useForm, useFieldArray } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
+import { api } from '@/lib/api';
 import { Transaction, Category, BudgetAllocation, BudgetPeriod, GlobalBudget, MasterAccount, MasterAsset, MasterTag, MasterContact } from '@/types';
 import { useToast } from '@/context/ToastContext';
 import { 
@@ -33,17 +35,23 @@ import {
 
 // 1. Validation Schema (Zod)
 const budgetSchema = z.object({
-  globalBudget: z.coerce.number().min(0, "Anggaran global tidak boleh bernilai negatif"),
+  globalBudget: z.preprocess((val) => (val === '' ? 0 : val), z.coerce.number().min(0, "Anggaran global tidak boleh bernilai negatif")),
   categories: z.array(z.object({
     categoryId: z.union([z.string(), z.number()]).refine(val => val !== '', "Kategori harus dipilih"),
     name: z.string().optional(),
-    amount: z.coerce.number().min(0, "Anggaran kategori tidak boleh bernilai negatif"),
+    amount: z.preprocess((val) => (val === '' ? 0 : val), z.coerce.number().min(0, "Anggaran kategori tidak boleh bernilai negatif")),
+    type: z.enum(['amount', 'percentage']).default('amount'),
     iconName: z.string().optional(),
     isGenerated: z.boolean().optional()
   }))
 }).refine(data => {
-  const sum = data.categories.reduce((total, cat) => total + (cat.amount || 0), 0);
-  return sum <= data.globalBudget;
+  const globalBudget = data.globalBudget;
+  const sum = data.categories.reduce((total, cat) => {
+    const val = cat.amount || 0;
+    const nominal = cat.type === 'percentage' ? (globalBudget * val / 100) : val;
+    return total + nominal;
+  }, 0);
+  return sum <= globalBudget;
 }, {
   message: "Total alokasi anggaran kategori tidak boleh melebihi anggaran global!",
   path: ["categories"] // Highlights category list errors
@@ -205,13 +213,19 @@ export default function BudgetManager({
     const globalTarget = activeGlobalBudget?.totalTargetAmount || 0;
     return expenseCategories.map(cat => {
       const existingBudget = currentBudgets.find(b => b.categoryId === cat.id);
-      const amount = existingBudget 
-        ? getEffectiveBudgetAmount(existingBudget, globalTarget) 
-        : 0;
+      let value: string | number = '';
+      let type: 'amount' | 'percentage' = 'amount';
+      
+      if (existingBudget) {
+        type = existingBudget.type || 'amount';
+        value = existingBudget.value !== undefined && existingBudget.value !== null ? existingBudget.value : '';
+      }
+      
       return {
         categoryId: cat.id,
         name: cat.name,
-        amount: amount,
+        amount: (value === 0 || value === '') ? '' : value,
+        type: type,
         iconName: cat.iconName || 'HelpCircle',
         isGenerated: true
       };
@@ -222,7 +236,7 @@ export default function BudgetManager({
   const { register, control, handleSubmit, setValue, watch, reset, formState: { errors } } = useForm({
     resolver: zodResolver(budgetSchema),
     defaultValues: {
-      globalBudget: activeGlobalBudget?.totalTargetAmount || 0,
+      globalBudget: (activeGlobalBudget?.totalTargetAmount === 0 || !activeGlobalBudget?.totalTargetAmount) ? '' : activeGlobalBudget.totalTargetAmount,
       categories: defaultCategories
     }
   });
@@ -234,9 +248,13 @@ export default function BudgetManager({
 
   // Watch fields for interactive total sum inside Form UI
   const watchAllFields = watch();
-  const watchedGlobalBudget = Number(watchAllFields.globalBudget) || 0;
+  const watchedGlobalBudget = watchAllFields.globalBudget === '' ? 0 : (parseFloat(String(watchAllFields.globalBudget)) || 0);
   const watchedCategories = watchAllFields.categories || [];
-  const currentAllocatedTotal = watchedCategories.reduce((sum: number, cat: any) => sum + (Number(cat.amount) || 0), 0);
+  const currentAllocatedTotal = watchedCategories.reduce((sum: number, cat: any) => {
+    const val = cat?.amount === '' ? 0 : (parseFloat(String(cat?.amount)) || 0);
+    const nominal = cat?.type === 'percentage' ? (watchedGlobalBudget * val / 100) : val;
+    return sum + nominal;
+  }, 0);
   const sisaUntukDialokasikan = watchedGlobalBudget - currentAllocatedTotal;
 
   // Handler for category dropdown selection in manual rows
@@ -253,7 +271,7 @@ export default function BudgetManager({
   useEffect(() => {
     if (isFormOpen) {
       reset({
-        globalBudget: activeGlobalBudget?.totalTargetAmount || 0,
+        globalBudget: (activeGlobalBudget?.totalTargetAmount === 0 || !activeGlobalBudget?.totalTargetAmount) ? '' : activeGlobalBudget.totalTargetAmount,
         categories: defaultCategories
       });
     }
@@ -270,7 +288,8 @@ export default function BudgetManager({
           return {
             categoryId: item.category_id,
             name: catInfo ? catInfo.name : 'Kategori Lain',
-            amount: item.suggested_amount > 0 ? item.suggested_amount : 0,
+            amount: item.suggested_amount > 0 ? item.suggested_amount : '',
+            type: 'amount' as const,
             iconName: catInfo?.iconName || 'HelpCircle',
             isGenerated: true
           };
@@ -294,13 +313,20 @@ export default function BudgetManager({
   const onSubmitForm = async (data: any) => {
     setIsSubmitting(true);
     try {
-      // 1. Save / Update Global Budget
+      // 1. Force Numeric Types: Ensure the 'Target Anggaran Global' is a clean number
+      const sanitizedGlobalBudget = data.globalBudget === '' ? 0 : (Number(data.globalBudget) || 0);
+
+      // Explicitly update the user profile document first to keep monthlyBudget in sync on the user document
+      await api.put('/user/profile', {
+        monthlyBudget: sanitizedGlobalBudget
+      });
+
       const existingGb = globalBudgets.find(gb => gb.periodId === selectedPeriod);
       const globalBudgetId = existingGb?.id;
 
       await onSaveGlobalBudget({
         periodId: selectedPeriod,
-        totalTargetAmount: data.globalBudget
+        totalTargetAmount: sanitizedGlobalBudget
       }, globalBudgetId);
 
       // 2. Save / Update Category Budgets
@@ -308,14 +334,22 @@ export default function BudgetManager({
       for (const cat of data.categories) {
         const existingBudget = currentBudgets.find(b => b.categoryId === cat.categoryId);
         
-        // Call onSaveBudget wrapper from App.tsx
-        await onSaveBudget({
+        // Parse Category Values: Explicitly parse as float/number
+        const sanitizedCatAmount = cat.amount === '' ? 0 : (parseFloat(String(cat.amount)) || 0);
+        const type = cat.type || 'amount';
+
+        // Strip Extra Keys: Construct a new object containing ONLY the 5 allowed keys:
+        // ['periodId', 'categoryId', 'type', 'value', 'createdAt']
+        const categoryPayload = {
           periodId: selectedPeriod,
           categoryId: cat.categoryId,
-          type: 'amount',
-          value: cat.amount,
-          calculatedAmount: cat.amount
-        }, existingBudget?.id);
+          type: type,
+          value: sanitizedCatAmount,
+          createdAt: existingBudget?.createdAt || new Date().toISOString()
+        };
+
+        // Call onSaveBudget wrapper from App.tsx
+        await onSaveBudget(categoryPayload, existingBudget?.id);
       }
 
       // Refresh query states
@@ -325,7 +359,6 @@ export default function BudgetManager({
       showToast('Seluruh konfigurasi anggaran berhasil disimpan!', 'success');
       setIsFormOpen(false);
     } catch (err: any) {
-
       showToast(err.message || 'Gagal menyimpan anggaran.', 'error');
     } finally {
       setIsSubmitting(false);
@@ -668,17 +701,30 @@ export default function BudgetManager({
       {/* 4. Overhauled Budget Allocation Form Modal (RHF & Zod) */}
       <AnimatePresence>
         {isFormOpen && (
-          <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+          <div 
+            className="fixed inset-0 bg-slate-900/40 backdrop-blur-sm flex items-center justify-center z-50 p-4"
+            onClick={() => {
+              if (!isSubmitting) {
+                setIsFormOpen(false);
+              }
+            }}
+          >
             <motion.div 
               initial={{ opacity: 0, scale: 0.95, y: 10 }}
               animate={{ opacity: 1, scale: 1, y: 0 }}
               exit={{ opacity: 0, scale: 0.95, y: 10 }}
               className="bg-white rounded-3xl p-6 border border-gray-100 shadow-xl max-w-lg w-full relative max-h-[90vh] flex flex-col"
+              onClick={(e) => e.stopPropagation()}
             >
               <button 
                 type="button"
-                onClick={() => setIsFormOpen(false)}
-                className="absolute top-4 right-4 p-2 text-gray-400 hover:bg-gray-50 rounded-xl transition-colors cursor-pointer z-10"
+                disabled={isSubmitting}
+                onClick={() => {
+                  if (!isSubmitting) {
+                    setIsFormOpen(false);
+                  }
+                }}
+                className="absolute top-4 right-4 p-2 text-gray-400 hover:bg-gray-50 rounded-xl transition-colors cursor-pointer z-10 disabled:opacity-30 disabled:cursor-not-allowed"
               >
                 <X size={20} />
               </button>
@@ -735,7 +781,7 @@ export default function BudgetManager({
                         min="0"
                         {...register("globalBudget")}
                         className="w-full pl-12 pr-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-indigo-500 font-bold text-base text-slate-800"
-                        placeholder="Masukkan target global"
+                        placeholder="0"
                       />
                     </div>
                     {errors.globalBudget && (
@@ -747,7 +793,7 @@ export default function BudgetManager({
                   <div className="space-y-2">
                     <div className="flex justify-between items-center">
                       <label className="text-xs font-bold text-slate-700">Alokasi Anggaran per Kategori</label>
-                      <span className="text-[10px] text-slate-400 font-bold uppercase">Tipe: Nominal (Rp)</span>
+                      <span className="text-[10px] text-slate-400 font-bold uppercase">Nominal (Rp) / Persentase (%)</span>
                     </div>
 
                     <div className="space-y-2.5 max-h-[220px] overflow-y-auto pr-1">
@@ -793,17 +839,64 @@ export default function BudgetManager({
                               </div>
                             </div>
                             
-                            <div className="relative w-36 shrink-0">
-                              <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                                <span className="text-slate-400 font-bold text-[10px]">Rp</span>
+                            <div className="flex flex-col items-end gap-0.5 shrink-0 w-44">
+                              <div className="flex items-center gap-1.5 w-full">
+                                {/* Type Toggle: Rp / % */}
+                                <div className="flex items-center border border-slate-200 rounded-lg p-0.5 bg-slate-100 shrink-0">
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      setValue(`categories.${index}.type` as const, 'amount');
+                                    }}
+                                    className={`px-1.5 py-0.5 rounded text-[9px] font-black tracking-wider transition-all cursor-pointer ${
+                                      (watchedCategories[index]?.type || 'amount') === 'amount'
+                                        ? 'bg-white text-indigo-600 shadow-xs'
+                                        : 'text-slate-400 hover:text-slate-600'
+                                    }`}
+                                    title="Nominal Rupiah"
+                                  >
+                                    Rp
+                                  </button>
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      setValue(`categories.${index}.type` as const, 'percentage');
+                                    }}
+                                    className={`px-1.5 py-0.5 rounded text-[9px] font-black tracking-wider transition-all cursor-pointer ${
+                                      watchedCategories[index]?.type === 'percentage'
+                                        ? 'bg-white text-indigo-600 shadow-xs'
+                                        : 'text-slate-400 hover:text-slate-600'
+                                    }`}
+                                    title="Persentase Global"
+                                  >
+                                    %
+                                  </button>
+                                </div>
+
+                                <div className="relative flex-1">
+                                  <div className="absolute inset-y-0 left-2 flex items-center pointer-events-none">
+                                    <span className="text-slate-400 font-extrabold text-[9px]">
+                                      {watchedCategories[index]?.type === 'percentage' ? '%' : 'Rp'}
+                                    </span>
+                                  </div>
+                                  <input
+                                    type="number"
+                                    min="0"
+                                    step="any"
+                                    max={watchedCategories[index]?.type === 'percentage' ? "100" : undefined}
+                                    {...register(`categories.${index}.amount` as const)}
+                                    className="w-full pl-6 pr-2 py-1 bg-white border border-slate-200 rounded-lg outline-none focus:ring-2 focus:ring-indigo-500 font-bold text-xs text-slate-800 text-right"
+                                    placeholder="0"
+                                  />
+                                </div>
                               </div>
-                              <input
-                                type="number"
-                                min="0"
-                                {...register(`categories.${index}.amount` as const)}
-                                className="w-full pl-8 pr-3 py-1.5 bg-white border border-slate-200 rounded-lg outline-none focus:ring-2 focus:ring-indigo-500 font-bold text-xs text-slate-800 text-right"
-                                placeholder="0"
-                              />
+
+                              {/* Dynamic Preview for Percentage Mode */}
+                              {watchedCategories[index]?.type === 'percentage' && (
+                                <span className="text-[9px] text-slate-500 font-semibold pr-1">
+                                  Setara Rp {Math.round((watchedGlobalBudget * (parseFloat(String(watchedCategories[index]?.amount)) || 0)) / 100).toLocaleString('id-ID')}
+                                </span>
+                              )}
                             </div>
 
                             <button
@@ -823,7 +916,7 @@ export default function BudgetManager({
                     <div className="flex justify-start pt-1">
                       <button
                         type="button"
-                        onClick={() => append({ categoryId: '', amount: 0, iconName: '', isGenerated: false })}
+                        onClick={() => append({ categoryId: '', amount: '', iconName: '', isGenerated: false })}
                         className="flex items-center gap-1.5 px-3 py-1.5 bg-slate-50 hover:bg-slate-100 border border-slate-200 text-slate-700 font-bold text-xs rounded-xl transition-all cursor-pointer"
                       >
                         <Plus size={14} />
@@ -863,17 +956,25 @@ export default function BudgetManager({
                   <div className="flex gap-3">
                     <button 
                       type="button"
+                      disabled={isSubmitting}
                       onClick={() => setIsFormOpen(false)}
-                      className="flex-1 bg-slate-50 hover:bg-slate-100 text-slate-700 py-2.5 rounded-xl font-bold text-xs border border-slate-200 transition-all cursor-pointer"
+                      className="flex-1 bg-slate-50 hover:bg-slate-100 disabled:bg-slate-50 disabled:opacity-50 disabled:cursor-not-allowed text-slate-700 py-2.5 rounded-xl font-bold text-xs border border-slate-200 transition-all cursor-pointer"
                     >
                       Batal
                     </button>
                     <button 
                       type="submit"
                       disabled={isSubmitting || sisaUntukDialokasikan < 0}
-                      className="flex-1 bg-indigo-600 hover:bg-indigo-700 text-white py-2.5 rounded-xl font-bold text-xs transition-all disabled:opacity-40 flex justify-center items-center gap-2 shadow-lg shadow-indigo-600/25 cursor-pointer"
+                      className="flex-1 bg-indigo-600 hover:bg-indigo-700 disabled:bg-indigo-400 disabled:opacity-60 disabled:cursor-not-allowed text-white py-2.5 rounded-xl font-bold text-xs transition-all flex justify-center items-center gap-2 shadow-lg shadow-indigo-600/25 cursor-pointer"
                     >
-                      {isSubmitting ? 'Menyimpan...' : 'Simpan Anggaran'}
+                      {isSubmitting ? (
+                        <>
+                          <Loader2 className="w-4 h-4 animate-spin mr-1.5" />
+                          <span>Menyimpan...</span>
+                        </>
+                      ) : (
+                        'Simpan Anggaran'
+                      )}
                     </button>
                   </div>
 

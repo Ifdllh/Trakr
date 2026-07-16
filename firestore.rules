@@ -29,39 +29,51 @@ service cloud.firestore {
 
     // Entity Validators
     function isValidUser(data) {
-      return data.keys().hasAll(['uid', 'email', 'createdAt', 'monthlyBudget']) &&
-             data.keys().size() == 4 &&
+      return data.keys().hasAll(['uid', 'email', 'createdAt']) &&
              data.uid is string && data.uid.size() <= 128 &&
              data.email is string && data.email.size() <= 256 &&
              data.createdAt is string && data.createdAt.size() <= 64 &&
-             data.monthlyBudget is number;
+             (!('monthlyBudget' in data) || data.monthlyBudget is number) &&
+             (!('displayName' in data) || (data.displayName is string && data.displayName.size() <= 256)) &&
+             (!('phoneNumber' in data) || (data.phoneNumber is string && data.phoneNumber.size() <= 64)) &&
+             (!('currency' in data) || (data.currency is string && data.currency.size() <= 64)) &&
+             (!('financialStartDay' in data) || data.financialStartDay is number) &&
+             (!('photoURL' in data) || (data.photoURL is string && data.photoURL.size() <= 1500000)) &&
+             (!('updatedAt' in data) || (data.updatedAt is string && data.updatedAt.size() <= 64));
     }
 
     function isValidTransaction(data) {
-      return data.keys().hasAll(['type', 'amount', 'category', 'subcategory', 'date', 'createdAt']) &&
-             data.type is string &&
-             data.amount is number &&
-             data.category is string &&
-             data.subcategory is string &&
-             data.date is string &&
-             data.createdAt is string;
+      let hasRequiredKeys = data.keys().hasAll(['type', 'amount', 'category', 'date', 'createdAt']);
+      
+      let isValidBase = data.type is string && (data.type == 'pemasukan' || data.type == 'pengeluaran' || data.type == 'transfer') &&
+                        data.amount is number &&
+                        data.category is string && data.category.size() <= 128 &&
+                        data.date is string && data.date.size() <= 64 &&
+                        data.createdAt is string && data.createdAt.size() <= 64;
+
+      let isValidSubcategory = !data.keys().hasAny(['subcategory']) || (data.subcategory is string && data.subcategory.size() <= 128);
+      let isValidDescription = !data.keys().hasAny(['description']) || (data.description is string && data.description.size() <= 500);
+      let isValidAttachment = !data.keys().hasAny(['attachmentUrl']) || (data.attachmentUrl is string);
+      let isValidAccountId = !data.keys().hasAny(['accountId']) || (data.accountId is string);
+
+      return hasRequiredKeys && isValidBase && isValidSubcategory && isValidDescription && isValidAttachment && isValidAccountId;
     }
 
     function isValidBudget(data) {
       return data.keys().hasAll(['periodId', 'categoryId', 'type', 'value', 'createdAt']) &&
-             data.periodId is string &&
-             data.categoryId is string &&
-             data.type is string &&
+             data.periodId is string && data.periodId.size() <= 64 &&
+             data.categoryId is string && data.categoryId.size() <= 128 &&
+             data.type is string && (data.type == 'amount' || data.type == 'percentage') &&
              data.value is number &&
-             data.createdAt is string;
+             data.createdAt is string && data.createdAt.size() <= 64;
     }
 
     function isValidPeriod(data) {
       return data.keys().hasAll(['name', 'startDate', 'endDate', 'createdAt']) &&
-             data.name is string &&
-             data.startDate is string &&
-             data.endDate is string &&
-             data.createdAt is string;
+             data.name is string && data.name.size() <= 64 &&
+             data.startDate is string && data.startDate.size() <= 64 &&
+             data.endDate is string && data.endDate.size() <= 64 &&
+             data.createdAt is string && data.createdAt.size() <= 64;
     }
 
     // Rules for User Profile collection
@@ -72,14 +84,12 @@ service cloud.firestore {
       allow update: if isAuthenticated() && isOwner(userId) && isValidId(userId) && isValidUser(incoming()) &&
                     incoming().uid == existing().uid &&
                     incoming().email == existing().email &&
-                    incoming().createdAt == existing().createdAt &&
-                    incoming().diff(existing()).affectedKeys().hasOnly(['monthlyBudget']);
+                    incoming().createdAt == existing().createdAt;
                     
       allow delete: if isAuthenticated() && isOwner(userId) && isValidId(userId);
 
       // Rules for user's subcollection of transactions
       match /transactions/{transactionId} {
-        // List query check: MUST explicitly evaluate resource.data or enforce on path to prevent unauthorized queries (Query Enforcer)
         allow list: if isAuthenticated() && isOwner(userId);
         
         allow get: if isAuthenticated() && isOwner(userId) && isValidId(transactionId);
@@ -90,6 +100,7 @@ service cloud.firestore {
                       
         allow delete: if isAuthenticated() && isOwner(userId) && isValidId(transactionId);
       }
+      
       // Rules for user's subcollection of budgets
       match /budgets/{budgetId} {
         allow list: if isAuthenticated() && isOwner(userId);

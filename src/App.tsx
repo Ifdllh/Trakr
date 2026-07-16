@@ -1,5 +1,5 @@
 import { User } from 'firebase/auth';
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
 import { 
   onAuthStateChanged, 
   signOut, 
@@ -8,6 +8,7 @@ import {
 
 import { devAuth, prdAuth, setAuthEnv, getAuthEnv } from '@/lib/firebase';
 import { Transaction } from '@/types';
+import { api } from '@/lib/api';
 import Auth from '@/components/ui/Auth';
 import { Routes, Route, Navigate, useNavigate, useLocation } from 'react-router-dom';
 import Dashboard from '@/features/reports/Dashboard';
@@ -25,11 +26,63 @@ import {
 } from 'lucide-react';
 import { useAppData } from '@/hooks/useAppData';
 
+const getInitials = (name?: string | null, email?: string | null) => {
+  if (name && name.trim()) {
+    const parts = name.trim().split(/\s+/);
+    if (parts.length >= 2) {
+      return (parts[0][0] + parts[1][0]).toUpperCase();
+    }
+    return parts[0][0].toUpperCase();
+  }
+  if (email && email.trim()) {
+    const namePart = email.split('@')[0];
+    return namePart[0].toUpperCase();
+  }
+  return '?';
+};
+
 export default function App() {
   const [user, setUser] = useState<FirebaseUser | null>(null);
   const isGuest = user?.isAnonymous || user?.email?.includes('guest') || false;
 
   const [authChecked, setAuthChecked] = useState(false);
+  const [dbUser, setDbUser] = useState<any>(null);
+
+  const currentUserData = useMemo(() => {
+    if (!user) return null;
+    return {
+      ...user,
+      displayName: dbUser?.displayName || user.displayName || '',
+      photoURL: dbUser?.photoURL || user.photoURL || '',
+      phoneNumber: dbUser?.phoneNumber || user.phoneNumber || ''
+    };
+  }, [user, dbUser]);
+
+  const handleProfileUpdate = useCallback((updatedData: any) => {
+    setDbUser((prev: any) => ({
+      ...prev,
+      ...updatedData
+    }));
+  }, []);
+
+  // Fetch Firestore user profile
+  useEffect(() => {
+    const fetchDbProfile = async () => {
+      try {
+        const response = await api.get('/user/profile');
+        if (response.data) {
+          setDbUser(response.data);
+        }
+      } catch (err) {
+        console.error('Failed to fetch Firestore user profile in App:', err);
+      }
+    };
+    if (user) {
+      fetchDbProfile();
+    } else {
+      setDbUser(null);
+    }
+  }, [user]);
 
   const {
     transactions, budgets, globalBudgets, periods, accounts,
@@ -220,24 +273,25 @@ export default function App() {
               {/* User indicator Button */}
               <button
                 onClick={() => setIsProfileDropdownOpen(!isProfileDropdownOpen)}
-                className="flex flex-col text-right hover:opacity-85 active:scale-98 transition-all focus:outline-none py-1.5 px-3 -mr-3 rounded-xl hover:bg-slate-50 border border-transparent hover:border-slate-100"
+                className="flex items-center gap-3 cursor-pointer hover:bg-slate-100/80 active:scale-98 transition-colors duration-200 focus:outline-none py-1.5 px-3 -mr-3 rounded-lg border border-transparent hover:border-slate-200/50"
                 id="profile-dropdown-trigger"
                 title="Menu Akun"
               >
-                <span className="text-xs font-bold text-slate-900 truncate max-w-[150px] flex items-center gap-1.5 justify-end">
-                  {user.displayName || (user.isAnonymous ? 'Pengguna Tamu' : 'Pengguna')}
-                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span>
+                <span className="text-sm font-semibold text-gray-700 max-w-[150px] truncate" id="profile-display-name">
+                  {currentUserData?.displayName || (user?.isAnonymous ? 'Pengguna Tamu' : 'Pengguna')}
                 </span>
-                <span className="text-[10px] text-slate-500 font-mono flex items-center gap-1.5 justify-end">
-                  {user.isAnonymous ? 'Mode Tamu' : user.email}
-                  <span className={`px-1 py-0.5 rounded-[4px] text-[8px] font-extrabold uppercase tracking-wide leading-none border ${
-                    getAuthEnv() === 'prd'
-                      ? 'bg-indigo-50 text-indigo-700 border-indigo-200'
-                      : 'bg-amber-50 text-amber-700 border-amber-200'
-                  }`}>
-                    {getAuthEnv() === 'prd' ? 'PRD' : 'DEV'}
-                  </span>
-                </span>
+                <div className="w-9 h-9 rounded-full border border-slate-200 bg-indigo-50 text-indigo-700 flex items-center justify-center text-xs font-bold overflow-hidden shrink-0" id="profile-avatar">
+                  {currentUserData?.photoURL ? (
+                    <img 
+                      src={currentUserData.photoURL} 
+                      alt={currentUserData.displayName || 'Avatar'} 
+                      className="w-full h-full object-cover" 
+                      referrerPolicy="no-referrer" 
+                    />
+                  ) : (
+                    <span>{getInitials(currentUserData?.displayName, user?.email)}</span>
+                  )}
+                </div>
               </button>
 
               {/* Profile Dropdown Menu */}
@@ -259,28 +313,8 @@ export default function App() {
                       id="profile-dropdown-menu"
                     >
                       <div className="px-3.5 py-2.5 border-b border-slate-100 mb-1" id="profile-dropdown-header">
-                        <p className="text-xs font-bold text-slate-800 truncate">{user.displayName || (user.isAnonymous ? 'Pengguna Tamu' : 'Pengguna')}</p>
+                        <p className="text-xs font-bold text-slate-800 truncate">{currentUserData?.displayName || (user?.isAnonymous ? 'Pengguna Tamu' : 'Pengguna')}</p>
                         <p className="text-[10px] text-slate-400 font-mono truncate">{user.email || 'Mode Tamu'}</p>
-                        <div className="mt-2.5 pt-2 border-t border-slate-100 flex flex-col gap-1.5" id="profile-dropdown-db-info">
-                          <div className="flex items-center justify-between text-[10px]">
-                            <span className="text-slate-400 font-medium">Database Aktif:</span>
-                            <span className={`px-1.5 py-0.5 rounded text-[9px] font-bold uppercase tracking-wider border ${
-                              getAuthEnv() === 'prd'
-                                ? 'bg-indigo-50 text-indigo-700 border-indigo-100'
-                                : 'bg-amber-50 text-amber-700 border-amber-100'
-                            }`}>
-                              {getAuthEnv() === 'prd' ? 'PROD (Utama)' : 'DEV (Sandbox)'}
-                            </span>
-                          </div>
-                          <div className="flex items-center justify-between text-[9px]">
-                            <span className="text-slate-400 font-medium">Project ID:</span>
-                            <span className="font-mono text-slate-500 truncate max-w-[120px]" title={getAuthEnv() === 'prd' ? (import.meta.env.VITE_PRD_FIREBASE_PROJECT_ID || 'Belum Terkonfigurasi') : (import.meta.env.VITE_FIREBASE_PROJECT_ID || 'zippy-solution-c7c1c')}>
-                              {getAuthEnv() === 'prd' 
-                                ? (import.meta.env.VITE_PRD_FIREBASE_PROJECT_ID || 'Belum Terkonfigurasi')
-                                : (import.meta.env.VITE_FIREBASE_PROJECT_ID || 'zippy-solution-c7c1c')}
-                            </span>
-                          </div>
-                        </div>
                       </div>
 
                       <button
@@ -351,6 +385,7 @@ export default function App() {
             {activeTab === 'dashboard' && (
               <Dashboard 
                 user={user}
+                dbUser={dbUser}
                 categories={mergedCategories}
                 onOpenForm={openFormWithType}
                 setActiveTab={setActiveTab}
@@ -407,6 +442,8 @@ export default function App() {
             {activeTab === 'settings' && (
               <Settings 
                 user={user}
+                dbUser={dbUser}
+                onProfileUpdate={handleProfileUpdate}
                 setActiveTab={setActiveTab}
               />
             )}

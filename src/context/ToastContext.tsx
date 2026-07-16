@@ -6,6 +6,14 @@ type ToastType = 'success' | 'error' | 'info';
 
 interface ToastContextType {
   showToast: (message: string, type?: ToastType) => void;
+  promise: <T>(
+    promise: Promise<T>,
+    options: {
+      loading: string;
+      success: string | ((data: T) => string);
+      error: string | ((err: any) => string);
+    }
+  ) => Promise<T>;
 }
 
 const ToastContext = createContext<ToastContextType | undefined>(undefined);
@@ -50,6 +58,28 @@ export const ToastProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     setToast(null);
   }, []);
 
+  const promise = useCallback(<T,>(
+    p: Promise<T>,
+    options: {
+      loading: string;
+      success: string | ((data: T) => string);
+      error: string | ((err: any) => string);
+    }
+  ): Promise<T> => {
+    showToast(options.loading, 'info');
+    return p
+      .then((data) => {
+        const msg = typeof options.success === 'function' ? options.success(data) : options.success;
+        showToast(msg, 'success');
+        return data;
+      })
+      .catch((err) => {
+        const msg = typeof options.error === 'function' ? options.error(err) : options.error;
+        showToast(msg || err?.message || 'Terjadi kesalahan', 'error');
+        throw err;
+      });
+  }, [showToast]);
+
   useEffect(() => {
     if (toast) {
       const timer = setTimeout(() => {
@@ -60,7 +90,7 @@ export const ToastProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   }, [toast]);
 
   return (
-    <ToastContext.Provider value={{ showToast }}>
+    <ToastContext.Provider value={{ showToast, promise }}>
       {children}
       <AnimatePresence>
         {toast && (

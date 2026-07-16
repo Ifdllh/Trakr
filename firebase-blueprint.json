@@ -21,6 +21,27 @@
         "monthlyBudget": {
           "type": "number",
           "description": "Optional monthly spending limit/budget set by the user."
+        },
+        "displayName": {
+          "type": "string",
+          "description": "Display name of the user."
+        },
+        "phoneNumber": {
+          "type": "string",
+          "description": "Phone number of the user."
+        },
+        "currency": {
+          "type": "string",
+          "description": "Main currency preference."
+        },
+        "financialStartDay": {
+          "type": "number",
+          "description": "Siklus anggaran dimulai pada tanggal."
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Timestamp of the last update."
         }
       },
       "required": ["uid", "email", "createdAt"]

@@ -221,11 +221,6 @@ export default function GoldPriceTracker() {
                       <div>
                         <div className="flex items-center gap-1.5 flex-wrap">
                           <h4 className="text-xs font-black text-slate-800">{vendor.name}</h4>
-                          {vendor.isAvailable ? (
-                            <span className="text-[8px] bg-emerald-50 text-emerald-600 px-1.5 py-0.5 rounded font-bold uppercase tracking-wide">Live</span>
-                          ) : (
-                            <span className="text-[8px] bg-slate-100 text-slate-500 px-1.5 py-0.5 rounded font-bold uppercase tracking-wide">Estimasi</span>
-                          )}
                           {vendor.type && (
                             <span className={`text-[8px] px-1.5 py-0.5 rounded font-bold uppercase tracking-wide ${
                               vendor.type === 'Digital'
@@ -238,15 +233,6 @@ export default function GoldPriceTracker() {
                             </span>
                           )}
                         </div>
-                        {vendor.date ? (
-                          <span className="text-[9px] font-semibold text-gray-400">
-                            {vendor.description || '1 gram'}
-                          </span>
-                        ) : (
-                          <span className="text-[9px] font-semibold text-gray-400 flex items-center gap-0.5 mt-0.5">
-                            {vendor.description || '1 gram'}
-                          </span>
-                        )}
                       </div>
                     </div>
 
@@ -283,11 +269,6 @@ export default function GoldPriceTracker() {
               <Clock size={10} />
               Last Updated: {formatLastUpdated(data.lastUpdated)}
             </span>
-            {data.cached && (
-              <span className="bg-slate-50 text-slate-500 border border-slate-100 px-2 py-0.5 rounded-full font-bold uppercase">
-                Cached
-              </span>
-            )}
           </div>
         )}
       </div>
