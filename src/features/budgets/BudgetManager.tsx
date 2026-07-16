@@ -810,8 +810,8 @@ export default function BudgetManager({
                         const isGenerated = watchedCategories[index]?.isGenerated;
                         
                         return (
-                          <div key={field.id} className="flex items-center justify-between gap-4 p-2 bg-slate-50/50 hover:bg-slate-50 border border-slate-100 rounded-xl transition-all">
-                            <div className="flex items-center gap-2.5 min-w-0 flex-1">
+                          <div key={field.id} className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 sm:gap-4 p-3 sm:p-2 bg-slate-50/50 hover:bg-slate-50 border border-slate-100 rounded-xl transition-all">
+                            <div className="flex items-center gap-2.5 min-w-0 w-full sm:w-auto sm:flex-1">
                               <div className={`w-8 h-8 rounded-lg flex items-center justify-center shrink-0 ${currentColorClass}`}>
                                 {renderCategoryIcon(currentIconName)}
                               </div>
@@ -839,8 +839,9 @@ export default function BudgetManager({
                               </div>
                             </div>
                             
-                            <div className="flex flex-col items-end gap-0.5 shrink-0 w-44">
-                              <div className="flex items-center gap-1.5 w-full">
+                            <div className="flex flex-row items-start sm:items-center justify-between gap-2 w-full sm:w-auto shrink-0">
+                              <div className="flex flex-col items-start sm:items-end gap-0.5 w-full flex-1 sm:w-44">
+                                <div className="flex items-center gap-1.5 w-full">
                                 {/* Type Toggle: Rp / % */}
                                 <div className="flex items-center border border-slate-200 rounded-lg p-0.5 bg-slate-100 shrink-0">
                                   <button
@@ -902,12 +903,13 @@ export default function BudgetManager({
                             <button
                               type="button"
                               onClick={() => remove(index)}
-                              className="p-1.5 text-slate-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors cursor-pointer shrink-0"
+                              className="p-2 sm:p-1.5 text-slate-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors cursor-pointer shrink-0 mt-0.5 sm:mt-0"
                               title="Hapus Baris"
                             >
-                              <X size={14} />
+                              <X size={16} className="sm:w-[14px] sm:h-[14px]" />
                             </button>
                           </div>
+                        </div>
                         );
                       })}
                     </div>
