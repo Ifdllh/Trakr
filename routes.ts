@@ -142,19 +142,34 @@ export function setupApiRoutes(app: any) {
   app.post("/api/masterdata/:collection", requireAuth, async (req: AuthRequest, res: any, next: any) => {
     try {
       const colRef = getCollectionRef(req.authEnv!, req.userId!, req.params.collection);
-      const payload = cleanPayload(req.body);
-      payload.createdAt = new Date().toISOString();
-      payload.updatedAt = new Date().toISOString();
-      const docId = Math.random().toString(36).substring(2, 15);
-      const docRef = colRef.doc(docId);
-      await docRef.set(payload);
       
-      res.json({ id: docId, ...payload, _status: "async_processing_started" });
+      if (Array.isArray(req.body)) {
+        const results = [];
+        for (const item of req.body) {
+          const payload = cleanPayload(item);
+          payload.createdAt = new Date().toISOString();
+          payload.updatedAt = new Date().toISOString();
+          const docId = Math.random().toString(36).substring(2, 15);
+          const docRef = colRef.doc(docId);
+          await docRef.set(payload);
+          results.push({ id: docId, ...payload, _status: "async_processing_started" });
+        }
+        res.json(results);
+      } else {
+        const payload = cleanPayload(req.body);
+        payload.createdAt = new Date().toISOString();
+        payload.updatedAt = new Date().toISOString();
+        const docId = Math.random().toString(36).substring(2, 15);
+        const docRef = colRef.doc(docId);
+        await docRef.set(payload);
+        
+        res.json({ id: docId, ...payload, _status: "async_processing_started" });
+      }
 
       const runBackgroundJob = async () => {
         try {
            await new Promise(resolve => setTimeout(resolve, 2000));
-           console.log(`[Background Job] Processed CREATE for ${req.params.collection} ${docId}`);
+           console.log(`[Background Job] Processed CREATE for ${req.params.collection}`);
         } catch (jobErr) {
            console.error("[Background Job Error]:", jobErr);
         }

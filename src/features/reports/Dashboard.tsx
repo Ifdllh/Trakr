@@ -12,7 +12,7 @@ import {
   ArrowUpRight, ArrowDownRight, Wallet, TrendingUp, TrendingDown, 
   Calendar, AlertTriangle, ShieldCheck, CreditCard, Copy, Check,
   ChevronLeft, ChevronRight, Search, Info, MessageSquare,
-  Award, HelpCircle, Settings2, X, Repeat
+  Award, HelpCircle, Settings2, X, Repeat, Plus
 } from 'lucide-react';
 import * as LucideIcons from 'lucide-react';
 
@@ -643,7 +643,7 @@ export default function Dashboard({
         <div className="bg-gradient-to-br from-indigo-600 to-purple-800 p-6 rounded-3xl border-none shadow-lg shadow-indigo-500/30 flex flex-col justify-between h-full min-h-[180px]">
           <div className="flex justify-between items-start mb-4">
             <div className="space-y-1">
-              <span className="text-[10px] uppercase font-bold text-indigo-200 tracking-wider">Total Kekayaan Bersih</span>
+              <span className="text-[10px] uppercase font-bold text-indigo-200 tracking-wider">Kekayaan Bersih</span>
               <div className="flex items-baseline gap-0.5 tabular-nums tracking-tight">
                 <span className="text-3xl font-black text-white">{balanceParts.main}</span>
                 <span className="text-[11px] font-bold text-indigo-200/80">{balanceParts.cents}</span>
@@ -654,12 +654,20 @@ export default function Dashboard({
             </div>
           </div>
           <div className="mt-auto pt-4 border-t border-white/10 flex items-center gap-3">
-            <button onClick={() => onOpenForm('pemasukan')} className="flex-1 py-2.5 bg-transparent hover:bg-white/10 border border-white/20 text-white rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-1.5 cursor-pointer">
-              <ArrowUpRight size={14} strokeWidth={2.5} /> Pemasukan
-            </button>
-            <button onClick={() => onOpenForm('pengeluaran')} className="flex-1 py-2.5 bg-white hover:bg-indigo-50 text-indigo-700 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-1.5 shadow-sm border-none cursor-pointer">
-              <ArrowDownRight size={14} strokeWidth={2.5} /> Pengeluaran
-            </button>
+            {netSavingsAndBalance === 0 ? (
+              <button onClick={() => setActiveTab('categories')} className="w-full py-2.5 bg-white hover:bg-indigo-50 text-indigo-700 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-1.5 shadow-sm border-none cursor-pointer">
+                <Plus size={14} strokeWidth={2.5} /> Tambah Rekening Pertama
+              </button>
+            ) : (
+              <>
+                <button onClick={() => onOpenForm('pemasukan')} className="flex-1 py-2.5 bg-transparent hover:bg-white/10 border border-white/20 text-white rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-1.5 cursor-pointer">
+                  <ArrowUpRight size={14} strokeWidth={2.5} /> Pemasukan
+                </button>
+                <button onClick={() => onOpenForm('pengeluaran')} className="flex-1 py-2.5 bg-white hover:bg-indigo-50 text-indigo-700 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-1.5 shadow-sm border-none cursor-pointer">
+                  <ArrowDownRight size={14} strokeWidth={2.5} /> Pengeluaran
+                </button>
+              </>
+            )}
           </div>
         </div>
 
@@ -668,14 +676,16 @@ export default function Dashboard({
           <div className="flex justify-between items-start mb-4">
             <div className="w-full">
               <div className="flex items-center justify-between gap-2 mb-3">
-                <span className="text-[10px] uppercase font-bold text-gray-400 tracking-wider">Arus Kas Bulan Ini</span>
-                <span className={`text-[9px] font-extrabold uppercase px-2 py-0.5 rounded-full ${
-                  finalDisplayExpense > finalDisplayIncome 
-                    ? 'bg-rose-100 text-rose-700' 
-                    : 'bg-emerald-100 text-emerald-700'
-                }`}>
-                  {finalDisplayExpense > finalDisplayIncome ? 'Defisit' : 'Surplus'}
-                </span>
+                <span className="text-[10px] uppercase font-bold text-gray-400 tracking-wider">Arus Kas</span>
+                {!(finalDisplayIncome === 0 && finalDisplayExpense === 0) && (
+                  <span className={`text-[9px] font-extrabold uppercase px-2 py-0.5 rounded-full ${
+                    finalDisplayExpense > finalDisplayIncome 
+                      ? 'bg-rose-100 text-rose-700' 
+                      : 'bg-emerald-100 text-emerald-700'
+                  }`}>
+                    {finalDisplayExpense > finalDisplayIncome ? 'Defisit' : 'Surplus'}
+                  </span>
+                )}
               </div>
               <div className="flex items-center justify-between w-full">
                 <div className="space-y-1">
@@ -703,7 +713,7 @@ export default function Dashboard({
             </div>
             <div className="flex justify-between mt-2 text-[10px] font-bold">
               <span className="text-gray-500">Rasio Pemakaian</span>
-              <span className="text-rose-600">
+              <span className={finalDisplayIncome === 0 && finalDisplayExpense === 0 ? "text-slate-400" : "text-rose-600"}>
                 {finalDisplayIncome > 0 ? Math.round((finalDisplayExpense / finalDisplayIncome) * 100) : 0}% terpakai
               </span>
             </div>
@@ -751,7 +761,7 @@ export default function Dashboard({
               <div className="flex justify-between items-center mb-4">
                  <div className="space-y-0.5">
                   <span className="text-[10px] uppercase font-bold text-gray-400 tracking-wider">Pengeluaran Terbesar</span>
-                  <p className="text-[10px] font-medium text-gray-500">Kategori dengan alokasi tertinggi</p>
+                  <p className="text-[10px] font-medium text-gray-500">Pengeluaran paling dominan bulan ini</p>
                  </div>
                  <div className="h-8 w-8 bg-indigo-50 text-indigo-600 rounded-xl flex items-center justify-center shrink-0">
                   <TrendingDown size={16} />
@@ -790,10 +800,10 @@ export default function Dashboard({
                   </>
                 ) : (
                   <div className="flex flex-col items-center justify-center text-center py-2 space-y-2">
-                    <div className="h-10 w-10 bg-emerald-50 text-emerald-500 rounded-full flex items-center justify-center">
-                      <ShieldCheck size={20} />
+                    <div className="h-10 w-10 bg-slate-50 text-slate-400 rounded-full flex items-center justify-center">
+                      <Wallet size={20} />
                     </div>
-                    <p className="text-xs font-bold text-emerald-700">Tidak ada pengeluaran bulan ini</p>
+                    <p className="text-xs font-bold text-slate-500">Belum ada pengeluaran yang tercatat.</p>
                   </div>
                 )}
               </div>
@@ -805,12 +815,12 @@ export default function Dashboard({
       {/* 2. Toggleable Widget Section (Middle/Bottom) */}
       <div className="mt-8">
         <div className="flex items-center justify-between mb-4">
-          <h3 className="text-base font-extrabold text-slate-900 tracking-tight">Widget Dasbor</h3>
+          <h3 className="text-base font-extrabold text-slate-900 tracking-tight">Analisis Finansial</h3>
           <button 
             onClick={() => setShowCustomizeModal(true)}
             className="flex items-center gap-1.5 px-3.5 py-2 bg-white border border-gray-200 hover:border-gray-300 hover:bg-gray-50 rounded-xl text-xs font-bold text-gray-700 transition-colors cursor-pointer"
           >
-            <Settings2 size={14} /> Sesuaikan Dasbor
+            <Settings2 size={14} /> Atur Tampilan
           </button>
         </div>
 
@@ -823,7 +833,7 @@ export default function Dashboard({
                   <h3 className="text-base font-extrabold text-slate-900 tracking-tight flex items-center gap-1.5">
                     Tren Arus Kas ({selectedYear})
                   </h3>
-                  <p className="text-xs text-gray-400">Kurva perbandingan arus kas tahunan secara makro</p>
+                  <p className="text-xs text-gray-400">Pergerakan uang masuk dan keluar Anda tahun ini</p>
                 </div>
                 
                 {/* Controls Row */}
@@ -841,7 +851,7 @@ export default function Dashboard({
                   <div className="w-full h-full flex flex-col items-center justify-center text-gray-400 bg-gray-50/50 rounded-xl border border-gray-100 border-dashed">
                     <LucideIcons.BarChart2 size={32} className="mb-3 opacity-40 text-indigo-400" />
                     <p className="text-xs font-bold text-gray-500">Belum ada transaksi di tahun {selectedYear}</p>
-                    <p className="text-[10px] text-gray-400 mt-1">Data tren arus kas akan muncul di sini</p>
+                    <p className="text-[10px] text-gray-400 mt-1">Data pergerakan arus kas akan muncul di sini</p>
                   </div>
                 ) : (
                   <ResponsiveContainer width="100%" height="100%">
@@ -888,6 +898,7 @@ export default function Dashboard({
                 <div className="h-[280px] w-full flex flex-col items-center justify-center text-gray-400 bg-gray-50/50 rounded-xl border border-gray-100 border-dashed mt-4">
                   <LucideIcons.PieChart size={32} className="mb-3 opacity-40 text-orange-400" />
                   <p className="text-xs font-bold text-gray-500">Belum ada pengeluaran bulan ini</p>
+                  <p className="text-[10px] text-gray-400 mt-1">Data pergerakan arus kas akan muncul di sini</p>
                 </div>
               ) : (
                 <>
@@ -1018,6 +1029,10 @@ export default function Dashboard({
               globalDashboardDate={dashboardDate}
               categories={categories}
               setActiveTab={setActiveTab}
+              periods={periods}
+              budgets={budgets}
+              transactions={transactions}
+              globalBudgets={globalBudgets}
             />
           )}
         </div>
@@ -1034,7 +1049,7 @@ export default function Dashboard({
                   <Settings2 size={20} />
                 </div>
                 <div>
-                  <h4 className="text-base font-extrabold text-slate-900">Sesuaikan Dasbor</h4>
+                  <h4 className="text-base font-extrabold text-slate-900">Atur Tampilan</h4>
                   <p className="text-[10px] text-gray-400">Pilih widget yang ingin ditampilkan</p>
                 </div>
               </div>

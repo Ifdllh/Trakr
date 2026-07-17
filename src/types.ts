@@ -179,7 +179,7 @@ export const PREDEFINED_CATEGORIES: Category[] = [
   },
   {
     id: 'lain-lain-pengeluaran',
-    name: 'Lain-lain (Pengeluaran)',
+    name: 'Lain-lain',
     type: 'pengeluaran',
     iconName: 'HelpCircle',
     colorClass: 'text-gray-600 bg-gray-50 border-gray-200',

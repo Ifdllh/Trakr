@@ -113,29 +113,63 @@ export default function BudgetManager({
     }).format(amount);
   };
 
+  // Helper to get nominal amount
+  function getEffectiveBudgetAmount(b: any, totalTarget: number) {
+    if (b.calculatedAmount !== undefined && b.calculatedAmount !== null) {
+      return Number(b.calculatedAmount);
+    }
+    if (b.type === 'amount') return Number(b.value || 0);
+    return (Number(b.value || 0) / 100) * totalTarget;
+  }
+
   // 2. Local computations for Budgets
   const currentBudgets = useMemo(() => budgets.filter(b => b.periodId === selectedPeriod), [budgets, selectedPeriod]);
   
+  const currentPeriodObj = useMemo(() => periods.find(p => p.id === selectedPeriod), [periods, selectedPeriod]);
+
+  const transactionsByPeriod = useMemo(() => {
+    if (!selectedPeriod) return [];
+    return transactions.filter((t: any) => {
+      const typeLower = t.type?.toLowerCase();
+      const isExpense = typeLower === 'dr' || typeLower === 'pengeluaran';
+      if (!isExpense) return false;
+      
+      const match = t.periodId && String(t.periodId) === String(selectedPeriod);
+      if (match) return true;
+      
+      if (t.date && currentPeriodObj?.startDate && currentPeriodObj?.endDate) {
+        const tDate = new Date(t.date);
+        const sDate = new Date(currentPeriodObj.startDate);
+        const eDate = new Date(currentPeriodObj.endDate);
+        
+        tDate.setHours(0, 0, 0, 0);
+        sDate.setHours(0, 0, 0, 0);
+        eDate.setHours(0, 0, 0, 0);
+        
+        return tDate >= sDate && tDate <= eDate;
+      }
+      return false;
+    });
+  }, [transactions, selectedPeriod, currentPeriodObj]);
+
   const budgetStatus = useMemo(() => {
     if (!selectedPeriod) return { targetGlobal: 0, totalTeralokasi: 0, realisasiAktual: 0, sisaSaldo: 0 };
     const periodBudgets = budgets.filter((b: any) => b.periodId === selectedPeriod);
     const periodGlobal = globalBudgets.find((b: any) => b.periodId === selectedPeriod);
-    const periodTxs = transactions.filter((t: any) => t.periodId === selectedPeriod && (t.type === 'Dr' || t.type?.toLowerCase() === 'pengeluaran'));
     
-    const targetGlobal = periodGlobal ? Number((periodGlobal as any).totalTargetAmount) : 0;
-    const totalTeralokasi = periodBudgets.reduce((sum: number, b: any) => sum + Number(b.calculatedAmount || b.value || 0), 0);
-    const realisasiAktual = periodTxs.reduce((sum: number, t: any) => sum + Number(t.amount || 0), 0);
+    const targetGlobalRaw = periodGlobal ? Number((periodGlobal as any).totalTargetAmount) : 0;
+    const targetGlobal = targetGlobalRaw > 0 ? targetGlobalRaw : (monthlyBudget > 0 ? monthlyBudget : 0);
+    const totalTeralokasi = periodBudgets.reduce((sum: number, b: any) => sum + getEffectiveBudgetAmount(b, targetGlobal), 0);
+    const realisasiAktual = transactionsByPeriod.reduce((sum: number, t: any) => sum + Number(t.amount || 0), 0);
     
     return { targetGlobal, totalTeralokasi, realisasiAktual, sisaSaldo: targetGlobal - realisasiAktual };
-  }, [selectedPeriod, budgets, globalBudgets, transactions]);
+  }, [selectedPeriod, budgets, globalBudgets, transactionsByPeriod, monthlyBudget]);
   
   const isLoadingBudgets = false;
 
   const activeGlobalBudget = useMemo(() => {
     return globalBudgets.find(gb => gb.periodId === selectedPeriod);
   }, [globalBudgets, selectedPeriod]);
-
-  const currentPeriodObj = periods.find(p => p.id === selectedPeriod);
 
   const { targetMonth, targetYear } = useMemo(() => {
     const periodObj = periods.find(p => p.id === selectedPeriod || String(p.id) === String(selectedPeriod));
@@ -178,19 +212,10 @@ export default function BudgetManager({
 
   const masterCategories = expenseCategories;
 
-  // Helper to get nominal amount
-  const getEffectiveBudgetAmount = (b: any, totalTarget: number) => {
-    if (b.calculatedAmount !== undefined && b.calculatedAmount !== null) {
-      return Number(b.calculatedAmount);
-    }
-    if (b.type === 'amount') return Number(b.value);
-    return (Number(b.value) / 100) * totalTarget;
-  };
-
   const totalAllocatedAmount = useMemo(() => {
-    const totalTarget = activeGlobalBudget?.totalTargetAmount || 0;
+    const totalTarget = activeGlobalBudget?.totalTargetAmount || monthlyBudget || 0;
     return currentBudgets.reduce((sum, b) => sum + getEffectiveBudgetAmount(b, totalTarget), 0);
-  }, [currentBudgets, activeGlobalBudget]);
+  }, [currentBudgets, activeGlobalBudget, monthlyBudget]);
 
   const currentExpenses = useMemo(() => {
     return transactions.filter(t => {
@@ -236,27 +261,38 @@ export default function BudgetManager({
 
   // Default Categories configuration for Form Setup
   const defaultCategories = useMemo(() => {
-    const globalTarget = activeGlobalBudget?.totalTargetAmount || 0;
-    return expenseCategories.map(cat => {
-      const existingBudget = currentBudgets.find(b => b.categoryId === cat.id);
-      let value: string | number = '';
-      let type: 'amount' | 'percentage' = 'amount';
-      
-      if (existingBudget) {
-        type = existingBudget.type || 'amount';
-        value = existingBudget.value !== undefined && existingBudget.value !== null ? existingBudget.value : '';
+    // If there are existing budgets for the selected period, use them
+    const allocatedBudgets = currentBudgets.filter(b => b.categoryId);
+    
+    if (allocatedBudgets.length > 0) {
+      return allocatedBudgets.map(existingBudget => {
+        const cat = expenseCategories.find(c => String(c.id) === String(existingBudget.categoryId));
+        const value = existingBudget.value !== undefined && existingBudget.value !== null ? existingBudget.value : '';
+        const type = existingBudget.type || 'amount';
+        
+        return {
+          categoryId: existingBudget.categoryId,
+          name: cat ? cat.name : 'Kategori Lain',
+          amount: (value === 0 || value === '') ? '' : value,
+          type: type,
+          iconName: cat?.iconName || 'HelpCircle',
+          isGenerated: false
+        };
+      });
+    }
+    
+    // For a new budget (no existing categories allocated), start with one empty selectable row
+    return [
+      {
+        categoryId: '',
+        name: '',
+        amount: '',
+        type: 'amount' as const,
+        iconName: 'HelpCircle',
+        isGenerated: false
       }
-      
-      return {
-        categoryId: cat.id,
-        name: cat.name,
-        amount: (value === 0 || value === '') ? '' : value,
-        type: type,
-        iconName: cat.iconName || 'HelpCircle',
-        isGenerated: true
-      };
-    });
-  }, [expenseCategories, currentBudgets, activeGlobalBudget]);
+    ];
+  }, [expenseCategories, currentBudgets]);
 
   // 2. Form Setup using react-hook-form
   const { register, control, handleSubmit, setValue, watch, reset, formState: { errors } } = useForm({
@@ -356,7 +392,16 @@ export default function BudgetManager({
       }, globalBudgetId);
 
       // 2. Save / Update Category Budgets
-      // We process sequentially or in parallel. Let's process sequentially to prevent race conditions.
+      const newBudgetsToCreate: any[] = [];
+      const submittedCategoryIds = new Set(data.categories.map((cat: any) => String(cat.categoryId)));
+
+      // Delete category budgets that were removed from the form list
+      for (const existingBudget of currentBudgets) {
+        if (existingBudget.id && existingBudget.categoryId && !submittedCategoryIds.has(String(existingBudget.categoryId))) {
+          await onDeleteBudget(existingBudget.id);
+        }
+      }
+      
       for (const cat of data.categories) {
         const existingBudget = currentBudgets.find(b => b.categoryId === cat.categoryId);
         
@@ -374,8 +419,16 @@ export default function BudgetManager({
           createdAt: existingBudget?.createdAt || new Date().toISOString()
         };
 
-        // Call onSaveBudget wrapper from App.tsx
-        await onSaveBudget(categoryPayload, existingBudget?.id);
+        if (existingBudget?.id) {
+          // Call onSaveBudget wrapper from App.tsx
+          await onSaveBudget(categoryPayload, existingBudget.id);
+        } else {
+          newBudgetsToCreate.push(categoryPayload);
+        }
+      }
+
+      if (newBudgetsToCreate.length > 0) {
+        await onSaveBudget(newBudgetsToCreate);
       }
 
       // Refresh query states
@@ -446,7 +499,7 @@ export default function BudgetManager({
                 <Target size={22} />
               </div>
               <div className="min-w-0 flex-1">
-                <span className="text-[10px] font-extrabold text-slate-400 tracking-wider uppercase block">Target Anggaran Global</span>
+                <span className="text-[10px] font-extrabold text-slate-400 tracking-wider uppercase block">Total Anggaran</span>
                 <h3 className="text-base font-black text-slate-900 tracking-tight mt-0.5 tabular-nums">
                   {budgetStatus.targetGlobal > 0 ? formatIDR(budgetStatus.targetGlobal) : 'Belum Ditentukan'}
                 </h3>
@@ -466,7 +519,7 @@ export default function BudgetManager({
                 <PieChart size={22} />
               </div>
               <div className="min-w-0 flex-1">
-                <span className="text-[10px] font-extrabold text-slate-400 tracking-wider uppercase block">Total Teralokasi</span>
+                <span className="text-[10px] font-extrabold text-slate-400 tracking-wider uppercase block">Telah Dialokasikan</span>
                 <h3 className="text-base font-black text-slate-900 tracking-tight mt-0.5 tabular-nums">
                   {formatIDR(budgetStatus.totalTeralokasi)}
                 </h3>
@@ -486,7 +539,7 @@ export default function BudgetManager({
                     <Coins size={22} />
                   </div>
                   <div className="min-w-0 flex-1">
-                    <span className="text-[10px] font-extrabold text-slate-400 tracking-wider uppercase block">Total Pengeluaran Aktual</span>
+                    <span className="text-[10px] font-extrabold text-slate-400 tracking-wider uppercase block">Total Terpakai</span>
                     <h3 className={`text-base font-black tracking-tight mt-0.5 tabular-nums ${
                       isActualExceeded ? 'text-red-600' : 'text-slate-900'
                     }`}>
@@ -510,7 +563,7 @@ export default function BudgetManager({
                     {isSisaSaldoNegative ? <AlertTriangle size={22} /> : <ShieldCheck size={22} />}
                   </div>
                   <div className="min-w-0 flex-1">
-                    <span className="text-[10px] font-extrabold text-slate-400 tracking-wider uppercase block">Sisa Saldo Anggaran</span>
+                    <span className="text-[10px] font-extrabold text-slate-400 tracking-wider uppercase block">Sisa Anggaran</span>
                     <h3 className={`text-base font-black tracking-tight mt-0.5 tabular-nums ${
                       isSisaSaldoNegative ? 'text-red-600' : 'text-slate-900'
                     }`}>
@@ -529,7 +582,7 @@ export default function BudgetManager({
               <div className="flex justify-between items-center text-xs font-bold text-slate-600">
                 <span className="flex items-center gap-1.5">
                   <TrendingUp size={14} className="text-indigo-600" />
-                  Rasio Distribusi Anggaran Kategori
+                  Status Alokasi
                 </span>
                 <span>
                   {formatIDR(totalAllocatedAmount)} / {formatIDR(activeGlobalBudget.totalTargetAmount)} ({Math.min(100, Math.round((totalAllocatedAmount / activeGlobalBudget.totalTargetAmount) * 100))}% Allocated)
@@ -559,7 +612,7 @@ export default function BudgetManager({
                 disabled={periods.length === 0}
                 className="bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2.5 rounded-xl text-sm font-bold transition-all shadow-md shadow-indigo-600/20 flex items-center gap-2 disabled:opacity-50"
               >
-                <Plus size={16} /> Atur Anggaran Periodik
+                <Plus size={16} /> Atur Anggaran
               </button>
             </div>
 
@@ -604,13 +657,20 @@ export default function BudgetManager({
               <div className="bg-white rounded-3xl border border-slate-100 divide-y divide-slate-100 overflow-hidden shadow-sm">
                 {currentBudgets.map((budget) => {
                   const categoryInfo = expenseCategories.find(c => c.id === budget.categoryId) || {
+                    id: '',
                     name: 'Kategori Lain',
                     iconName: 'HelpCircle',
                     colorClass: 'bg-slate-100 text-slate-500'
                   };
 
-                  const budgetAmount = getEffectiveBudgetAmount(budget, activeGlobalBudget.totalTargetAmount);
-                  const spentAmount = budget.actual_amount || 0;
+                  const budgetAmount = getEffectiveBudgetAmount(budget, activeGlobalBudget?.totalTargetAmount || monthlyBudget || 0);
+                  const spentAmount = transactionsByPeriod
+                    .filter((t: any) => 
+                      (t.category && categoryInfo.name && t.category.toLowerCase().trim() === categoryInfo.name.toLowerCase().trim()) ||
+                      (t.categoryId && String(t.categoryId) === String(categoryInfo.id)) ||
+                      (t.category && String(t.category) === String(categoryInfo.id))
+                    )
+                    .reduce((sum, t) => sum + Number(t.amount || 0), 0);
                   const rawPercentage = budgetAmount > 0 ? (spentAmount / budgetAmount) * 100 : 0;
                   const actualPercentage = Math.round(rawPercentage);
                   const barWidth = Math.min(100, actualPercentage);
@@ -853,9 +913,14 @@ export default function BudgetManager({
                                     value={currentCategoryId || ''}
                                   >
                                     <option value="" disabled>Pilih Kategori...</option>
-                                    {masterCategories.map(c => (
-                                      <option key={c.id} value={c.id}>{c.name}</option>
-                                    ))}
+                                    {masterCategories
+                                      .filter(c => {
+                                        if (String(c.id) === String(currentCategoryId)) return true;
+                                        return !watchedCategories?.some((wc: any, wcIdx: number) => wcIdx !== index && String(wc?.categoryId) === String(c.id));
+                                      })
+                                      .map(c => (
+                                        <option key={c.id} value={c.id}>{c.name}</option>
+                                      ))}
                                   </select>
                                 )}
                               </div>

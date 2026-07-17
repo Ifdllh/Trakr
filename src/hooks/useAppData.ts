@@ -401,13 +401,39 @@ export function useAppData(user: FirebaseUser | null, isGuest: boolean) {
         }
       })();
     } else {
-      try {
-        const res = await masterDataService.save('budgets', allocation);
-        setBudgets(prev => [...prev, { ...allocation, id: res.id }]);
-      } catch (error: any) {
-        showToast(error.message || 'Terjadi kesalahan', 'error');
-        throw error;
-      }
+      const isArray = Array.isArray(allocation);
+      const tempIds = isArray ? allocation.map(() => Math.random().toString(36).substring(2, 15)) : [Math.random().toString(36).substring(2, 15)];
+      
+      const newAllocations = isArray 
+        ? allocation.map((a: any, i: number) => ({ ...a, id: tempIds[i] }))
+        : [{ ...allocation, id: tempIds[0] }];
+        
+      setBudgets(prev => [...prev, ...newAllocations]);
+      
+      (async () => {
+        try {
+          const res = await masterDataService.save('budgets', allocation);
+          // If the backend returns generated IDs, we could map them here,
+          // but optimistic updates rely on temp IDs being sufficient for immediate UI interactions
+          if (isArray && Array.isArray(res)) {
+            setBudgets(prev => {
+              const prevCopy = [...prev];
+              res.forEach((r: any, idx: number) => {
+                const foundIdx = prevCopy.findIndex(p => p.id === tempIds[idx]);
+                if (foundIdx !== -1) {
+                  prevCopy[foundIdx] = { ...prevCopy[foundIdx], id: r.id };
+                }
+              });
+              return prevCopy;
+            });
+          } else if (!isArray && res.id) {
+            setBudgets(prev => prev.map(p => p.id === tempIds[0] ? { ...p, id: res.id } : p));
+          }
+        } catch (error: any) {
+          setBudgets(rollbackData);
+          showToast(error.message || 'Terjadi kesalahan', 'error');
+        }
+      })();
     }
   };
 
@@ -430,13 +456,17 @@ export function useAppData(user: FirebaseUser | null, isGuest: boolean) {
         }
       })();
     } else {
-      try {
-        const res = await masterDataService.save('globalBudgets', globalBudget);
-        setGlobalBudgets(prev => [...prev, { ...globalBudget, id: res.id }]);
-      } catch (error: any) {
-        showToast(error.message || 'Terjadi kesalahan', 'error');
-        throw error;
-      }
+      const tempId = Math.random().toString(36).substring(2, 15);
+      setGlobalBudgets(prev => [...prev, { ...globalBudget, id: tempId }]);
+      (async () => {
+        try {
+          const res = await masterDataService.save('globalBudgets', globalBudget);
+          setGlobalBudgets(prev => prev.map(p => p.id === tempId ? { ...p, id: res.id } : p));
+        } catch (error: any) {
+          setGlobalBudgets(rollbackData);
+          showToast(error.message || 'Terjadi kesalahan', 'error');
+        }
+      })();
     }
   };
 

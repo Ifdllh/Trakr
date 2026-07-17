@@ -1,5 +1,5 @@
 import { useMemo } from 'react';
-import { Settings, Info, HelpCircle, Wallet, TrendingUp } from 'lucide-react';
+import { Settings, Info, HelpCircle, Wallet, TrendingUp, AlertTriangle, ShieldCheck } from 'lucide-react';
 import * as LucideIcons from 'lucide-react';
 
 interface BudgetMonitorProps {
@@ -9,6 +9,7 @@ interface BudgetMonitorProps {
   periods?: any[];
   budgets?: any[];
   transactions?: any[];
+  globalBudgets?: any[];
 }
 
 export default function BudgetMonitor({
@@ -17,12 +18,12 @@ export default function BudgetMonitor({
   setActiveTab,
   periods = [],
   budgets = [],
-  transactions = []
+  transactions = [],
+  globalBudgets = []
 }: BudgetMonitorProps) {
   const selectedMonth = globalDashboardDate.getMonth() + 1;
   const selectedYear = globalDashboardDate.getFullYear();
 
-  // 1. Fetch real periods and find the matching active period
   // 1. Find the matching active period
   const activePeriodId = useMemo(() => {
     const targetMonthStr = selectedMonth < 10 ? `0${selectedMonth}` : `${selectedMonth}`;
@@ -35,12 +36,73 @@ export default function BudgetMonitor({
     return matchingPeriod?.id || null;
   }, [periods, selectedMonth, selectedYear]);
 
+  const activePeriodObj = useMemo(() => {
+    return periods.find((p: any) => String(p.id) === String(activePeriodId));
+  }, [periods, activePeriodId]);
+
   // 2. Compute raw budgets for the current active period
   const rawBudgets = useMemo(() => {
      if (!activePeriodId) return [];
-     return budgets.filter((b: any) => b.periodId === activePeriodId);
+     return budgets.filter((b: any) => String(b.periodId) === String(activePeriodId));
   }, [budgets, activePeriodId]);
-  
+
+  // 3. Compute real expenditures for this period
+  const transactionsByPeriod = useMemo(() => {
+    if (!activePeriodId) return [];
+    return transactions.filter((t: any) => {
+      const typeLower = t.type?.toLowerCase();
+      const isExpense = typeLower === 'dr' || typeLower === 'pengeluaran';
+      if (!isExpense) return false;
+      
+      const match = t.periodId && String(t.periodId) === String(activePeriodId);
+      if (match) return true;
+      
+      if (t.date && activePeriodObj?.startDate && activePeriodObj?.endDate) {
+        const tDate = new Date(t.date);
+        const sDate = new Date(activePeriodObj.startDate);
+        const eDate = new Date(activePeriodObj.endDate);
+        
+        tDate.setHours(0, 0, 0, 0);
+        sDate.setHours(0, 0, 0, 0);
+        eDate.setHours(0, 0, 0, 0);
+        
+        return tDate >= sDate && tDate <= eDate;
+      }
+      return false;
+    });
+  }, [transactions, activePeriodId, activePeriodObj]);
+
+  const totalSpent = useMemo(() => {
+    return transactionsByPeriod.reduce((sum: number, t: any) => sum + Number(t.amount || 0), 0);
+  }, [transactionsByPeriod]);
+
+  // Helper for budget values
+  function getEffectiveBudgetAmount(b: any, totalTarget: number) {
+    if (b.calculatedAmount !== undefined && b.calculatedAmount !== null) {
+      return Number(b.calculatedAmount);
+    }
+    if (b.type === 'amount') return Number(b.value || 0);
+    return (Number(b.value || 0) / 100) * totalTarget;
+  }
+
+  // 4. Compute Total Target Budget for this period
+  const totalBudget = useMemo(() => {
+    if (!activePeriodId) return 0;
+    
+    // Find global budget for this period
+    const periodGlobal = globalBudgets.find((b: any) => String(b.periodId) === String(activePeriodId));
+    const targetGlobalRaw = periodGlobal ? Number((periodGlobal as any).totalTargetAmount) : 0;
+    if (targetGlobalRaw > 0) return targetGlobalRaw;
+    
+    // Fallback: sum of all category budgets for this period
+    return rawBudgets.reduce((sum: number, b: any) => sum + getEffectiveBudgetAmount(b, 0), 0);
+  }, [activePeriodId, globalBudgets, rawBudgets]);
+
+  const remainingBudget = totalBudget - totalSpent;
+  const isOverBudget = remainingBudget < 0;
+  const progressPercent = totalBudget > 0 ? Math.round((totalSpent / totalBudget) * 100) : 0;
+
+  const isBudgetConfigured = totalBudget > 0 || rawBudgets.length > 0;
   const isLoading = false;
 
   // Format IDR Helper
@@ -51,59 +113,6 @@ export default function BudgetMonitor({
       minimumFractionDigits: 0,
       maximumFractionDigits: 0
     }).format(num);
-  };
-
-  // Calculate Budget Progress Data from real backend budgets
-  const budgetData = useMemo(() => {
-    if (!rawBudgets || rawBudgets.length === 0) return [];
-
-    return rawBudgets.map((alloc: any) => {
-      const category = categories.find(
-        (c) => String(c.id) === String(alloc.categoryId) || c.name === alloc.categoryName
-      );
-      
-      const categoryName = category?.name || alloc.categoryName || 'Lainnya';
-      const iconName = category?.iconName || 'HelpCircle';
-      const colorClass = category?.colorClass || 'bg-slate-100 text-slate-500';
-      
-      const spent = Number(alloc.actual_amount || 0);
-      const limit = Number(alloc.target_amount || alloc.calculatedAmount || alloc.value || 0);
-      const ratio = limit > 0 ? spent / limit : 0;
-      const percentage = Math.round(ratio * 100);
-
-      return {
-        id: alloc.id,
-        categoryName,
-        iconName,
-        colorClass,
-        spent,
-        limit,
-        percentage,
-        ratio
-      };
-    })
-    .sort((a: any, b: any) => b.percentage - a.percentage)
-    .slice(0, 4);
-  }, [rawBudgets, categories]);
-
-  // Determine dynamic semantic colors based on ratio percentage
-  const getSemanticColors = (percentage: number) => {
-    if (percentage < 75) {
-      return {
-        bg: 'bg-emerald-500',
-        text: 'text-emerald-600'
-      };
-    } else if (percentage < 90) {
-      return {
-        bg: 'bg-amber-400',
-        text: 'text-amber-600'
-      };
-    } else {
-      return {
-        bg: 'bg-rose-500',
-        text: 'text-rose-600'
-      };
-    }
   };
 
   return (
@@ -143,7 +152,7 @@ export default function BudgetMonitor({
               </div>
             ))}
           </div>
-        ) : budgetData.length === 0 ? (
+        ) : !isBudgetConfigured ? (
           /* EMPTY STATE */
           <div className="flex flex-col items-center justify-center py-8" id="budget-empty-state">
             <Wallet className="text-slate-300 w-12 h-12" id="empty-wallet-icon" />
@@ -159,51 +168,56 @@ export default function BudgetMonitor({
             </button>
           </div>
         ) : (
-          /* REAL BUDGET PROGRESS LIST */
-          <div className="flex flex-col gap-4" id="budget-progress-container">
-            {budgetData.map((item) => {
-              const { bg, text } = getSemanticColors(item.percentage);
-              const IconComponent = (LucideIcons as any)[item.iconName] || HelpCircle;
-              
-              return (
-                <div key={item.id} className="flex flex-col" id={`budget-item-${item.id}`}>
-                  {/* Top Row: Icon, Name, and Spent Percentage */}
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-2.5">
-                      <div className={`w-7 h-7 rounded-full flex items-center justify-center shrink-0 ${item.colorClass || 'bg-slate-100 text-slate-500'}`}>
-                        <IconComponent size={13} />
-                      </div>
-                      <span className="font-semibold text-slate-700 text-xs">{item.categoryName}</span>
-                    </div>
-                    <span className={`font-bold text-xs ${text}`}>{item.percentage}%</span>
-                  </div>
-                  
-                  {/* Middle Row: Progress Bar */}
-                  <div className="w-full h-1.5 bg-slate-100 rounded-full mt-1.5 overflow-hidden">
-                    <div 
-                      className={`h-full rounded-full transition-all duration-500 ${bg}`}
-                      style={{ width: `${Math.min(100, item.percentage)}%` }}
-                    />
-                  </div>
-                  
-                  {/* Bottom Row: Nominal Details */}
-                  <div className="text-[10px] text-slate-500 mt-1 flex justify-between items-center">
-                    <span>
-                      <span className="tabular-nums font-bold text-slate-700">{formatIDR(item.spent)}</span> terpakai dari <span className="tabular-nums font-bold text-slate-600">{formatIDR(item.limit)}</span>
-                    </span>
-                    <span className={`text-[8px] font-extrabold uppercase px-1.5 py-0.5 rounded ${
-                      item.percentage < 75 
-                        ? 'bg-emerald-50 text-emerald-700' 
-                        : item.percentage < 100 
-                        ? 'bg-amber-50 text-amber-700' 
-                        : 'bg-rose-50 text-rose-700'
-                    }`}>
-                      {item.percentage < 75 ? 'Safe' : item.percentage < 100 ? 'Warning' : 'Breach'}
-                    </span>
-                  </div>
-                </div>
-              );
-            })}
+          /* COMPACT SUMMARY VIEW (MINIATURE UI) */
+          <div className="space-y-5" id="budget-summary-view">
+            {/* Sisa Anggaran Box */}
+            <div className={`p-4 rounded-2xl flex items-center gap-4 ${
+              isOverBudget ? 'bg-rose-50/50 border border-rose-100' : 'bg-emerald-50/50 border border-emerald-100'
+            }`}>
+              <div className={`w-10 h-10 rounded-xl flex items-center justify-center shrink-0 ${
+                isOverBudget ? 'bg-rose-100 text-rose-600' : 'bg-emerald-100 text-emerald-600'
+              }`}>
+                {isOverBudget ? <AlertTriangle size={18} /> : <ShieldCheck size={18} />}
+              </div>
+              <div className="min-w-0 flex-1">
+                <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Sisa Anggaran</span>
+                <h3 className={`text-xl font-black tracking-tight mt-0.5 tabular-nums ${
+                  isOverBudget ? 'text-rose-600' : 'text-emerald-600'
+                }`}>
+                  {formatIDR(remainingBudget)}
+                </h3>
+              </div>
+            </div>
+
+            {/* Mini Progress Bar */}
+            <div className="space-y-2">
+              <div className="flex justify-between items-center text-xs">
+                <span className="text-slate-500 font-semibold">Progres Penggunaan</span>
+                <span className={`font-bold ${
+                  progressPercent < 75 
+                    ? 'text-emerald-600' 
+                    : progressPercent < 100 
+                    ? 'text-amber-600' 
+                    : 'text-rose-600'
+                }`}>{progressPercent}% Terpakai</span>
+              </div>
+              <div className="w-full h-2.5 bg-slate-100 rounded-full overflow-hidden">
+                <div 
+                  className={`h-full rounded-full transition-all duration-500 ${
+                    progressPercent < 75 
+                      ? 'bg-emerald-500' 
+                      : progressPercent < 100 
+                      ? 'bg-amber-500' 
+                      : 'bg-rose-500'
+                  }`}
+                  style={{ width: `${Math.min(100, progressPercent)}%` }}
+                />
+              </div>
+              <div className="flex justify-between items-center text-[10px] text-slate-400 font-medium">
+                <span>Terpakai: <strong className="text-slate-700 font-bold tabular-nums">{formatIDR(totalSpent)}</strong></span>
+                <span>Total Anggaran: <strong className="text-slate-700 font-bold tabular-nums">{formatIDR(totalBudget)}</strong></span>
+              </div>
+            </div>
           </div>
         )}
       </div>
