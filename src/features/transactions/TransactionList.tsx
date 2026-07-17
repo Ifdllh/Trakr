@@ -1,5 +1,4 @@
 import { useState, useMemo } from 'react';
-import { useGetTransactions } from '@/features/transactions/useTransactions';
 import { Transaction, Category, BudgetPeriod, MasterAccount } from '@/types';
 import { 
   Trash2, Download, Edit2, Search, Filter, 
@@ -16,9 +15,10 @@ interface TransactionListProps {
   accounts?: MasterAccount[];
   onEdit: (transaction: Transaction) => void;
   onDelete: (id: string) => Promise<void>;
+  transactions?: Transaction[];
 }
 
-export default function TransactionList({ categories, periods, accounts = [], onEdit, onDelete }: TransactionListProps) {
+export default function TransactionList({ categories, periods, accounts = [], onEdit, onDelete, transactions: allTransactions = [] }: TransactionListProps) {
   const [searchTerm, setSearchTerm] = useState('');
   const [typeFilter, setTypeFilter] = useState<'semua' | 'pemasukan' | 'pengeluaran' | 'transfer'>('semua');
   const [selectedAttachmentUrl, setSelectedAttachmentUrl] = useState<string | null>(null);
@@ -39,9 +39,36 @@ export default function TransactionList({ categories, periods, accounts = [], on
     });
   };
 
-  const currentFilters = { typeFilter, categoryFilter, periodFilter, searchTerm };
-  const { data: rawTransactions, isLoading, isError } = useGetTransactions(currentFilters);
-  const transactions = rawTransactions || [];
+  const isLoading = false;
+  const isError = false;
+  
+  const transactions = useMemo(() => {
+    let filtered = [...allTransactions];
+    
+    if (typeFilter !== 'semua') {
+      if (typeFilter === 'pemasukan') filtered = filtered.filter(t => String(t.type) === 'Cr' || t.type?.toLowerCase() === 'pemasukan');
+      else if (typeFilter === 'pengeluaran') filtered = filtered.filter(t => String(t.type) === 'Dr' || t.type?.toLowerCase() === 'pengeluaran');
+      else if (typeFilter === 'transfer') filtered = filtered.filter(t => t.type?.toLowerCase() === 'transfer');
+    }
+    
+    if (categoryFilter !== 'semua') {
+      filtered = filtered.filter(t => t.category === categoryFilter || (t as any).categoryId === categoryFilter);
+    }
+    
+    if (periodFilter !== 'semua') {
+      filtered = filtered.filter(t => t.periodId === periodFilter);
+    }
+    
+    if (searchTerm) {
+      const q = searchTerm.toLowerCase();
+      filtered = filtered.filter(t => 
+        (t.description || '').toLowerCase().includes(q) ||
+        (t.category || '').toLowerCase().includes(q)
+      );
+    }
+    
+    return filtered;
+  }, [allTransactions, typeFilter, categoryFilter, periodFilter, searchTerm]);
 
   // Extract unique categories currently used in transactions to populate filter dropdown
   const uniqueCategoriesUsed = useMemo(() => {

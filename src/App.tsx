@@ -74,7 +74,7 @@ export default function App() {
           setDbUser(response.data);
         }
       } catch (err) {
-        console.error('Failed to fetch Firestore user profile in App:', err);
+        if (!err?.message?.includes('Quota')) console.error('Failed to fetch Firestore user profile in App:', err);
       }
     };
     if (user) {
@@ -375,6 +375,12 @@ export default function App() {
                 categories={mergedCategories}
                 onOpenForm={openFormWithType}
                 setActiveTab={setActiveTab}
+                transactions={transactions}
+                budgets={budgets}
+                periods={periods}
+                globalBudgets={globalBudgets}
+                accounts={accounts}
+                onSaveGlobalBudget={handleSaveGlobalBudget}
               />
             )}
 
@@ -384,6 +390,7 @@ export default function App() {
                 accounts={accounts}
                 onEdit={handleEditRequest}
                 onDelete={handleDeleteTransaction}
+                transactions={transactions}
               />
             )}
 

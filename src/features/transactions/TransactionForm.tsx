@@ -1,6 +1,4 @@
 import React, { useState, useEffect } from 'react';
-import { useCreateTransaction } from '@/features/transactions/useTransactions';
-import { useGetMasterData } from '@/services/useMasterData';
 import { api } from '@/lib/api';
 import { Category, Transaction, TransactionType, MasterAccount, MasterAsset, MasterContact, MasterTag } from '@/types';
 import { PlusCircle, Calendar, FileText, X, Check, ChevronDown, ChevronUp, Plus, Trash2 } from 'lucide-react';
@@ -30,11 +28,12 @@ interface TransactionFormProps {
   tags?: MasterTag[];
   contacts?: MasterContact[];
   onSaveMasterData?: (collectionName: string, data: any, id?: string) => Promise<string | void>;
+  periods?: any[];
 }
 
 export default function TransactionForm({ 
   categories, onSave, onClose, transactionToEdit, initialType,
-  accounts = [], assets = [], tags = [], contacts = [], onSaveMasterData
+  accounts = [], assets = [], tags = [], contacts = [], onSaveMasterData, periods = []
 }: TransactionFormProps) {
   const [type, setType] = useState<TransactionType>(initialType || 'pengeluaran');
   const [amount, setAmount] = useState<string>('');
@@ -82,7 +81,6 @@ export default function TransactionForm({
   
   
   const isCreating = false;
-  const { data: periods = [] } = useGetMasterData('periods');
   const [matchedPeriod, setMatchedPeriod] = useState<any>(null);
 
   useEffect(() => {

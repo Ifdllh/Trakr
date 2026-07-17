@@ -1,5 +1,4 @@
 import { useState, useEffect, useMemo, useCallback } from 'react';
-import { useQueryClient } from '@tanstack/react-query';
 import { masterDataService, transactionService } from '@/services/dbServices';
 import { 
   MasterAccount, MasterAsset, MasterTag, MasterContact,
@@ -10,7 +9,6 @@ import { User as FirebaseUser } from 'firebase/auth';
 import { useToast } from '@/context/ToastContext';
 
 export function useAppData(user: FirebaseUser | null, isGuest: boolean) {
-  const queryClient = useQueryClient();
   const { showToast } = useToast();
   
   const [transactions, setTransactions] = useState<Transaction[]>([]);
@@ -149,8 +147,12 @@ export function useAppData(user: FirebaseUser | null, isGuest: boolean) {
       })));
       setLoadingData(false);
     } catch (err: any) {
-      console.error('refreshData error:', err);
-      showToast(err?.message || 'Gagal menyinkronkan data dari server', 'error');
+      if (!err?.message?.includes('Quota') && !err?.message?.includes('429')) console.error('refreshData error:', err);
+      if (err?.message?.includes('Quota') || err?.message?.includes('429')) {
+        showToast('Batas penggunaan database harian tercapai. Silakan coba lagi besok.', 'error');
+      } else {
+        showToast(err?.message || 'Gagal menyinkronkan data dari server', 'error');
+      }
       setLoadingData(false);
     }
   }, [user]);
@@ -182,18 +184,50 @@ export function useAppData(user: FirebaseUser | null, isGuest: boolean) {
       showToast('Fitur ini dinonaktifkan untuk akun Tamu', 'error');
       throw new Error('Fitur ini dinonaktifkan untuk akun Tamu');
     }
-    try {
-      if (id) {
-        await transactionService.save(transactionData, id);
-      } else {
-        await transactionService.save(transactionData);
-      }
-      await refreshData();
-      queryClient.invalidateQueries({ queryKey: ['transactions'] });
-    } catch (error) {
+    
+    const rollbackData = transactions;
+    if (id) {
+      setTransactions(prev => prev.map(p => String(p.id) === id ? { ...p, ...transactionData } : p));
+      (async () => {
+        try {
+          await transactionService.save(transactionData, id);
+        } catch (error: any) {
+          setTransactions(rollbackData);
+          showToast(error.message || 'Terjadi kesalahan', 'error');
+        }
+      })();
+    } else {
+      const isArray = Array.isArray(transactionData);
+      const tempIds = isArray ? transactionData.map(() => Math.random().toString(36).substring(2, 15)) : [Math.random().toString(36).substring(2, 15)];
+      
+      const optimisticData = isArray 
+        ? transactionData.map((t, i) => ({ ...t, id: tempIds[i] }))
+        : [{ ...transactionData, id: tempIds[0] }];
+        
+      setTransactions(prev => [...prev, ...optimisticData]);
 
-      const msg = error.response?.data?.error || error.message || 'Terjadi kesalahan';
-      showToast(msg, 'error');
+      (async () => {
+        try {
+          const res = await transactionService.save(transactionData);
+          // Replace temp IDs with real IDs if needed, though invalidateQueries handles full refresh
+          setTransactions(prev => {
+            let next = [...prev];
+            if (Array.isArray(res)) {
+               res.forEach((r, i) => {
+                 const idx = next.findIndex(t => String(t.id) === tempIds[i]);
+                 if (idx !== -1) next[idx] = { ...next[idx], ...r };
+               });
+            } else {
+               const idx = next.findIndex(t => String(t.id) === tempIds[0]);
+               if (idx !== -1) next[idx] = { ...next[idx], ...res };
+            }
+            return next;
+          });
+        } catch (error: any) {
+          setTransactions(rollbackData);
+          showToast(error.message || 'Terjadi kesalahan', 'error');
+        }
+      })();
     }
   };
 
@@ -203,15 +237,18 @@ export function useAppData(user: FirebaseUser | null, isGuest: boolean) {
       showToast('Fitur ini dinonaktifkan untuk akun Tamu', 'error');
       return;
     }
-    try {
-      await transactionService.delete(id);
-      await refreshData();
-      queryClient.invalidateQueries({ queryKey: ['transactions'] });
-    } catch (error) {
-
-      const msg = error.response?.data?.error || error.message || 'Terjadi kesalahan';
-      showToast(msg, 'error');
-    }
+    
+    const rollbackData = transactions;
+    setTransactions(prev => prev.filter(p => String(p.id) !== id));
+    
+    (async () => {
+      try {
+        await transactionService.delete(id);
+      } catch (error: any) {
+        setTransactions(rollbackData);
+        showToast(error.message || 'Terjadi kesalahan', 'error');
+      }
+    })();
   };
 
   const handleSaveMasterData = async (collectionName: string, data: any, id?: string): Promise<string | void> => {
@@ -220,22 +257,49 @@ export function useAppData(user: FirebaseUser | null, isGuest: boolean) {
       showToast('Fitur ini dinonaktifkan untuk akun Tamu', 'error');
       throw new Error('Fitur ini dinonaktifkan untuk akun Tamu');
     }
-    try {
-      let resultId = id;
-      if (id) {
-        await masterDataService.save(collectionName, data, id);
-      } else {
+    
+    let resultId = id;
+    let rollbackData: any = null;
+    let setFunc: any = null;
+
+    if (id) {
+      // Optimistic Edit
+      if (collectionName === 'accounts') { rollbackData = accounts; setFunc = setAccounts; setAccounts(prev => prev.map(p => String(p.id) === id ? { ...p, ...data } : p)); }
+      else if (collectionName === 'assets') { rollbackData = assets; setFunc = setAssets; setAssets(prev => prev.map(p => String(p.id) === id ? { ...p, ...data } : p)); }
+      else if (collectionName === 'tags') { rollbackData = tags; setFunc = setTags; setTags(prev => prev.map(p => String(p.id) === id ? { ...p, ...data } : p)); }
+      else if (collectionName === 'contacts') { rollbackData = contacts; setFunc = setContacts; setContacts(prev => prev.map(p => String(p.id) === id ? { ...p, ...data } : p)); }
+      else if (collectionName === 'periods') { rollbackData = periods; setFunc = setPeriods; setPeriods(prev => prev.map(p => String(p.id) === id ? { ...p, ...data } : p)); }
+      else if (collectionName === 'customCategories') { rollbackData = customCategories; setFunc = setCustomCategories; setCustomCategories(prev => prev.map(p => String(p.id) === id ? { ...p, ...data } : p)); }
+
+      (async () => {
+        try {
+          await masterDataService.save(collectionName, data, id);
+        } catch (error: any) {
+          if (setFunc && rollbackData) setFunc(rollbackData);
+          const msg = error.response?.data?.error || error.message || 'Terjadi kesalahan';
+          showToast(msg, 'error');
+        }
+      })();
+      return resultId;
+    } else {
+      // Optimistic Create - requires waiting for the ID from backend so we await it
+      try {
         const res = await masterDataService.save(collectionName, data);
         resultId = res.id;
+        // Push the new item optimistically after we got the ID
+        const newItem = { ...data, id: resultId };
+        if (collectionName === 'accounts') setAccounts(prev => [...prev, newItem]);
+        else if (collectionName === 'assets') setAssets(prev => [...prev, newItem]);
+        else if (collectionName === 'tags') setTags(prev => [...prev, newItem]);
+        else if (collectionName === 'contacts') setContacts(prev => [...prev, newItem]);
+        else if (collectionName === 'periods') setPeriods(prev => [...prev, newItem]);
+        else if (collectionName === 'customCategories') setCustomCategories(prev => [...prev, newItem]);
+        return resultId;
+      } catch (error: any) {
+        const msg = error.response?.data?.error || error.message || 'Terjadi kesalahan';
+        showToast(msg, 'error');
+        throw error;
       }
-      await refreshData();
-      queryClient.invalidateQueries({ queryKey: ['masterData'] });
-      queryClient.invalidateQueries({ queryKey: ['budgets'] });
-      return resultId;
-    } catch (error: any) {
-      const msg = error.response?.data?.error || error.message || 'Terjadi kesalahan';
-      showToast(msg, 'error');
-      throw error;
     }
   };
 
@@ -245,16 +309,27 @@ export function useAppData(user: FirebaseUser | null, isGuest: boolean) {
       showToast('Fitur ini dinonaktifkan untuk akun Tamu', 'error');
       throw new Error('Fitur ini dinonaktifkan untuk akun Tamu');
     }
-    try {
-      await masterDataService.delete(collectionName, id);
-      await refreshData();
-      queryClient.invalidateQueries({ queryKey: ['masterData'] });
-      queryClient.invalidateQueries({ queryKey: ['budgets'] });
-    } catch (error) {
-      const msg = error.response?.data?.error || error.message || 'Terjadi kesalahan';
-      showToast(msg, 'error');
-      throw error;
-    }
+    
+    // Optimistic Delete
+    let rollbackData: any = null;
+    let setFunc: any = null;
+    if (collectionName === 'accounts') { rollbackData = accounts; setFunc = setAccounts; setAccounts(prev => prev.filter(p => String(p.id) !== id)); }
+    else if (collectionName === 'assets') { rollbackData = assets; setFunc = setAssets; setAssets(prev => prev.filter(p => String(p.id) !== id)); }
+    else if (collectionName === 'tags') { rollbackData = tags; setFunc = setTags; setTags(prev => prev.filter(p => String(p.id) !== id)); }
+    else if (collectionName === 'contacts') { rollbackData = contacts; setFunc = setContacts; setContacts(prev => prev.filter(p => String(p.id) !== id)); }
+    else if (collectionName === 'periods') { rollbackData = periods; setFunc = setPeriods; setPeriods(prev => prev.filter(p => String(p.id) !== id)); }
+    else if (collectionName === 'customCategories') { rollbackData = customCategories; setFunc = setCustomCategories; setCustomCategories(prev => prev.filter(p => String(p.id) !== id)); }
+
+    // Send the API request asynchronously
+    (async () => {
+      try {
+        await masterDataService.delete(collectionName, id);
+      } catch (error: any) {
+        if (setFunc && rollbackData) setFunc(rollbackData);
+        const msg = error.response?.data?.error || error.message || 'Terjadi kesalahan';
+        showToast(msg, 'error');
+      }
+    })();
   };
 
   const handleSavePeriod = async (name: string, id?: string) => {
@@ -263,20 +338,27 @@ export function useAppData(user: FirebaseUser | null, isGuest: boolean) {
       showToast('Fitur ini dinonaktifkan untuk akun Tamu', 'error');
       throw new Error('Fitur ini dinonaktifkan untuk akun Tamu');
     }
-    try {
-      const data = { name, startDate: new Date().toISOString(), endDate: new Date().toISOString() };
-      if (id) {
-        await masterDataService.save('periods', data, id);
-      } else {
-        await masterDataService.save('periods', data);
+    const data = { name, startDate: new Date().toISOString(), endDate: new Date().toISOString() };
+    const rollbackData = periods;
+    
+    if (id) {
+      setPeriods(prev => prev.map(p => String(p.id) === id ? { ...p, ...data } : p));
+      (async () => {
+        try {
+          await masterDataService.save('periods', data, id);
+        } catch (error: any) {
+          setPeriods(rollbackData);
+          showToast(error.message || 'Terjadi kesalahan', 'error');
+        }
+      })();
+    } else {
+      try {
+        const res = await masterDataService.save('periods', data);
+        setPeriods(prev => [...prev, { ...data, id: res.id } as any]);
+      } catch (error: any) {
+        showToast(error.message || 'Terjadi kesalahan', 'error');
+        throw error;
       }
-      await refreshData();
-      queryClient.invalidateQueries({ queryKey: ['masterData'] });
-      queryClient.invalidateQueries({ queryKey: ['budgets'] });
-    } catch (error: any) {
-      const msg = error.response?.data?.error || error.message || 'Terjadi kesalahan';
-      showToast(msg, 'error');
-      throw error;
     }
   };
 
@@ -286,15 +368,18 @@ export function useAppData(user: FirebaseUser | null, isGuest: boolean) {
       showToast('Fitur ini dinonaktifkan untuk akun Tamu', 'error');
       throw new Error('Fitur ini dinonaktifkan untuk akun Tamu');
     }
-    try {
-      await masterDataService.delete('periods', id);
-      await refreshData();
-      queryClient.invalidateQueries({ queryKey: ['masterData'] });
-      queryClient.invalidateQueries({ queryKey: ['budgets'] });
-    } catch (error) {
-      const msg = error.response?.data?.error || error.message || 'Terjadi kesalahan';
-      showToast(msg, 'error');
-    }
+    
+    const rollbackData = periods;
+    setPeriods(prev => prev.filter(p => String(p.id) !== id));
+    
+    (async () => {
+      try {
+        await masterDataService.delete('periods', id);
+      } catch (error: any) {
+        setPeriods(rollbackData);
+        showToast(error.message || 'Terjadi kesalahan', 'error');
+      }
+    })();
   };
 
   const handleSaveBudgetAllocation = async (allocation: any, id?: string) => {
@@ -303,19 +388,26 @@ export function useAppData(user: FirebaseUser | null, isGuest: boolean) {
       showToast('Fitur ini dinonaktifkan untuk akun Tamu', 'error');
       throw new Error('Fitur ini dinonaktifkan untuk akun Tamu');
     }
-    try {
-      if (id) {
-        await masterDataService.save('budgets', allocation, id);
-      } else {
-        await masterDataService.save('budgets', allocation);
+    const rollbackData = budgets;
+    
+    if (id) {
+      setBudgets(prev => prev.map(p => String(p.id) === id ? { ...p, ...allocation } : p));
+      (async () => {
+        try {
+          await masterDataService.save('budgets', allocation, id);
+        } catch (error: any) {
+          setBudgets(rollbackData);
+          showToast(error.message || 'Terjadi kesalahan', 'error');
+        }
+      })();
+    } else {
+      try {
+        const res = await masterDataService.save('budgets', allocation);
+        setBudgets(prev => [...prev, { ...allocation, id: res.id }]);
+      } catch (error: any) {
+        showToast(error.message || 'Terjadi kesalahan', 'error');
+        throw error;
       }
-      await refreshData();
-      queryClient.invalidateQueries({ queryKey: ['masterData'] });
-      queryClient.invalidateQueries({ queryKey: ['budgets'] });
-    } catch (error) {
-      const msg = error.response?.data?.error || error.message || 'Terjadi kesalahan';
-      showToast(msg, 'error');
-      throw error;
     }
   };
 
@@ -325,19 +417,26 @@ export function useAppData(user: FirebaseUser | null, isGuest: boolean) {
       showToast('Fitur ini dinonaktifkan untuk akun Tamu', 'error');
       throw new Error('Fitur ini dinonaktifkan untuk akun Tamu');
     }
-    try {
-      if (id) {
-        await masterDataService.save('globalBudgets', globalBudget, id);
-      } else {
-        await masterDataService.save('globalBudgets', globalBudget);
+    const rollbackData = globalBudgets;
+    
+    if (id) {
+      setGlobalBudgets(prev => prev.map(p => String(p.id) === id ? { ...p, ...globalBudget } : p));
+      (async () => {
+        try {
+          await masterDataService.save('globalBudgets', globalBudget, id);
+        } catch (error: any) {
+          setGlobalBudgets(rollbackData);
+          showToast(error.message || 'Terjadi kesalahan', 'error');
+        }
+      })();
+    } else {
+      try {
+        const res = await masterDataService.save('globalBudgets', globalBudget);
+        setGlobalBudgets(prev => [...prev, { ...globalBudget, id: res.id }]);
+      } catch (error: any) {
+        showToast(error.message || 'Terjadi kesalahan', 'error');
+        throw error;
       }
-      await refreshData();
-      queryClient.invalidateQueries({ queryKey: ['masterData'] });
-      queryClient.invalidateQueries({ queryKey: ['budgets'] });
-    } catch (error) {
-      const msg = error.response?.data?.error || error.message || 'Terjadi kesalahan';
-      showToast(msg, 'error');
-      throw error;
     }
   };
 
@@ -347,15 +446,18 @@ export function useAppData(user: FirebaseUser | null, isGuest: boolean) {
       showToast('Fitur ini dinonaktifkan untuk akun Tamu', 'error');
       return;
     }
-    try {
-      await masterDataService.delete('budgets', id);
-      await refreshData();
-      queryClient.invalidateQueries({ queryKey: ['masterData'] });
-      queryClient.invalidateQueries({ queryKey: ['budgets'] });
-    } catch (error) {
-      const msg = error.response?.data?.error || error.message || 'Terjadi kesalahan';
-      showToast(msg, 'error');
-    }
+    
+    const rollbackData = budgets;
+    setBudgets(prev => prev.filter(p => String(p.id) !== id));
+    
+    (async () => {
+      try {
+        await masterDataService.delete('budgets', id);
+      } catch (error: any) {
+        setBudgets(rollbackData);
+        showToast(error.message || 'Terjadi kesalahan', 'error');
+      }
+    })();
   };
 
   return {

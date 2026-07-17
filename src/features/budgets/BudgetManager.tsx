@@ -25,13 +25,6 @@ import { z } from 'zod';
 import { api } from '@/lib/api';
 import { Transaction, Category, BudgetAllocation, BudgetPeriod, GlobalBudget, MasterAccount, MasterAsset, MasterTag, MasterContact } from '@/types';
 import { useToast } from '@/context/ToastContext';
-import { 
-  useGetAggregatedBudgets, 
-  useDeleteCategoryBudget, 
-  useGetBudgetTransactions, 
-  useGetBudgetStatus, 
-  useSuggestBudgets 
-} from '@/features/budgets/useBudgets';
 
 // 1. Validation Schema (Zod)
 const budgetSchema = z.object({
@@ -111,7 +104,6 @@ export default function BudgetManager({
   const [budgetToDelete, setBudgetToDelete] = useState<string | null>(null);
   const [activeBudgetId, setActiveBudgetId] = useState<string | null>(null);
 
-  const queryClient = useQueryClient();
 
   const formatIDR = (amount: number) => {
     return new Intl.NumberFormat('id-ID', {
@@ -121,11 +113,23 @@ export default function BudgetManager({
     }).format(amount);
   };
 
-  // 2. Fetch aggregated data & budget status KPIs via React Query
-  const { data = [], isLoading: isLoadingBudgets } = useGetAggregatedBudgets(selectedPeriod);
-  const currentBudgets = data as any[];
-  const { data: budgetStatus = { targetGlobal: 0, totalTeralokasi: 0, realisasiAktual: 0, sisaSaldo: 0 } } = useGetBudgetStatus(selectedPeriod);
-  const deleteMutation = useDeleteCategoryBudget(selectedPeriod);
+  // 2. Local computations for Budgets
+  const currentBudgets = useMemo(() => budgets.filter(b => b.periodId === selectedPeriod), [budgets, selectedPeriod]);
+  
+  const budgetStatus = useMemo(() => {
+    if (!selectedPeriod) return { targetGlobal: 0, totalTeralokasi: 0, realisasiAktual: 0, sisaSaldo: 0 };
+    const periodBudgets = budgets.filter((b: any) => b.periodId === selectedPeriod);
+    const periodGlobal = globalBudgets.find((b: any) => b.periodId === selectedPeriod);
+    const periodTxs = transactions.filter((t: any) => t.periodId === selectedPeriod && (t.type === 'Dr' || t.type?.toLowerCase() === 'pengeluaran'));
+    
+    const targetGlobal = periodGlobal ? Number((periodGlobal as any).totalTargetAmount) : 0;
+    const totalTeralokasi = periodBudgets.reduce((sum: number, b: any) => sum + Number(b.calculatedAmount || b.value || 0), 0);
+    const realisasiAktual = periodTxs.reduce((sum: number, t: any) => sum + Number(t.amount || 0), 0);
+    
+    return { targetGlobal, totalTeralokasi, realisasiAktual, sisaSaldo: targetGlobal - realisasiAktual };
+  }, [selectedPeriod, budgets, globalBudgets, transactions]);
+  
+  const isLoadingBudgets = false;
 
   const activeGlobalBudget = useMemo(() => {
     return globalBudgets.find(gb => gb.periodId === selectedPeriod);
@@ -148,7 +152,25 @@ export default function BudgetManager({
   }, [periods, selectedPeriod]);
 
   // Suggest Budgets Query
-  const { refetch: fetchSuggestions, isFetching: isFetchingSuggestions } = useSuggestBudgets(targetMonth, targetYear);
+  const [isFetchingSuggestions, setIsFetchingSuggestions] = useState(false);
+  const fetchSuggestions = async () => {
+    setIsFetchingSuggestions(true);
+    try {
+      const expTxs = transactions.filter((t: any) => t.type === 'Dr' || t.type?.toLowerCase() === 'pengeluaran');
+      const map: Record<string, number> = {};
+      expTxs.forEach((tx: any) => {
+         const cat = tx.category || (tx as any).categoryId || 'Lainnya';
+         map[cat] = (map[cat] || 0) + Number(tx.amount || 0);
+      });
+      const data = Object.keys(map).map(k => ({
+         category_id: k,
+         suggested_amount: Math.round(map[k] / 3) // Average loosely
+      }));
+      return { data };
+    } finally {
+      setIsFetchingSuggestions(false);
+    }
+  };
 
   const expenseCategories = useMemo(() => {
     return categories.filter(c => c.type === 'pengeluaran');
@@ -191,10 +213,14 @@ export default function BudgetManager({
     return currentBudgets.find(b => b.id === activeBudgetId);
   }, [currentBudgets, activeBudgetId]);
 
-  const { data: budgetTransactions = [], isLoading: isLoadingTransactions } = useGetBudgetTransactions(
-    selectedBudgetForDetail?.categoryId || '',
-    selectedPeriod || ''
-  );
+  const budgetTransactions = useMemo(() => {
+    if (!selectedBudgetForDetail?.categoryId || !selectedPeriod) return [];
+    return transactions.filter(t => 
+      t.periodId === selectedPeriod && 
+      (String(t.category) === String(selectedBudgetForDetail.categoryId) || String((t as any).categoryId) === String(selectedBudgetForDetail.categoryId))
+    );
+  }, [transactions, selectedPeriod, selectedBudgetForDetail]);
+  const isLoadingTransactions = false;
 
   // Helper to render dynamic icons
   const renderCategoryIcon = (iconName?: string) => {
@@ -353,8 +379,6 @@ export default function BudgetManager({
       }
 
       // Refresh query states
-      queryClient.invalidateQueries({ queryKey: ['budgets', selectedPeriod] });
-      queryClient.invalidateQueries({ queryKey: ['budgetStatus', selectedPeriod] });
 
       showToast('Seluruh konfigurasi anggaran berhasil disimpan!', 'success');
       setIsFormOpen(false);
@@ -372,14 +396,12 @@ export default function BudgetManager({
   const confirmDelete = async () => {
     if (!budgetToDelete) return;
     try {
-      await deleteMutation.mutateAsync(budgetToDelete);
-      setBudgetToDelete(null);
+      showToast('Menghapus anggaran...', 'info');
+      onDeleteBudget(budgetToDelete);
       showToast('Anggaran kategori berhasil dihapus', 'success');
-      queryClient.invalidateQueries({ queryKey: ['budgets', selectedPeriod] });
-      queryClient.invalidateQueries({ queryKey: ['budgetStatus', selectedPeriod] });
-    } catch (err: any) {
-
-      showToast(err?.message || 'Gagal menghapus anggaran', 'error');
+      setBudgetToDelete(null);
+    } catch (e) {
+      showToast('Gagal menghapus anggaran', 'error');
     }
   };
 
@@ -1012,10 +1034,10 @@ export default function BudgetManager({
                 </button>
                 <button 
                   onClick={confirmDelete}
-                  disabled={deleteMutation.isPending}
+                  disabled={false}
                   className="px-4 py-2 bg-red-600 text-white font-bold rounded-xl hover:bg-red-700 transition-colors flex items-center justify-center disabled:opacity-50"
                 >
-                  {deleteMutation.isPending ? 'Menghapus...' : 'Hapus'}
+                  'Hapus'
                 </button>
               </div>
             </motion.div>

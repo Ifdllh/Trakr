@@ -1,0 +1,162 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // 1. Global Safety Net
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // Primitive / Global Helpers
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+    
+    function isOwner(userId) {
+      return request.auth.uid == userId;
+    }
+
+    function isValidId(id) {
+      return id is string && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+    }
+
+    function incoming() {
+      return request.resource.data;
+    }
+
+    function existing() {
+      return resource.data;
+    }
+
+    // Entity Validators
+    function isValidUser(data) {
+      let hasRequiredKeys = data.keys().hasAll(['uid', 'email', 'createdAt']);
+      
+      let isValidBase = data.uid is string && data.uid.size() <= 128 &&
+                        data.email is string && data.email.size() <= 256 &&
+                        data.createdAt is string && data.createdAt.size() <= 64;
+
+      let isValidBudget = !data.keys().hasAny(['monthlyBudget']) || data.monthlyBudget is number;
+      let isValidName = !data.keys().hasAny(['displayName']) || (data.displayName is string && data.displayName.size() <= 128);
+      let isValidPhone = !data.keys().hasAny(['phoneNumber']) || (data.phoneNumber is string && data.phoneNumber.size() <= 32);
+      let isValidPhoto = !data.keys().hasAny(['photoURL']) || data.photoURL is string;
+      let isValidCurrency = !data.keys().hasAny(['currency']) || data.currency is string;
+      let isValidFinancialStartDay = !data.keys().hasAny(['financialStartDay']) || data.financialStartDay is number;
+
+      return hasRequiredKeys && isValidBase && isValidBudget && isValidName && isValidPhone && isValidPhoto && isValidCurrency && isValidFinancialStartDay;
+    }
+
+    function isValidTransaction(data) {
+      let hasRequiredKeys = data.keys().hasAll(['type', 'amount', 'category', 'accountId', 'date', 'createdAt']);
+      
+      let isValidBase = data.type is string && (data.type == 'pemasukan' || data.type == 'pengeluaran' || data.type == 'transfer') &&
+                        data.amount is number &&
+                        data.category is string && data.category.size() <= 128 &&
+                        data.accountId is string && data.accountId.size() <= 128 &&
+                        data.date is string && data.date.size() <= 64 &&
+                        data.createdAt is string && data.createdAt.size() <= 64;
+
+      let isValidSubcategory = !data.keys().hasAny(['subcategory']) || (data.subcategory is string && data.subcategory.size() <= 128);
+      let isValidDescription = !data.keys().hasAny(['description']) || (data.description is string && data.description.size() <= 500);
+      let isValidAttachment = !data.keys().hasAny(['attachmentUrl']) || (data.attachmentUrl is string);
+
+      return hasRequiredKeys && isValidBase && isValidSubcategory && isValidDescription && isValidAttachment;
+    }
+
+    function isValidBudget(data) {
+      // PERBAIKAN: Menghapus data.keys().size() == 5 agar mengizinkan field metadata UI (seperti id atau updatedAt)
+      return data.keys().hasAll(['periodId', 'categoryId', 'type', 'value', 'createdAt']) &&
+             data.periodId is string && data.periodId.size() <= 64 &&
+             data.categoryId is string && data.categoryId.size() <= 128 &&
+             data.type is string && (data.type == 'amount' || data.type == 'percentage') &&
+             data.value is number &&
+             data.createdAt is string && data.createdAt.size() <= 64;
+    }
+
+    function isValidPeriod(data) {
+      // PERBAIKAN: Menghapus batasan size() agar mengizinkan field global seperti targetBudget jika disematkan di sini
+      return data.keys().hasAll(['name', 'startDate', 'endDate', 'createdAt']) &&
+             data.name is string && data.name.size() <= 64 &&
+             data.startDate is string && data.startDate.size() <= 64 &&
+             data.endDate is string && data.endDate.size() <= 64 &&
+             data.createdAt is string && data.createdAt.size() <= 64;
+    }
+
+    // Rules for User Profile collection
+    match /users/{userId} {
+      allow get: if isAuthenticated() && isOwner(userId) && isValidId(userId);
+      allow create: if isAuthenticated() && isOwner(userId) && isValidId(userId) && isValidUser(incoming());
+      
+      allow update: if isAuthenticated() && isOwner(userId) && isValidId(userId) && isValidUser(incoming()) &&
+                    incoming().uid == existing().uid &&
+                    incoming().email == existing().email &&
+                    incoming().createdAt == existing().createdAt &&
+                    // PERBAIKAN: Menambahkan 'updatedAt' ke daftar whitelist
+                    incoming().diff(existing()).affectedKeys().hasOnly(['monthlyBudget', 'displayName', 'phoneNumber', 'photoURL', 'updatedAt', 'currency', 'financialStartDay', 'uid', 'email', 'createdAt']);
+                    
+      allow delete: if isAuthenticated() && isOwner(userId) && isValidId(userId);
+
+      // Rules for user's subcollection of transactions
+      match /transactions/{transactionId} {
+        allow list: if isAuthenticated() && isOwner(userId);
+        
+        allow get: if isAuthenticated() && isOwner(userId) && isValidId(transactionId);
+        allow create: if isAuthenticated() && isOwner(userId) && isValidId(transactionId) && isValidTransaction(incoming());
+        
+        allow update: if isAuthenticated() && isOwner(userId) && isValidId(transactionId) && isValidTransaction(incoming()) &&
+                      incoming().createdAt == existing().createdAt &&
+                      incoming().diff(existing()).affectedKeys().hasOnly(['type', 'amount', 'category', 'subcategory', 'accountId', 'destinationAccountId', 'assetId', 'tagId', 'contactId', 'periodId', 'splitGroupId', 'date', 'description', 'attachmentUrl', 'isRecurring', 'recurringFrequency', 'recurringEndDate', 'recurringConfig', 'updatedAt', 'createdAt']);
+                      
+        allow delete: if isAuthenticated() && isOwner(userId) && isValidId(transactionId);
+      }
+      
+      // Rules for user's subcollection of budgets
+      match /budgets/{budgetId} {
+        allow list: if isAuthenticated() && isOwner(userId);
+        
+        allow get: if isAuthenticated() && isOwner(userId) && isValidId(budgetId);
+        allow create: if isAuthenticated() && isOwner(userId) && isValidId(budgetId) && isValidBudget(incoming());
+        
+        allow update: if isAuthenticated() && isOwner(userId) && isValidId(budgetId) && isValidBudget(incoming()) &&
+                      incoming().createdAt == existing().createdAt &&
+                      // PERBAIKAN: Menambahkan 'updatedAt'
+                      incoming().diff(existing()).affectedKeys().hasOnly(['periodId', 'categoryId', 'type', 'value', 'updatedAt', 'createdAt']);
+                      
+        allow delete: if isAuthenticated() && isOwner(userId) && isValidId(budgetId);
+      }
+      
+      // Rules for user's subcollection of periods
+      match /periods/{periodId} {
+        allow list: if isAuthenticated() && isOwner(userId);
+        
+        allow get: if isAuthenticated() && isOwner(userId) && isValidId(periodId);
+        allow create: if isAuthenticated() && isOwner(userId) && isValidId(periodId) && isValidPeriod(incoming());
+        
+        allow update: if isAuthenticated() && isOwner(userId) && isValidId(periodId) && isValidPeriod(incoming()) &&
+                      incoming().createdAt == existing().createdAt &&
+                      // PERBAIKAN: Mengizinkan field budget global / target jika disematkan ke level periode
+                      incoming().diff(existing()).affectedKeys().hasOnly(['name', 'startDate', 'endDate', 'isActive', 'globalBudget', 'targetBudget', 'updatedAt', 'createdAt']);
+                      
+        allow delete: if isAuthenticated() && isOwner(userId) && isValidId(periodId);
+      }
+
+      match /accounts/{accountId} {
+        allow read, write: if isAuthenticated() && isOwner(userId);
+      }
+      match /assets/{assetId} {
+        allow read, write: if isAuthenticated() && isOwner(userId);
+      }
+      match /tags/{tagId} {
+        allow read, write: if isAuthenticated() && isOwner(userId);
+      }
+      match /contacts/{contactId} {
+        allow read, write: if isAuthenticated() && isOwner(userId);
+      }
+      match /customCategories/{categoryId} {
+        allow read, write: if isAuthenticated() && isOwner(userId);
+      }
+      match /globalBudgets/{budgetId} {
+        allow read, write: if isAuthenticated() && isOwner(userId);
+      }
+    }
+  }
+}

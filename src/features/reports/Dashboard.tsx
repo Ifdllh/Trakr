@@ -1,8 +1,6 @@
 import React, { useState, useMemo, useEffect, useRef } from 'react';
 import { startOfMonth, subMonths, addMonths, isToday, isYesterday, format } from 'date-fns';
 import { id as idLocale } from 'date-fns/locale';
-import { useGetMasterData, useSaveMasterData } from '@/services/useMasterData';
-import { useGetTransactions } from '@/features/transactions/useTransactions';
 import GoldPriceTracker from './GoldPriceTracker';
 import BudgetMonitor from './BudgetMonitor';
 import { Category } from '@/types';
@@ -19,11 +17,18 @@ import {
 import * as LucideIcons from 'lucide-react';
 
 interface DashboardProps {
-  user: any; // Firebase User object
-  dbUser?: any; // Firestore User profile object
+  user: any;
+  dbUser?: any;
   categories: Category[];
   onOpenForm: (type: 'pemasukan' | 'pengeluaran') => void;
   setActiveTab: (tab: 'dashboard' | 'transactions' | 'categories' | 'budgets') => void;
+  transactions?: any[];
+  budgets?: any[];
+  periods?: any[];
+  globalBudgets?: any[];
+  budgetAllocations?: any[];
+  accounts?: any[];
+  onSaveGlobalBudget?: (globalBudget: any, id?: string) => Promise<void>;
 }
 
 // Indonesian month names for dropdown
@@ -68,7 +73,14 @@ export default function Dashboard({
   dbUser,
   categories, 
   onOpenForm, 
-  setActiveTab 
+  setActiveTab,
+  transactions = [],
+  budgets = [],
+  periods = [],
+  globalBudgets = [],
+  budgetAllocations = [],
+  accounts = [],
+  onSaveGlobalBudget
 }: DashboardProps) {
   const currentUserData = useMemo(() => {
     if (!user) return null;
@@ -79,14 +91,6 @@ export default function Dashboard({
       phoneNumber: dbUser?.phoneNumber || user.phoneNumber || ''
     };
   }, [user, dbUser]);
-
-  const { data: transactions = [] } = useGetTransactions();
-  const { data: budgets = [] } = useGetMasterData('budgets');
-  const { data: periods = [] } = useGetMasterData('periods');
-  const { data: globalBudgets = [] } = useGetMasterData('globalBudgets');
-  const { data: budgetAllocations = [] } = useGetMasterData('budgetAllocations');
-  
-  const { data: accounts = [] } = useGetMasterData('accounts');
   const currentDate = new Date();
   const [searchQuery, setSearchQuery] = useState("");
   const [copied, setCopied] = useState(false);
@@ -438,29 +442,15 @@ export default function Dashboard({
     return 'text-indigo-600 bg-indigo-50 border-indigo-100';
   }, [matchedCategory, topCategoryInfo]);
 
-  const { mutate: saveMasterData } = useSaveMasterData();
   
   // Handle budget edit submit
   const handleSaveBudget = async () => {
     const val = parseFloat(tempBudget);
     if (!isNaN(val) && val >= 0) {
-      if (activeGlobalBudget) {
-        saveMasterData({
-          collectionName: 'globalBudgets',
-          data: { ...activeGlobalBudget, totalTargetAmount: val },
-          id: activeGlobalBudget.id
-        });
-      } else if (activePeriodId) {
-        saveMasterData({
-          collectionName: 'globalBudgets',
-          data: { periodId: activePeriodId, totalTargetAmount: val }
-        });
-      } else {
-        saveMasterData({
-          collectionName: 'budgets',
-          data: { ...budgets[0], amount: val },
-          id: budgets[0]?.id
-        });
+      if (activeGlobalBudget && onSaveGlobalBudget) {
+        await onSaveGlobalBudget({ ...activeGlobalBudget, totalTargetAmount: val }, activeGlobalBudget.id);
+      } else if (onSaveGlobalBudget && activePeriodId) {
+        await onSaveGlobalBudget({ periodId: activePeriodId, totalTargetAmount: val, createdAt: new Date().toISOString() });
       }
       setEditingBudget(false);
   const handleCopyCard = () => {

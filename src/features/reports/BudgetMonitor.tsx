@@ -1,26 +1,29 @@
 import { useMemo } from 'react';
 import { Settings, Info, HelpCircle, Wallet, TrendingUp } from 'lucide-react';
 import * as LucideIcons from 'lucide-react';
-import { useGetMasterData } from '@/services/useMasterData';
-import { useGetAggregatedBudgets } from '@/features/budgets/useBudgets';
 
 interface BudgetMonitorProps {
   globalDashboardDate: Date;
   categories?: any[];
   setActiveTab?: (tab: 'dashboard' | 'transactions' | 'categories' | 'budgets') => void;
+  periods?: any[];
+  budgets?: any[];
+  transactions?: any[];
 }
 
 export default function BudgetMonitor({
   globalDashboardDate,
   categories = [],
-  setActiveTab
+  setActiveTab,
+  periods = [],
+  budgets = [],
+  transactions = []
 }: BudgetMonitorProps) {
   const selectedMonth = globalDashboardDate.getMonth() + 1;
   const selectedYear = globalDashboardDate.getFullYear();
 
   // 1. Fetch real periods and find the matching active period
-  const { data: periods = [], isLoading: isLoadingPeriods } = useGetMasterData('periods');
-
+  // 1. Find the matching active period
   const activePeriodId = useMemo(() => {
     const targetMonthStr = selectedMonth < 10 ? `0${selectedMonth}` : `${selectedMonth}`;
     const targetPrefix = `${selectedYear}-${targetMonthStr}`;
@@ -32,12 +35,13 @@ export default function BudgetMonitor({
     return matchingPeriod?.id || null;
   }, [periods, selectedMonth, selectedYear]);
 
-  // 2. Fetch real budgets for the current active period
-  const { data: rawBudgets = [], isLoading: isLoadingBudgets } = useGetAggregatedBudgets(
-    activePeriodId ? activePeriodId.toString() : ''
-  );
-
-  const isLoading = isLoadingPeriods || (!!activePeriodId && isLoadingBudgets);
+  // 2. Compute raw budgets for the current active period
+  const rawBudgets = useMemo(() => {
+     if (!activePeriodId) return [];
+     return budgets.filter((b: any) => b.periodId === activePeriodId);
+  }, [budgets, activePeriodId]);
+  
+  const isLoading = false;
 
   // Format IDR Helper
   const formatIDR = (num: number) => {

@@ -4,6 +4,7 @@ import CreateMasterCategoryModal from '@/components/ui/CreateMasterCategoryModal
 import CreateMasterPeriodModal from '@/components/ui/CreateMasterPeriodModal';
 import { masterDataService } from '@/services/dbServices';
 import { useToast } from '@/context/ToastContext';
+import { api } from '@/lib/api';
 import { 
   Category, BudgetPeriod,
   MasterAccount, MasterAsset, MasterTag, MasterContact,
@@ -15,7 +16,6 @@ import {
   Pencil, X 
 } from 'lucide-react';
 import * as LucideIcons from 'lucide-react';
-import { useDeletePeriod } from '@/features/transactions/useTransactions';
 
 interface CategoryManagerProps {
   categories: Category[];
@@ -161,7 +161,6 @@ export default function CategoryManager({
   const { showToast } = useToast();
   const [activeTab, setActiveTab] = useState<'pengeluaran' | 'pemasukan' | 'periode' | 'rekening' | 'aset' | 'tag' | 'kontak'>('pengeluaran');
   
-  const deletePeriodMutation = useDeletePeriod();
   const [deletingPeriodId, setDeletingPeriodId] = useState<string | null>(null);
   const [deleteConfirmPeriod, setDeleteConfirmPeriod] = useState<BudgetPeriod | null>(null);
 
@@ -235,21 +234,18 @@ export default function CategoryManager({
   };
 
   const handleDeletePeriodLogic = async (p: BudgetPeriod) => {
-    setDeletingPeriodId(p.id);
-    deletePeriodMutation.mutate(p.id, {
-      onSuccess: () => {
-        showToast(`Periode "${p.name}" berhasil dihapus!`, 'success');
-        onRefreshData?.();
-        setDeletingPeriodId(null);
-        setDeleteConfirmPeriod(null);
-      },
-      onError: (err: any) => {
-        const errMsg = err.response?.data?.error || err.response?.data?.message || err.message || 'Gagal menghapus periode';
-        showToast(errMsg, 'error');
-        setDeletingPeriodId(null);
-        setDeleteConfirmPeriod(null);
-      }
-    });
+    setDeletingPeriodId(p.id!);
+    try {
+      showToast('Menghapus periode...', 'info');
+      onDeletePeriod(p.id!);
+      showToast(`Periode "${p.name}" berhasil dihapus!`, 'success');
+      setDeletingPeriodId(null);
+      setDeleteConfirmPeriod(null);
+    } catch (err: any) {
+      const errMsg = err.response?.data?.error || err.response?.data?.message || err.message || 'Gagal menghapus periode';
+      showToast(errMsg, 'error');
+      setDeletingPeriodId(null);
+    }
   };
 
   // Perform soft deletion or deletion on a Category Card
@@ -278,9 +274,7 @@ export default function CategoryManager({
       try {
         
         const newSubs = (cat.subcategories || []).filter((s: string) => s !== subName);
-        await masterDataService.save('customCategories', { ...cat, subcategories: newSubs }, cat.id);
-  
-        onRefreshData?.();
+        await onSaveMasterData('customCategories', { ...cat, subcategories: newSubs }, String(cat.id));
       } catch (err: any) {
         throw new Error(err.response?.data?.error || 'Gagal menghapus sub-kategori');
       }
@@ -327,9 +321,7 @@ export default function CategoryManager({
       try {
         
         const newSubs = (cat.subcategories || []).map((s: string) => s === oldName ? newName : s);
-        await masterDataService.save('customCategories', { ...cat, subcategories: newSubs }, cat.id);
-  
-        onRefreshData?.();
+        await onSaveMasterData('customCategories', { ...cat, subcategories: newSubs }, String(cat.id));
       } catch (err: any) {
         throw new Error(err.response?.data?.error || 'Gagal mengubah nama sub-kategori');
       }
@@ -596,12 +588,12 @@ export default function CategoryManager({
                             <Edit2 size={16} />
                           </button>
                           <button 
-                            disabled={deletePeriodMutation.isPending && deletingPeriodId === p.id}
+                            disabled={deletingPeriodId === p.id}
                             onClick={() => setDeleteConfirmPeriod(p)}
                             className="text-gray-400 hover:text-red-500 transition-colors cursor-pointer disabled:opacity-50"
                             title="Hapus"
                           >
-                            {deletePeriodMutation.isPending && deletingPeriodId === p.id ? (
+                            {deletingPeriodId === p.id ? (
                               <LucideIcons.Loader2 size={16} className="animate-spin text-red-500" />
                             ) : (
                               <Trash2 size={16} />
@@ -1051,8 +1043,12 @@ export default function CategoryManager({
                 await handleDeleteSubcategory(deleteTarget.category, deleteTarget.subName);
                 showToast(`Sub-kategori "${deleteTarget.subName}" berhasil dihapus!`, 'success');
               } else if (deleteTarget.type === 'account' && deleteTarget.account) {
-                await onDeleteMasterData('accounts', String(deleteTarget.account.id));
-                showToast(`Rekening "${deleteTarget.account.accountName}" berhasil dihapus!`, 'success');
+                const accountName = deleteTarget.account.accountName;
+                showToast('Menghapus rekening...', 'info');
+                
+                // Fire and forget, the hook handles optimism
+                onDeleteMasterData('accounts', String(deleteTarget.account.id));
+                showToast(`Rekening "${accountName}" berhasil dihapus!`, 'success');
               }
             } catch (err: any) {
               const errMsg = err.response?.data?.error || err.response?.data?.message || err.message || 'Gagal menghapus';
@@ -1088,17 +1084,17 @@ export default function CategoryManager({
             <div className="flex gap-3">
               <button
                 onClick={() => setDeleteConfirmPeriod(null)}
-                disabled={deletePeriodMutation.isPending}
+                disabled={deletingPeriodId !== null}
                 className="flex-1 bg-gray-100 hover:bg-gray-200 text-gray-700 font-bold py-3 rounded-xl transition-colors cursor-pointer"
               >
                 Batal
               </button>
               <button
                 onClick={() => handleDeletePeriodLogic(deleteConfirmPeriod)}
-                disabled={deletePeriodMutation.isPending}
+                disabled={deletingPeriodId !== null}
                 className="flex-1 bg-red-600 hover:bg-red-700 text-white font-bold py-3 rounded-xl transition-colors cursor-pointer disabled:opacity-50 flex items-center justify-center gap-2"
               >
-                {deletePeriodMutation.isPending ? (
+                {deletingPeriodId !== null ? (
                   <>
                     <LucideIcons.Loader2 size={16} className="animate-spin" />
                     Menghapus...

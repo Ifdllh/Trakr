@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { Plus, Wallet, Building, CreditCard, Landmark } from 'lucide-react';
 import { NumericFormat } from 'react-number-format';
 import { useToast } from '@/context/ToastContext';
+import { api } from '@/lib/api';
 
 interface CreateMasterAccountModalProps {
   onClose: () => void;
@@ -36,33 +37,53 @@ export default function CreateMasterAccountModal({ onClose, onSave, onSuccess, a
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsSubmitting(true);
-    try {
-      const payload = {
-        accountName: formData.accountName,
-        accountType: formData.accountType,
-        accountNumber: formData.accountNumber,
-        color: formData.color,
-        icon: formData.icon || 'Wallet',
-        balance: formData.balance,
-        includeInNetWorth: formData.includeInNetWorth
-      };
-      const newId = await onSave('accounts', payload, accountToEdit?.id);
-      
-      if (accountToEdit) {
-        showToast('Rekening berhasil diubah.', 'success');
-      } else {
-        showToast('Rekening berhasil ditambahkan.', 'success');
+    
+    // Full Object Payload
+    const fullPayload = {
+      accountName: formData.accountName,
+      accountType: formData.accountType,
+      accountNumber: formData.accountNumber,
+      color: formData.color,
+      icon: formData.icon || 'Wallet',
+      balance: formData.balance,
+      includeInNetWorth: formData.includeInNetWorth
+    };
+
+    // 1. Dirty State Checking (Partial Update)
+    let payloadToSubmit: any = fullPayload;
+    if (accountToEdit) {
+      payloadToSubmit = {};
+      Object.keys(fullPayload).forEach((key) => {
+        if (fullPayload[key as keyof typeof fullPayload] !== accountToEdit[key]) {
+          payloadToSubmit[key] = fullPayload[key as keyof typeof fullPayload];
+        }
+      });
+      // Return early if no changes
+      if (Object.keys(payloadToSubmit).length === 0) {
+        onClose();
+        return;
       }
-      
-      if (onSuccess && newId) {
-        onSuccess(newId);
-      }
-      onClose();
-    } catch (error: any) {
-      setIsSubmitting(false);
-      const errMsg = error.message || 'Terjadi kesalahan';
-      showToast(errMsg, 'error');
     }
+
+    // 2. Immediately close the Edit Modal after briefly showing loading state
+    setTimeout(() => {
+      onClose();
+    }, 150);
+
+    // 3. Show a non-blocking Toast notification
+    showToast('Menyimpan perubahan...', 'info');
+
+    // 4. Send the API request asynchronously through onSave
+    (async () => {
+      try {
+        const newId = await onSave('accounts', payloadToSubmit, accountToEdit?.id);
+        if (onSuccess && newId) onSuccess(newId);
+        showToast(accountToEdit ? 'Rekening berhasil diubah.' : 'Rekening berhasil ditambahkan.', 'success');
+      } catch (error: any) {
+        showToast('Gagal menyimpan, mengembalikan data', 'error');
+        setIsSubmitting(false);
+      }
+    })();
   };
 
   return (
