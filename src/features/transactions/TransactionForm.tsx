@@ -29,11 +29,12 @@ interface TransactionFormProps {
   contacts?: MasterContact[];
   onSaveMasterData?: (collectionName: string, data: any, id?: string) => Promise<string | void>;
   periods?: any[];
+  dbUser?: any;
 }
 
 export default function TransactionForm({ 
   categories, onSave, onClose, transactionToEdit, initialType,
-  accounts = [], assets = [], tags = [], contacts = [], onSaveMasterData, periods = []
+  accounts = [], assets = [], tags = [], contacts = [], onSaveMasterData, periods = [], dbUser
 }: TransactionFormProps) {
   const [type, setType] = useState<TransactionType>(initialType || 'pengeluaran');
   const [amount, setAmount] = useState<string>('');
@@ -248,6 +249,78 @@ export default function TransactionForm({
       recurringEndDate: recurringEndDate ? recurringEndDate.toISOString().split('T')[0] : null
     } : undefined;
 
+    let activePeriodId = matchedPeriod ? String(matchedPeriod.id) : undefined;
+
+    if (!activePeriodId && dbUser?.autoCreatePeriods && date) {
+      try {
+        const dateParts = date.split('-');
+        const year = parseInt(dateParts[0], 10);
+        const monthIndex = parseInt(dateParts[1], 10) - 1; // 0-indexed
+        const day = parseInt(dateParts[2], 10);
+        const txDate = new Date(year, monthIndex, day);
+
+        const D = dbUser?.financialStartDay !== undefined ? parseInt(dbUser.financialStartDay, 10) || 1 : 1;
+
+        let startDate: Date;
+        let endDate: Date;
+
+        if (txDate.getDate() >= D) {
+          startDate = new Date(txDate.getFullYear(), txDate.getMonth(), D);
+          endDate = new Date(txDate.getFullYear(), txDate.getMonth() + 1, D - 1);
+        } else {
+          startDate = new Date(txDate.getFullYear(), txDate.getMonth() - 1, D);
+          endDate = new Date(txDate.getFullYear(), txDate.getMonth(), D - 1);
+        }
+
+        const formatDateToYYYYMMDD = (d: Date): string => {
+          const yyyy = d.getFullYear();
+          const mm = String(d.getMonth() + 1).padStart(2, '0');
+          const dd = String(d.getDate()).padStart(2, '0');
+          return `${yyyy}-${mm}-${dd}`;
+        };
+
+        const startDateStr = formatDateToYYYYMMDD(startDate);
+        const endDateStr = formatDateToYYYYMMDD(endDate);
+
+        // Calculate primary month covered
+        const startYear = startDate.getFullYear();
+        const startMonth = startDate.getMonth();
+        const endYear = endDate.getFullYear();
+        const endMonth = endDate.getMonth();
+
+        const lastDayOfStartMonth = new Date(startYear, startMonth + 1, 0).getDate();
+        const daysInFirstMonth = lastDayOfStartMonth - startDate.getDate() + 1;
+        const daysInSecondMonth = endDate.getDate();
+
+        let primaryMonth = startMonth;
+        let primaryYear = startYear;
+        if (daysInSecondMonth > daysInFirstMonth) {
+          primaryMonth = endMonth;
+          primaryYear = endYear;
+        }
+
+        const monthsListIndo = [
+          'Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni',
+          'Juli', 'Agustus', 'September', 'Oktober', 'November', 'Desember'
+        ];
+        const periodName = `${monthsListIndo[primaryMonth]} ${primaryYear}`;
+        
+        if (onSaveMasterData) {
+          const newPeriodId = await onSaveMasterData('periods', {
+            name: periodName,
+            startDate: startDateStr,
+            endDate: endDateStr,
+            isActive: true
+          });
+          if (newPeriodId) {
+            activePeriodId = String(newPeriodId);
+          }
+        }
+      } catch (periodErr) {
+        console.error('Failed to auto-create period:', periodErr);
+      }
+    }
+
     if (type !== 'transfer' && isSplit && !transactionToEdit) {
       const validRows = splitRows.filter(r => r.category);
       if (validRows.length < 2) {
@@ -278,7 +351,7 @@ export default function TransactionForm({
         if (assetId) p.assetId = String(assetId);
         if (tagId) p.tagId = String(tagId);
         if (contactId) p.contactId = String(contactId);
-        if (matchedPeriod) p.periodId = String(matchedPeriod.id);
+        if (activePeriodId) p.periodId = activePeriodId;
         if (attachmentUrl) p.attachmentUrl = attachmentUrl;
         if (recurringConfig) p.recurringConfig = recurringConfig;
         
@@ -328,7 +401,7 @@ export default function TransactionForm({
       if (assetId) payload.assetId = String(assetId);
       if (tagId) payload.tagId = String(tagId);
       if (contactId) payload.contactId = String(contactId);
-      if (matchedPeriod) payload.periodId = String(matchedPeriod.id);
+      if (activePeriodId) payload.periodId = activePeriodId;
       if (attachmentUrl) payload.attachmentUrl = attachmentUrl;
       if (recurringConfig) payload.recurringConfig = recurringConfig;
 
@@ -865,6 +938,10 @@ export default function TransactionForm({
               {matchedPeriod ? (
                 <p className="text-[10px] text-emerald-600 font-bold mt-1.5 flex items-center gap-1">
                   ✓ Masuk ke periode anggaran: {matchedPeriod.name}
+                </p>
+              ) : dbUser?.autoCreatePeriods ? (
+                <p className="text-[10px] text-indigo-600 font-bold mt-1.5 flex items-center gap-1">
+                  ✨ Periode baru akan dibuat otomatis saat disimpan.
                 </p>
               ) : (
                 <p className="text-[10px] text-amber-600 font-bold mt-1.5 flex items-center gap-1">

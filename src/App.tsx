@@ -84,6 +84,36 @@ export default function App() {
     }
   }, [user]);
 
+  // Sync Theme preference to documentElement class list
+  useEffect(() => {
+    const savedTheme = dbUser?.theme || 'light';
+    const root = window.document.documentElement;
+    if (savedTheme === 'dark') {
+      root.classList.add('dark');
+    } else if (savedTheme === 'light') {
+      root.classList.remove('dark');
+    } else {
+      // system
+      const systemTheme = window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+      if (systemTheme === 'dark') {
+        root.classList.add('dark');
+      } else {
+        root.classList.remove('dark');
+      }
+    }
+  }, [dbUser?.theme]);
+
+  // Sync Privacy Mode preference to documentElement class list
+  useEffect(() => {
+    const isPrivacy = dbUser?.privacyMode === true;
+    const root = window.document.documentElement;
+    if (isPrivacy) {
+      root.classList.add('privacy-mode-active');
+    } else {
+      root.classList.remove('privacy-mode-active');
+    }
+  }, [dbUser?.privacyMode]);
+
   const {
     transactions, budgets, globalBudgets, periods, accounts,
     assets, tags, contacts, customCategories, mergedCategories,
@@ -109,8 +139,9 @@ export default function App() {
     if (user) {
       const path = location.pathname;
       if (path === '/' || path === '/login') {
-        navigate('/dashboard', { replace: true });
-        _setActiveTab('dashboard');
+        const defaultPage = dbUser?.defaultLandingPage || 'dashboard';
+        navigate('/' + defaultPage, { replace: true });
+        _setActiveTab(defaultPage);
       } else {
         const tab = path.replace('/', '');
         if (['dashboard', 'transactions', 'categories', 'budgets', 'settings'].includes(tab)) {
@@ -118,9 +149,10 @@ export default function App() {
             _setActiveTab(tab as any);
           }
         } else {
-          // If unknown path, go to dashboard
-          navigate('/dashboard', { replace: true });
-          _setActiveTab('dashboard');
+          // If unknown path, go to preferred landing page
+          const defaultPage = dbUser?.defaultLandingPage || 'dashboard';
+          navigate('/' + defaultPage, { replace: true });
+          _setActiveTab(defaultPage);
         }
       }
     } else if (authChecked) {
@@ -128,7 +160,7 @@ export default function App() {
         navigate('/login', { replace: true });
       }
     }
-  }, [location.pathname, user, authChecked, navigate, activeTab]);
+  }, [location.pathname, user, authChecked, navigate, activeTab, dbUser?.defaultLandingPage]);
 
   const [isFormOpen, setIsFormOpen] = useState(false);
   const [editingTransaction, setEditingTransaction] = useState<Transaction | null>(null);
@@ -405,6 +437,7 @@ export default function App() {
                 contacts={contacts}
                 transactions={transactions}
                 budgets={budgets}
+                dbUser={dbUser}
                 onSavePeriod={handleSavePeriod}
                 onDeletePeriod={handleDeletePeriod}
                 onSaveMasterData={handleSaveMasterData}
@@ -523,6 +556,8 @@ export default function App() {
             tags={tags}
             contacts={contacts}
             onSaveMasterData={handleSaveMasterData}
+            periods={periods}
+            dbUser={dbUser}
           />
         )}
       </AnimatePresence>

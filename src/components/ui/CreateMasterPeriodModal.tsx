@@ -2,7 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
-import { Plus, Calendar } from 'lucide-react';
+import { Plus } from 'lucide-react';
 import { useToast } from '@/context/ToastContext';
 
 const indonesianMonths: Record<string, number> = {
@@ -59,6 +59,8 @@ interface CreateMasterPeriodModalProps {
   onClose: () => void;
   onSave: (collectionName: string, data: any, id?: string) => Promise<string | void>;
   periodToEdit?: { id?: string; name?: string; startDate?: string; endDate?: string } | null;
+  dbUser?: any;
+  periods?: any[];
 }
 
 const formatToInputDate = (dateStr?: string) => {
@@ -83,7 +85,9 @@ const formatDateToDDMMYYYY = (dateStr?: string) => {
 export default function CreateMasterPeriodModal({
   onClose,
   onSave,
-  periodToEdit
+  periodToEdit,
+  dbUser,
+  periods = []
 }: CreateMasterPeriodModalProps) {
   const { showToast } = useToast();
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -97,8 +101,16 @@ export default function CreateMasterPeriodModal({
     }
   });
 
+  const typedName = watch('name');
   const startDateValue = watch('startDate');
   const endDateValue = watch('endDate');
+
+  // Duplicate Check Validation
+  const isDuplicateName = periods?.some(
+    p => p.name.trim().toLowerCase() === typedName?.trim().toLowerCase() && p.id !== periodToEdit?.id
+  );
+
+  const isSaveDisabled = isSubmitting || isDuplicateName || !startDateValue || !endDateValue;
 
   const onSubmit = async (values: PeriodFormValues) => {
     setIsSubmitting(true);
@@ -129,14 +141,42 @@ export default function CreateMasterPeriodModal({
       const monthIndex = monthMap[monthPart];
       const yearNum = parseInt(yearPart, 10);
       if (monthIndex !== undefined && !isNaN(yearNum)) {
-        const startMonthStr = String(monthIndex + 1).padStart(2, '0');
-        const startDateStr = `${yearNum}-${startMonthStr}-01`;
-        const lastDay = new Date(yearNum, monthIndex + 1, 0).getDate();
-        const endDateStr = `${yearNum}-${startMonthStr}-${String(lastDay).padStart(2, '0')}`;
-        
+        // Fetch financialStartDay D
+        const D = dbUser?.financialStartDay !== undefined ? parseInt(dbUser.financialStartDay, 10) || 1 : 1;
+
+        let startDate: Date;
+        let endDate: Date;
+
+        if (D === 1) {
+          startDate = new Date(yearNum, monthIndex, 1);
+          endDate = new Date(yearNum, monthIndex + 1, 0);
+        } else {
+          // If D > 1:
+          // Start Date = D of the PREVIOUS month of the parsed month.
+          // End Date = D - 1 of the TARGET (parsed) month.
+          startDate = new Date(yearNum, monthIndex - 1, D);
+          endDate = new Date(yearNum, monthIndex, D - 1);
+        }
+
+        const formatDateToYYYYMMDD = (d: Date): string => {
+          const yyyy = d.getFullYear();
+          const mm = String(d.getMonth() + 1).padStart(2, '0');
+          const dd = String(d.getDate()).padStart(2, '0');
+          return `${yyyy}-${mm}-${dd}`;
+        };
+
+        const startDateStr = formatDateToYYYYMMDD(startDate);
+        const endDateStr = formatDateToYYYYMMDD(endDate);
+
         setValue('startDate', startDateStr, { shouldValidate: true });
         setValue('endDate', endDateStr, { shouldValidate: true });
+      } else {
+        setValue('startDate', '');
+        setValue('endDate', '');
       }
+    } else {
+      setValue('startDate', '');
+      setValue('endDate', '');
     }
   };
 
@@ -164,10 +204,15 @@ export default function CreateMasterPeriodModal({
                   onChange: (e) => handleNameChange(e.target.value)
                 })}
                 type="text" 
-                className="w-full border border-gray-200 rounded-xl px-4 py-3 text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-indigo-500" 
+                className={`w-full border rounded-xl px-4 py-3 text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-indigo-500 ${
+                  isDuplicateName ? 'border-red-300' : 'border-gray-200'
+                }`}
                 placeholder="Contoh: Maret 2026" 
               />
-              {errors.name && (
+              {isDuplicateName && (
+                <p className="mt-1 text-xs font-bold text-red-600">⚠️ Periode ini sudah terdaftar di Master Data</p>
+              )}
+              {errors.name && !isDuplicateName && (
                 <p className="mt-1 text-xs font-bold text-red-600">{errors.name.message}</p>
               )}
             </div>
@@ -175,16 +220,16 @@ export default function CreateMasterPeriodModal({
             <div>
               <label className="text-xs font-black text-slate-500 uppercase mb-1.5 block">Tanggal Mulai</label>
               <div className="relative">
-                <div className="w-full border border-gray-200 rounded-xl px-4 py-3 text-xs font-semibold bg-white flex items-center justify-between min-h-[44px]">
-                  <span className={startDateValue ? "text-slate-800" : "text-slate-400"}>
+                <div className="w-full border border-gray-200 rounded-xl px-4 py-3 text-xs font-semibold bg-gray-50 text-gray-500 cursor-not-allowed flex items-center justify-between min-h-[44px]">
+                  <span>
                     {startDateValue ? formatDateToDDMMYYYY(startDateValue) : "dd/mm/yyyy"}
                   </span>
-                  <Calendar size={16} className="text-slate-400" />
                 </div>
                 <input 
                   {...register('startDate')}
                   type="date" 
-                  className="absolute inset-0 opacity-0 cursor-pointer w-full h-full" 
+                  readOnly
+                  className="absolute inset-0 opacity-0 pointer-events-none w-full h-full" 
                 />
               </div>
               {errors.startDate && (
@@ -195,16 +240,16 @@ export default function CreateMasterPeriodModal({
             <div>
               <label className="text-xs font-black text-slate-500 uppercase mb-1.5 block">Tanggal Berakhir</label>
               <div className="relative">
-                <div className="w-full border border-gray-200 rounded-xl px-4 py-3 text-xs font-semibold bg-white flex items-center justify-between min-h-[44px]">
-                  <span className={endDateValue ? "text-slate-800" : "text-slate-400"}>
+                <div className="w-full border border-gray-200 rounded-xl px-4 py-3 text-xs font-semibold bg-gray-50 text-gray-500 cursor-not-allowed flex items-center justify-between min-h-[44px]">
+                  <span>
                     {endDateValue ? formatDateToDDMMYYYY(endDateValue) : "dd/mm/yyyy"}
                   </span>
-                  <Calendar size={16} className="text-slate-400" />
                 </div>
                 <input 
                   {...register('endDate')}
                   type="date" 
-                  className="absolute inset-0 opacity-0 cursor-pointer w-full h-full" 
+                  readOnly
+                  className="absolute inset-0 opacity-0 pointer-events-none w-full h-full" 
                 />
               </div>
               {errors.endDate && (
@@ -223,8 +268,8 @@ export default function CreateMasterPeriodModal({
               </button>
               <button 
                 type="submit" 
-                disabled={isSubmitting} 
-                className="flex-1 bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-3 px-4 rounded-xl text-xs transition-colors disabled:opacity-50 cursor-pointer"
+                disabled={isSaveDisabled} 
+                className="flex-1 bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-3 px-4 rounded-xl text-xs transition-colors disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
               >
                 {isSubmitting ? 'Menyimpan...' : 'Simpan'}
               </button>

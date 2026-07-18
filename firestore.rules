@@ -29,20 +29,21 @@ service cloud.firestore {
 
     // Entity Validators
     function isValidUser(data) {
-      let hasRequiredKeys = data.keys().hasAll(['uid', 'email', 'createdAt']);
-      
-      let isValidBase = data.uid is string && data.uid.size() <= 128 &&
-                        data.email is string && data.email.size() <= 256 &&
-                        data.createdAt is string && data.createdAt.size() <= 64;
-
-      let isValidBudget = !data.keys().hasAny(['monthlyBudget']) || data.monthlyBudget is number;
-      let isValidName = !data.keys().hasAny(['displayName']) || (data.displayName is string && data.displayName.size() <= 128);
-      let isValidPhone = !data.keys().hasAny(['phoneNumber']) || (data.phoneNumber is string && data.phoneNumber.size() <= 32);
-      let isValidPhoto = !data.keys().hasAny(['photoURL']) || data.photoURL is string;
-      let isValidCurrency = !data.keys().hasAny(['currency']) || data.currency is string;
-      let isValidFinancialStartDay = !data.keys().hasAny(['financialStartDay']) || data.financialStartDay is number;
-
-      return hasRequiredKeys && isValidBase && isValidBudget && isValidName && isValidPhone && isValidPhoto && isValidCurrency && isValidFinancialStartDay;
+      return data.keys().hasAll(['uid', 'email', 'createdAt']) &&
+             data.uid is string && data.uid.size() <= 128 &&
+             data.email is string && data.email.size() <= 256 &&
+             data.createdAt is string && data.createdAt.size() <= 64 &&
+             (!data.keys().hasAny(['monthlyBudget']) || data.monthlyBudget is number) &&
+             (!data.keys().hasAny(['displayName']) || (data.displayName is string && data.displayName.size() <= 128)) &&
+             (!data.keys().hasAny(['phoneNumber']) || (data.phoneNumber is string && data.phoneNumber.size() <= 32)) &&
+             (!data.keys().hasAny(['photoURL']) || data.photoURL is string) &&
+             (!data.keys().hasAny(['currency']) || data.currency is string) &&
+             (!data.keys().hasAny(['financialStartDay']) || data.financialStartDay is number) &&
+             (!data.keys().hasAny(['firstDayOfWeek']) || data.firstDayOfWeek is string) &&
+             (!data.keys().hasAny(['autoCreatePeriods']) || data.autoCreatePeriods is bool) &&
+             (!data.keys().hasAny(['theme']) || data.theme is string) &&
+             (!data.keys().hasAny(['privacyMode']) || data.privacyMode is bool) &&
+             (!data.keys().hasAny(['defaultLandingPage']) || data.defaultLandingPage is string);
     }
 
     function isValidTransaction(data) {
@@ -90,8 +91,12 @@ service cloud.firestore {
                     incoming().uid == existing().uid &&
                     incoming().email == existing().email &&
                     incoming().createdAt == existing().createdAt &&
-                    // PERBAIKAN: Menambahkan 'updatedAt' ke daftar whitelist
-                    incoming().diff(existing()).affectedKeys().hasOnly(['monthlyBudget', 'displayName', 'phoneNumber', 'photoURL', 'updatedAt', 'currency', 'financialStartDay', 'uid', 'email', 'createdAt']);
+                    // PERBAIKAN: Menambahkan 'updatedAt', 'firstDayOfWeek', 'autoCreatePeriods', 'theme', 'privacyMode', 'defaultLandingPage' ke daftar whitelist
+                    incoming().diff(existing()).affectedKeys().hasOnly([
+                      'monthlyBudget', 'displayName', 'phoneNumber', 'photoURL', 'updatedAt', 
+                      'currency', 'financialStartDay', 'uid', 'email', 'createdAt',
+                      'firstDayOfWeek', 'autoCreatePeriods', 'theme', 'privacyMode', 'defaultLandingPage'
+                    ]);
                     
       allow delete: if isAuthenticated() && isOwner(userId) && isValidId(userId);
 

@@ -80,6 +80,8 @@ export function setupApiRoutes(app: any) {
         monthlyBudget: parseFloat(firestoreData?.monthlyBudget) || 0,
         currency: firestoreData?.currency || 'IDR - Rupiah',
         financialStartDay: parseInt(firestoreData?.financialStartDay) || 1,
+        firstDayOfWeek: firestoreData?.firstDayOfWeek || 'Senin',
+        autoCreatePeriods: firestoreData?.autoCreatePeriods ?? false,
         photoURL: firestoreData?.photoURL || ''
       });
     } catch (e: any) {
@@ -100,7 +102,7 @@ export function setupApiRoutes(app: any) {
       const exists = docSnap.exists;
       const firestoreData = exists ? (typeof docSnap.data === 'function' ? docSnap.data() : docSnap) : {};
 
-      const { displayName, phoneNumber, monthlyBudget, photoURL } = req.body;
+      const { displayName, phoneNumber, monthlyBudget, photoURL, financialStartDay, firstDayOfWeek, autoCreatePeriods } = req.body;
       const updateData: any = {};
       
       updateData.uid = firestoreData.uid || req.userId!;
@@ -111,6 +113,9 @@ export function setupApiRoutes(app: any) {
       if (phoneNumber !== undefined) updateData.phoneNumber = phoneNumber;
       if (monthlyBudget !== undefined) updateData.monthlyBudget = parseFloat(monthlyBudget) || 0;
       if (photoURL !== undefined) updateData.photoURL = photoURL;
+      if (financialStartDay !== undefined) updateData.financialStartDay = parseInt(financialStartDay) || 1;
+      if (firstDayOfWeek !== undefined) updateData.firstDayOfWeek = firstDayOfWeek;
+      if (autoCreatePeriods !== undefined) updateData.autoCreatePeriods = autoCreatePeriods === true || autoCreatePeriods === 'true';
       
       await userDocRef.set(updateData, { merge: true });
       res.json({ success: true, ...updateData });

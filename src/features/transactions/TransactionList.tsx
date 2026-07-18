@@ -100,7 +100,22 @@ export default function TransactionList({ categories, periods, accounts = [], on
         }
         return matchesType && matchesCategory && matchesSearch && matchesPeriod;
       })
-      .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()); // descending order by date
+      .sort((a, b) => {
+        const dateA = new Date(a.date).getTime();
+        const dateB = new Date(b.date).getTime();
+        if (dateA !== dateB) {
+          return dateB - dateA; // Primary Sort: date descending
+        }
+        
+        // Secondary Sort: createdAt descending
+        const timeA = a.createdAt ? new Date(a.createdAt).getTime() : 0;
+        const timeB = b.createdAt ? new Date(b.createdAt).getTime() : 0;
+        if (timeA !== timeB) {
+          return timeB - timeA;
+        }
+        
+        return (b.id || '').localeCompare(a.id || '');
+      });
   }, [transactions, searchTerm, typeFilter, categoryFilter, periodFilter, periods]);
 
   // Group transactions by date
@@ -314,17 +329,17 @@ export default function TransactionList({ categories, periods, accounts = [], on
           <div className="flex flex-wrap sm:flex-nowrap items-center justify-between gap-4 p-4 bg-gray-50 rounded-xl border border-gray-100">
             <div className="flex-1">
               <p className="text-[11px] font-bold text-gray-400 uppercase tracking-wider mb-0.5">Total Pemasukan</p>
-              <p className="text-base font-black text-emerald-600 tabular-nums">+{formatIDR(totalIncome)}</p>
+              <p className="text-base font-semibold text-emerald-600 tabular-nums">+{formatIDR(totalIncome)}</p>
             </div>
             <div className="w-px h-8 bg-gray-200 hidden sm:block"></div>
             <div className="flex-1 sm:text-center">
               <p className="text-[11px] font-bold text-gray-400 uppercase tracking-wider mb-0.5">Total Pengeluaran</p>
-              <p className="text-base font-black text-red-600 tabular-nums">-{formatIDR(totalExpense)}</p>
+              <p className="text-base font-semibold text-red-600 tabular-nums">-{formatIDR(totalExpense)}</p>
             </div>
             <div className="w-px h-8 bg-gray-200 hidden sm:block"></div>
             <div className="flex-1 sm:text-right">
               <p className="text-[11px] font-bold text-gray-400 uppercase tracking-wider mb-0.5">Saldo Bersih</p>
-              <p className={`text-base font-black tabular-nums ${netBalance >= 0 ? 'text-indigo-600' : 'text-red-600'}`}>
+              <p className={`text-base font-semibold tabular-nums ${netBalance >= 0 ? 'text-indigo-600' : 'text-red-600'}`}>
                 {netBalance >= 0 ? '+' : ''}{formatIDR(netBalance)}
               </p>
             </div>
@@ -534,14 +549,14 @@ export default function TransactionList({ categories, periods, accounts = [], on
                                           </div>
                                           
                                           {/* Actions */}
-                                          <div className="flex items-center gap-1 md:hidden md:group-hover/child:flex transition-opacity focus-within:flex">
+                                          <div className="flex items-center gap-1.5">
                                             {confirmDeleteId === child.id ? (
                                               <div className="flex items-center gap-1 bg-red-50 p-0.5 rounded border border-red-100">
                                                 <span className="text-[9px] font-bold text-red-600 px-1">Hapus?</span>
                                                 <button
-                                                  onClick={async (e) => {
+                                                  onClick={(e) => {
                                                     e.stopPropagation();
-                                                    await onDelete(child.id);
+                                                    onDelete(child.id);
                                                     setConfirmDeleteId(null);
                                                   }}
                                                   className="px-1.5 py-0.5 bg-red-600 text-white rounded text-[9px] font-extrabold hover:bg-red-700 transition-colors cursor-pointer"
@@ -565,20 +580,20 @@ export default function TransactionList({ categories, periods, accounts = [], on
                                                     e.stopPropagation();
                                                     onEdit(child);
                                                   }}
-                                                  className="p-2 sm:p-1 rounded text-gray-400 hover:text-indigo-600 hover:bg-indigo-50 transition-colors cursor-pointer"
+                                                  className="p-2 rounded text-slate-300 hover:text-indigo-600 hover:bg-indigo-50 transition-colors cursor-pointer"
                                                   title="Ubah Transaksi"
                                                 >
-                                                  <Edit2 size={15} className="sm:w-[13px] sm:h-[13px]" />
+                                                  <Edit2 size={15} />
                                                 </button>
                                                 <button
                                                   onClick={(e) => {
                                                     e.stopPropagation();
                                                     setConfirmDeleteId(child.id);
                                                   }}
-                                                  className="p-2 sm:p-1 rounded text-gray-400 hover:text-red-500 hover:bg-red-50 transition-colors cursor-pointer"
+                                                  className="p-2 rounded text-slate-300 hover:text-red-500 hover:bg-red-50 transition-colors cursor-pointer"
                                                   title="Hapus Transaksi"
                                                 >
-                                                  <Trash2 size={15} className="sm:w-[13px] sm:h-[13px]" />
+                                                  <Trash2 size={15} />
                                                 </button>
                                               </>
                                             )}
@@ -669,7 +684,7 @@ export default function TransactionList({ categories, periods, accounts = [], on
                               </div>
                               
                               {/* Actions */}
-                              <div className="flex items-center gap-1.5 md:hidden md:group-hover:flex transition-opacity focus-within:flex">
+                              <div className="flex items-center gap-1.5">
                                 {confirmDeleteId === t.id ? (
                                   <div className="flex items-center gap-1 animate-fade-in bg-red-50 p-1 rounded-lg border border-red-100">
                                     <span className="text-[10px] font-bold text-red-600 px-1">Hapus?</span>
@@ -693,17 +708,17 @@ export default function TransactionList({ categories, periods, accounts = [], on
                                   <>
                                     <button
                                       onClick={() => onEdit(t)}
-                                      className="p-2.5 sm:p-1.5 rounded-lg text-gray-400 hover:text-indigo-600 hover:bg-indigo-50 transition-colors cursor-pointer"
+                                      className="p-2 rounded-lg text-slate-300 hover:text-indigo-600 hover:bg-indigo-50 transition-colors cursor-pointer"
                                       title="Ubah Transaksi"
                                     >
-                                      <Edit2 size={18} className="sm:w-4 sm:h-4" />
+                                      <Edit2 size={16} />
                                     </button>
                                     <button
                                       onClick={() => setConfirmDeleteId(t.id)}
-                                      className="p-2.5 sm:p-1.5 rounded-lg text-gray-400 hover:text-red-500 hover:bg-red-50 transition-colors cursor-pointer"
+                                      className="p-2 rounded-lg text-slate-300 hover:text-red-500 hover:bg-red-50 transition-colors cursor-pointer"
                                       title="Hapus Transaksi"
                                     >
-                                      <Trash2 size={18} className="sm:w-4 sm:h-4" />
+                                      <Trash2 size={16} />
                                     </button>
                                   </>
                                 )}

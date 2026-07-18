@@ -295,16 +295,32 @@ export default function Dashboard({
   }, [monthlyTransactions]);
 
   const netSavingsAndBalance = useMemo(() => {
-    let accountsBalance = 0;
-    
-    if (accounts.length > 0) {
-      accountsBalance = accounts
-        .filter((acc: any) => acc.includeInNetWorth !== false) // default is true
-        .reduce((sum: number, acc: any) => sum + (acc.currentBalance !== undefined ? acc.currentBalance : (acc.balance || 0)), 0);
-    }
+    // 1. Calculate Base Balance: Filter for active accounts with 'includeInNetWorth === true' and sum initial balances (Saldo Awal, saved as 'balance').
+    const activeAccounts = accounts.filter((acc: any) => acc.includeInNetWorth === true);
+    const baseBalance = activeAccounts.reduce((sum: number, acc: any) => {
+      const initial = acc.balance !== undefined ? acc.balance : (acc.initialBalance || 0);
+      return sum + Number(initial || 0);
+    }, 0);
 
-    return accountsBalance;
-  }, [transactions, accounts]);
+    // 2. Calculate Cash Flow Adjustments: Find all transactions linked to active accounts, summing income (pemasukan) and subtracting expenses (pengeluaran).
+    const activeAccountIds = new Set(activeAccounts.map((acc: any) => String(acc.id)));
+    let totalIncome = 0;
+    let totalExpense = 0;
+
+    transactions.forEach((t: any) => {
+      const isLinkedToActiveAccount = t.accountId && activeAccountIds.has(String(t.accountId));
+      if (isLinkedToActiveAccount) {
+        if (t.type === 'pemasukan') {
+          totalIncome += Number(t.amount || 0);
+        } else if (t.type === 'pengeluaran') {
+          totalExpense += Number(t.amount || 0);
+        }
+      }
+    });
+
+    // 3. Compute Net Worth: Base Balance + Total Income - Total Expenses
+    return baseBalance + totalIncome - totalExpense;
+  }, [accounts, transactions]);
 
   const finalDisplayIncome = useMemo(() => {
     return totalIncome;
@@ -472,7 +488,21 @@ export default function Dashboard({
   // Top 5 recent transactions
   const topRecentTransactions = useMemo(() => {
     return [...transactions]
-      .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
+      .sort((a, b) => {
+        const dateA = new Date(a.date).getTime();
+        const dateB = new Date(b.date).getTime();
+        if (dateA !== dateB) {
+          return dateB - dateA;
+        }
+        
+        const timeA = a.createdAt ? new Date(a.createdAt).getTime() : 0;
+        const timeB = b.createdAt ? new Date(b.createdAt).getTime() : 0;
+        if (timeA !== timeB) {
+          return timeB - timeA;
+        }
+        
+        return (b.id || '').localeCompare(a.id || '');
+      })
       .slice(0, 5);
   }, [transactions]);
 
@@ -645,8 +675,8 @@ export default function Dashboard({
             <div className="space-y-1">
               <span className="text-[10px] uppercase font-bold text-indigo-200 tracking-wider">Kekayaan Bersih</span>
               <div className="flex items-baseline gap-0.5 tabular-nums tracking-tight">
-                <span className="text-3xl font-black text-white">{balanceParts.main}</span>
-                <span className="text-[11px] font-bold text-indigo-200/80">{balanceParts.cents}</span>
+                <span className="text-3xl font-semibold text-white privacy-value">{balanceParts.main}</span>
+                <span className="text-[11px] font-bold text-indigo-200/80 privacy-value">{balanceParts.cents}</span>
               </div>
             </div>
             <div className="h-10 w-10 bg-white/10 text-white rounded-2xl flex items-center justify-center">
@@ -691,13 +721,13 @@ export default function Dashboard({
                 <div className="space-y-1">
                   <span className="text-[10px] text-gray-500 font-bold block">Total Pemasukan</span>
                   <div className="flex items-baseline gap-0.5 tabular-nums">
-                    <span className="text-xl font-black text-emerald-600 tracking-tight">{monthlyIncomeParts.main}</span>
+                    <span className="text-xl font-semibold text-emerald-600 tracking-tight privacy-value">{monthlyIncomeParts.main}</span>
                   </div>
                 </div>
                 <div className="space-y-1 text-right">
                   <span className="text-[10px] text-gray-500 font-bold block">Total Pengeluaran</span>
                   <div className="flex items-baseline justify-end gap-0.5 tabular-nums">
-                    <span className="text-xl font-black text-rose-500 tracking-tight">-{monthlyExpenseParts.main}</span>
+                    <span className="text-xl font-semibold text-rose-500 tracking-tight privacy-value">-{monthlyExpenseParts.main}</span>
                   </div>
                 </div>
               </div>

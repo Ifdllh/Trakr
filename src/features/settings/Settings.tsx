@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { User, Sliders, Database, Wrench, Shield, Bell, ArrowLeft, Loader2, Camera } from 'lucide-react';
+import { User, Sliders, Database, Wrench, Shield, Bell, ArrowLeft, Loader2, Camera, Calendar, ChevronDown } from 'lucide-react';
 import { getAuthEnv, getActiveAuth } from '@/lib/firebase';
 import { updateProfile } from 'firebase/auth';
 import { useToast } from '@/context/ToastContext';
@@ -55,12 +55,31 @@ export default function Settings({ user, dbUser, onProfileUpdate, setActiveTab }
   const [phoneNumber, setPhoneNumber] = useState('');
   const [monthlyBudgetVal, setMonthlyBudgetVal] = useState('0');
   const [currency, setCurrency] = useState('IDR - Rupiah');
-  const [financialStartDay, setFinancialStartDay] = useState<number>(1);
+  const [financialStartDay, setFinancialStartDay] = useState<number>(dbUser?.financialStartDay || 1);
+  const [firstDayOfWeek, setFirstDayOfWeek] = useState<string>(dbUser?.firstDayOfWeek || 'Senin');
+  const [autoCreatePeriods, setAutoCreatePeriods] = useState<boolean>(dbUser?.autoCreatePeriods || false);
+  const [theme, setTheme] = useState<'light' | 'dark' | 'system'>(dbUser?.theme || 'light');
+  const [privacyMode, setPrivacyMode] = useState<boolean>(dbUser?.privacyMode || false);
+  const [defaultLandingPage, setDefaultLandingPage] = useState<'dashboard' | 'transactions' | 'budgets'>(dbUser?.defaultLandingPage || 'dashboard');
   const [photoURL, setPhotoURL] = useState(dbUser?.photoURL || user?.photoURL || '');
   const [isLoadingProfile, setIsLoadingProfile] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
   const { showToast, promise: toastPromise } = useToast();
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const [isDayPopoverOpen, setIsDayPopoverOpen] = useState(false);
+  const dayPopoverRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (dayPopoverRef.current && !dayPopoverRef.current.contains(event.target as Node)) {
+        setIsDayPopoverOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+    };
+  }, []);
 
   useEffect(() => {
     if (dbUser?.displayName) {
@@ -72,6 +91,24 @@ export default function Settings({ user, dbUser, onProfileUpdate, setActiveTab }
       setPhotoURL(dbUser.photoURL);
     } else if (user?.photoURL) {
       setPhotoURL(user.photoURL);
+    }
+    if (dbUser?.financialStartDay !== undefined) {
+      setFinancialStartDay(dbUser.financialStartDay);
+    }
+    if (dbUser?.firstDayOfWeek !== undefined) {
+      setFirstDayOfWeek(dbUser.firstDayOfWeek);
+    }
+    if (dbUser?.autoCreatePeriods !== undefined) {
+      setAutoCreatePeriods(dbUser.autoCreatePeriods);
+    }
+    if (dbUser?.theme !== undefined) {
+      setTheme(dbUser.theme);
+    }
+    if (dbUser?.privacyMode !== undefined) {
+      setPrivacyMode(dbUser.privacyMode);
+    }
+    if (dbUser?.defaultLandingPage !== undefined) {
+      setDefaultLandingPage(dbUser.defaultLandingPage);
     }
   }, [user, dbUser]);
 
@@ -86,6 +123,11 @@ export default function Settings({ user, dbUser, onProfileUpdate, setActiveTab }
           if (data.monthlyBudget !== undefined) setMonthlyBudgetVal(data.monthlyBudget.toString());
           if (data.currency) setCurrency(data.currency);
           if (data.financialStartDay !== undefined) setFinancialStartDay(data.financialStartDay);
+          if (data.firstDayOfWeek !== undefined) setFirstDayOfWeek(data.firstDayOfWeek);
+          if (data.autoCreatePeriods !== undefined) setAutoCreatePeriods(data.autoCreatePeriods);
+          if (data.theme) setTheme(data.theme);
+          if (data.privacyMode !== undefined) setPrivacyMode(data.privacyMode);
+          if (data.defaultLandingPage) setDefaultLandingPage(data.defaultLandingPage);
           if (data.photoURL) setPhotoURL(data.photoURL);
         }
       } catch (err: any) {
@@ -206,6 +248,41 @@ export default function Settings({ user, dbUser, onProfileUpdate, setActiveTab }
       showToast(err?.message || 'Gagal menyimpan perubahan', 'error');
     } finally {
       setIsSaving(false);
+    }
+  };
+
+  const [isSavingPreferences, setIsSavingPreferences] = useState(false);
+
+  const handleSavePreferences = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setIsSavingPreferences(true);
+    try {
+      await api.put('/user/profile', {
+        financialStartDay: parseInt(financialStartDay.toString(), 10) || 1,
+        firstDayOfWeek,
+        autoCreatePeriods: !!autoCreatePeriods,
+        theme,
+        privacyMode,
+        defaultLandingPage
+      });
+
+      showToast('Preferensi aplikasi berhasil disimpan!', 'success');
+      
+      // Update parent state reactively
+      if (onProfileUpdate) {
+        onProfileUpdate({
+          financialStartDay: parseInt(financialStartDay.toString(), 10) || 1,
+          firstDayOfWeek,
+          autoCreatePeriods: !!autoCreatePeriods,
+          theme,
+          privacyMode,
+          defaultLandingPage
+        });
+      }
+    } catch (err: any) {
+      showToast(err?.message || 'Gagal menyimpan preferensi', 'error');
+    } finally {
+      setIsSavingPreferences(false);
     }
   };
 
@@ -446,6 +523,261 @@ export default function Settings({ user, dbUser, onProfileUpdate, setActiveTab }
                 </div>
               </div>
             </>
+          ) : activeSubTab === 'preferences' ? (
+            <div className="bg-white p-6 md:p-8 border border-slate-100 shadow-sm rounded-xl" id="card-preferensi-aplikasi">
+              <div className="border-b border-slate-100 pb-4 mb-6">
+                <h3 className="text-base font-bold text-slate-800">Preferensi Aplikasi</h3>
+                <p className="text-xs text-slate-500 mt-1">Atur cara kerja sistem anggaran, kalender, dan otomatisasi data Anda.</p>
+              </div>
+
+              <form onSubmit={handleSavePreferences} className="space-y-6">
+                <div className="bg-slate-50/50 p-5 rounded-2xl border border-slate-100 space-y-6">
+                  <h4 className="text-xs font-bold text-indigo-600 uppercase tracking-wider">Perilaku Sistem & Anggaran</h4>
+                  
+                  {/* 1. Tanggal Mulai Anggaran */}
+                  <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 py-2 border-b border-slate-100/50 pb-4">
+                    <div className="space-y-1 max-w-md">
+                      <label className="text-xs font-bold text-slate-700 block">Tanggal Mulai Anggaran</label>
+                      <span className="text-[11px] text-slate-400 block leading-relaxed">
+                        Tentukan tanggal siklus anggaran bulanan Anda direset (misal: mengikuti tanggal gajian).
+                      </span>
+                    </div>
+                    <div className="flex-shrink-0 relative" ref={dayPopoverRef}>
+                      <button
+                        type="button"
+                        onClick={() => setIsDayPopoverOpen(!isDayPopoverOpen)}
+                        className="border border-slate-200 bg-white hover:bg-slate-50 active:bg-slate-100 rounded-xl px-4 py-2.5 text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-indigo-500/20 text-slate-800 shadow-sm cursor-pointer flex items-center justify-between gap-2.5 min-w-[130px] transition-colors"
+                        id="preferences-budget-reset-date-trigger"
+                      >
+                        <Calendar size={14} className="text-slate-400" />
+                        <span>Tanggal {financialStartDay}</span>
+                        <ChevronDown size={14} className={`text-slate-400 transition-transform ${isDayPopoverOpen ? 'rotate-180' : ''}`} />
+                      </button>
+
+                      {isDayPopoverOpen && (
+                        <div className="absolute right-0 mt-2 z-30 bg-white border border-slate-100 rounded-2xl shadow-xl p-4 w-[260px] max-w-[90vw] animate-in fade-in slide-in-from-top-2 duration-150">
+                          <div className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-2.5 px-1">
+                            Pilih Tanggal Mulai
+                          </div>
+                          <div className="grid grid-cols-7 gap-1">
+                            {Array.from({ length: 31 }, (_, i) => i + 1).map((day) => {
+                              const isActive = financialStartDay === day;
+                              return (
+                                <button
+                                  key={day}
+                                  type="button"
+                                  onClick={() => {
+                                    setFinancialStartDay(day);
+                                    setIsDayPopoverOpen(false);
+                                  }}
+                                  className={`h-8 w-8 text-xs rounded-lg font-semibold flex items-center justify-center cursor-pointer transition-all ${
+                                    isActive
+                                      ? 'bg-indigo-600 text-white font-bold shadow-md shadow-indigo-600/15'
+                                      : 'hover:bg-indigo-50 text-slate-700 hover:text-indigo-600'
+                                  }`}
+                                >
+                                  {day}
+                                </button>
+                              );
+                            })}
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* 2. Awal Hari dalam Seminggu */}
+                  <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 py-2 border-b border-slate-100/50 pb-4">
+                    <div className="space-y-1 max-w-md">
+                      <label className="text-xs font-bold text-slate-700 block">Hari Pertama dalam Seminggu</label>
+                      <span className="text-[11px] text-slate-400 block leading-relaxed">
+                        Pilih hari apa kalender dan grafik mingguan Anda akan dimulai.
+                      </span>
+                    </div>
+                    <div className="flex-shrink-0">
+                      <div className="flex bg-slate-100 p-1 rounded-xl w-fit border border-slate-200/30">
+                        <button
+                          type="button"
+                          onClick={() => setFirstDayOfWeek('Senin')}
+                          className={`px-4 py-2 text-xs font-bold rounded-lg transition-all cursor-pointer ${
+                            firstDayOfWeek === 'Senin'
+                              ? 'bg-white text-slate-800 shadow-xs'
+                              : 'text-slate-500 hover:text-slate-800'
+                          }`}
+                          id="pref-first-day-senin"
+                        >
+                          Senin
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setFirstDayOfWeek('Minggu')}
+                          className={`px-4 py-2 text-xs font-bold rounded-lg transition-all cursor-pointer ${
+                            firstDayOfWeek === 'Minggu'
+                              ? 'bg-white text-slate-800 shadow-xs'
+                              : 'text-slate-500 hover:text-slate-800'
+                          }`}
+                          id="pref-first-day-minggu"
+                        >
+                          Minggu
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* 3. Buat Periode Otomatis */}
+                  <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 py-2">
+                    <div className="space-y-1 max-w-md">
+                      <label className="text-xs font-bold text-slate-700 block">Buat Periode Otomatis</label>
+                      <span className="text-[11px] text-slate-400 block leading-relaxed">
+                        Sistem akan otomatis membuat periode baru di Master Data saat Anda mencatat transaksi pada bulan yang belum terdaftar.
+                      </span>
+                    </div>
+                    <div className="flex-shrink-0 flex items-center">
+                      <button
+                        type="button"
+                        onClick={() => setAutoCreatePeriods(!autoCreatePeriods)}
+                        className={`relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-hidden ${
+                          autoCreatePeriods ? 'bg-indigo-600' : 'bg-slate-200'
+                        }`}
+                        id="pref-auto-create-periods-toggle"
+                      >
+                        <span
+                          className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow-xs ring-0 transition duration-200 ease-in-out ${
+                            autoCreatePeriods ? 'translate-x-5' : 'translate-x-0'
+                          }`}
+                        />
+                      </button>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Tampilan & Lokalisasi */}
+                <div className="bg-slate-50/50 p-5 rounded-2xl border border-slate-100 space-y-6 mt-6">
+                  <h4 className="text-xs font-bold text-indigo-600 uppercase tracking-wider">Tampilan & Lokalisasi</h4>
+
+                  {/* Tema Aplikasi */}
+                  <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 py-2 border-b border-slate-100/50 pb-4">
+                    <div className="space-y-1 max-w-md">
+                      <label className="text-xs font-bold text-slate-700 block">Tema Aplikasi</label>
+                      <span className="text-[11px] text-slate-400 block leading-relaxed">
+                        Pilih visual warna antarmuka aplikasi sesuai preferensi Anda.
+                      </span>
+                    </div>
+                    <div className="flex-shrink-0">
+                      <div className="flex bg-slate-100 p-1 rounded-xl w-fit border border-slate-200/30">
+                        <button
+                          type="button"
+                          onClick={() => setTheme('light')}
+                          className={`px-4 py-2 text-xs font-bold rounded-lg transition-all cursor-pointer ${
+                            theme === 'light'
+                              ? 'bg-white text-slate-800 shadow-xs'
+                              : 'text-slate-500 hover:text-slate-800'
+                          }`}
+                          id="pref-theme-light"
+                        >
+                          Terang
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setTheme('dark')}
+                          className={`px-4 py-2 text-xs font-bold rounded-lg transition-all cursor-pointer ${
+                            theme === 'dark'
+                              ? 'bg-white text-slate-800 shadow-xs'
+                              : 'text-slate-500 hover:text-slate-800'
+                          }`}
+                          id="pref-theme-dark"
+                        >
+                          Gelap
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setTheme('system')}
+                          className={`px-4 py-2 text-xs font-bold rounded-lg transition-all cursor-pointer ${
+                            theme === 'system'
+                              ? 'bg-white text-slate-800 shadow-xs'
+                              : 'text-slate-500 hover:text-slate-800'
+                          }`}
+                          id="pref-theme-system"
+                        >
+                          Ikuti Sistem
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Halaman Awal */}
+                  <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 py-2">
+                    <div className="space-y-1 max-w-md">
+                      <label className="text-xs font-bold text-slate-700 block">Halaman Awal</label>
+                      <span className="text-[11px] text-slate-400 block leading-relaxed">
+                        Pilih halaman yang ingin Anda buka pertama kali setelah login.
+                      </span>
+                    </div>
+                    <div className="flex-shrink-0">
+                      <select
+                        value={defaultLandingPage}
+                        onChange={(e) => setDefaultLandingPage(e.target.value as any)}
+                        className="border border-slate-200 bg-white hover:bg-slate-50 rounded-xl px-4 py-2.5 text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-indigo-500/20 text-slate-800 shadow-sm cursor-pointer min-w-[200px]"
+                        id="pref-default-landing-page"
+                      >
+                        <option value="dashboard">Dasbor</option>
+                        <option value="transactions">Semua Transaksi</option>
+                        <option value="budgets">Anggaran</option>
+                      </select>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Privasi & Interaksi */}
+                <div className="bg-slate-50/50 p-5 rounded-2xl border border-slate-100 space-y-6 mt-6">
+                  <h4 className="text-xs font-bold text-indigo-600 uppercase tracking-wider">Privasi & Interaksi</h4>
+
+                  {/* Mode Privasi */}
+                  <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 py-2">
+                    <div className="space-y-1 max-w-md">
+                      <label className="text-xs font-bold text-slate-700 block">Mode Privasi</label>
+                      <span className="text-[11px] text-slate-400 block leading-relaxed">
+                        Sembunyikan saldo dan kekayaan bersih dengan efek blur saat aplikasi dimuat atau dibuka di tempat umum.
+                      </span>
+                    </div>
+                    <div className="flex-shrink-0 flex items-center">
+                      <button
+                        type="button"
+                        onClick={() => setPrivacyMode(!privacyMode)}
+                        className={`relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-hidden ${
+                          privacyMode ? 'bg-indigo-600' : 'bg-slate-200'
+                        }`}
+                        id="pref-privacy-mode-toggle"
+                      >
+                        <span
+                          className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow-xs ring-0 transition duration-200 ease-in-out ${
+                            privacyMode ? 'translate-x-5' : 'translate-x-0'
+                          }`}
+                        />
+                      </button>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="flex justify-end pt-4 border-t border-slate-100">
+                  <button
+                    type="submit"
+                    disabled={isSavingPreferences}
+                    className="bg-indigo-600 hover:bg-indigo-700 text-white font-semibold text-xs px-5 py-2.5 rounded-lg transition-all shadow-xs hover:shadow-md flex items-center gap-2 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+                    id="save-preferences-btn"
+                  >
+                    {isSavingPreferences ? (
+                      <>
+                        <Loader2 size={14} className="animate-spin" />
+                        Menyimpan...
+                      </>
+                    ) : (
+                      'Simpan Preferensi'
+                    )}
+                  </button>
+                </div>
+              </form>
+            </div>
           ) : (
             <div className="bg-white p-8 border border-slate-100 shadow-sm rounded-xl flex flex-col items-center justify-center min-h-[400px] text-center" id="settings-placeholder-content">
               <div className="w-16 h-16 bg-slate-50 rounded-2xl flex items-center justify-center text-slate-400 mb-6 border border-slate-200/50" id="settings-coming-soon-icon">

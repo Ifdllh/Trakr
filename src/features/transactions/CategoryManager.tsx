@@ -27,6 +27,7 @@ interface CategoryManagerProps {
   contacts: MasterContact[];
   transactions: Transaction[];
   budgets: BudgetAllocation[];
+  dbUser?: any;
   onSavePeriod: (name: string, id?: string) => Promise<string | void>;
   onDeletePeriod: (id: string) => Promise<string | void>;
   onSaveMasterData: (collectionName: string, data: any, id?: string) => Promise<string | void>;
@@ -154,6 +155,7 @@ function RenameSubcategoryModal({ onClose, onConfirm, oldName }: RenameSubcatego
 
 export default function CategoryManager({ 
   categories, customCategories, periods, accounts, assets, tags, contacts, transactions, budgets,
+  dbUser,
   onSavePeriod, onDeletePeriod,
   onSaveMasterData, onDeleteMasterData, onRefreshData,
   globalAddTrigger
@@ -659,18 +661,20 @@ export default function CategoryManager({
                       {groupAccounts.map(item => {
                         const IconComponent = (item.icon && (LucideIcons as any)[item.icon]) ? (LucideIcons as any)[item.icon] : Wallet;
                         return (
-                        <div key={item.id} className="border border-gray-100 rounded-xl p-4 bg-white shadow-sm hover:shadow-md transition-all group flex flex-row justify-between items-center gap-4 relative overflow-hidden" style={{ borderLeftWidth: '4px', borderLeftColor: item.color || '#4f46e5' }}>
+                        <div key={item.id} className={`border border-gray-100 rounded-xl p-4 bg-white shadow-sm hover:shadow-md transition-all group flex flex-row justify-between items-center gap-4 relative overflow-hidden ${item.includeInNetWorth === false ? 'opacity-80' : ''}`} style={{ borderLeftWidth: '4px', borderLeftColor: item.includeInNetWorth === false ? '#94a3b8' : (item.color || '#4f46e5') }}>
                           <div className="flex items-center gap-3 min-w-0 flex-1">
-                            <div className="h-10 w-10 rounded-xl flex items-center justify-center shrink-0 bg-opacity-10" style={{ backgroundColor: `${item.color || '#4f46e5'}20`, color: item.color || '#4f46e5' }}>
+                            <div className="h-10 w-10 rounded-xl flex items-center justify-center shrink-0 bg-opacity-10" style={{ backgroundColor: item.includeInNetWorth === false ? '#94a3b820' : `${item.color || '#4f46e5'}20`, color: item.includeInNetWorth === false ? '#94a3b8' : (item.color || '#4f46e5') }}>
                               <IconComponent size={20} />
                             </div>
-                            <div className="min-w-0 flex-1">
+                            <div className="min-w-0 flex-1 flex flex-col justify-center gap-0.5">
                               <h4 className="font-extrabold text-sm text-gray-800 uppercase truncate" title={item.accountName}>{item.accountName}</h4>
                               <p className="text-xs text-gray-500 font-medium truncate flex items-center gap-1">
                                 {item.accountType} {item.accountNumber && <span className="text-gray-400 font-mono font-normal"> • {item.accountNumber}</span>}
                               </p>
                               {item.includeInNetWorth === false && (
-                                <div className="text-[9px] font-bold text-gray-400 mt-0.5 uppercase tracking-wider whitespace-nowrap">Exclude Net Worth</div>
+                                <span className="inline-flex items-center gap-1 bg-gray-100 text-gray-500 text-[10px] font-bold px-2 py-0.5 rounded mt-1 w-fit" id={`rekening-exclude-badge-${item.id}`}>
+                                  <LucideIcons.EyeOff size={10} /> Dikecualikan
+                                </span>
                               )}
                             </div>
                           </div>
@@ -842,13 +846,13 @@ export default function CategoryManager({
                         >
                           <LucideIcons.Folder size={12} style={parentColor ? { color: parentColor } : undefined} />
                           <span className={parentColor ? 'text-gray-700' : ''}>{sub}</span>
-                          <div className="flex items-center gap-1 ml-1 opacity-0 group-hover/chip:opacity-100 transition-opacity duration-150">
+                          <div className="flex items-center gap-1.5 ml-2">
                             <button 
                               onClick={(e) => {
                                 e.stopPropagation();
                                 setRenameTarget({ category: cat, oldName: sub });
                               }}
-                              className="p-0.5 text-gray-400 hover:text-indigo-600 hover:bg-white rounded transition-colors cursor-pointer"
+                              className="p-0.5 text-slate-400 hover:text-blue-600 hover:bg-white rounded transition-colors cursor-pointer"
                               title="Ubah Nama"
                             >
                               <Pencil size={10} />
@@ -858,7 +862,7 @@ export default function CategoryManager({
                                 e.stopPropagation();
                                 setDeleteTarget({ type: 'subcategory', category: cat, subName: sub });
                               }}
-                              className="p-0.5 text-gray-400 hover:text-red-500 hover:bg-white rounded transition-colors cursor-pointer"
+                              className="p-0.5 text-slate-400 hover:text-red-500 hover:bg-white rounded transition-colors cursor-pointer"
                               title="Hapus"
                             >
                               <X size={10} />
@@ -918,6 +922,8 @@ export default function CategoryManager({
           }}
           onSave={onSaveMasterData}
           periodToEdit={formData.id ? formData : null}
+          dbUser={dbUser}
+          periods={periods}
         />
       )}
       {isFormOpen && activeTab !== 'rekening' && activeTab !== 'pengeluaran' && activeTab !== 'pemasukan' && activeTab !== 'periode' && (
