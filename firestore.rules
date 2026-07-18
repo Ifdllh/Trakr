@@ -144,6 +144,12 @@ service cloud.firestore {
         allow delete: if isAuthenticated() && isOwner(userId) && isValidId(periodId);
       }
 
+      // Rules for user's subcollection of aggregated summaries (Cloud Function trigger targets)
+      match /summaries/{summaryId} {
+        allow read: if isAuthenticated() && isOwner(userId) && isValidId(summaryId);
+        allow write: if false; // Only Cloud Functions (Admin SDK) can write to preserve calculation integrity
+      }
+
       match /accounts/{accountId} {
         allow read, write: if isAuthenticated() && isOwner(userId);
       }
