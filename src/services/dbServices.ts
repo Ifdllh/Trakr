@@ -1,4 +1,39 @@
 import { api } from '@/lib/api';
+import { collection, query, where, onSnapshot, QueryConstraint } from 'firebase/firestore';
+import { getActiveDb } from '@/lib/firebase';
+
+export function subscribeToCollection(
+  userId: string,
+  collectionName: string,
+  onDataChange: (data: any[]) => void,
+  queryConstraints: QueryConstraint[] = []
+) {
+  const db = getActiveDb();
+  if (!db) {
+    console.error('Firestore db is undefined, preventing asyncQueue error.');
+    return () => {};
+  }
+  const colRef = collection(db, 'users', userId, collectionName);
+  
+  let q = query(colRef, ...queryConstraints);
+
+  const unsubscribe = onSnapshot(
+    q,
+    { includeMetadataChanges: true },
+    (snapshot) => {
+      const data = snapshot.docs.map(doc => ({
+        ...doc.data(),
+        id: doc.id
+      }));
+      onDataChange(data);
+    },
+    (error) => {
+      console.error(`Error subscribing to ${collectionName}:`, error);
+    }
+  );
+
+  return unsubscribe;
+}
 
 export const masterDataService = {
   async get(collectionName: string) {

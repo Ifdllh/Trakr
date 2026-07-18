@@ -2,6 +2,7 @@ import React, { useState, useMemo, useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { useQueryClient } from '@tanstack/react-query';
 import * as LucideIcons from 'lucide-react';
+import { BudgetSkeleton } from '@/components/SkeletonLoader';
 import { 
   Target, 
   AlertTriangle, 
@@ -25,6 +26,8 @@ import { z } from 'zod';
 import { api } from '@/lib/api';
 import { Transaction, Category, BudgetAllocation, BudgetPeriod, GlobalBudget, MasterAccount, MasterAsset, MasterTag, MasterContact } from '@/types';
 import { useToast } from '@/context/ToastContext';
+import { subscribeToCollection } from '@/services/dbServices';
+import { where } from 'firebase/firestore';
 
 // 1. Validation Schema (Zod)
 const budgetSchema = z.object({
@@ -52,6 +55,7 @@ const budgetSchema = z.object({
 
 
 interface BudgetManagerProps {
+  user?: any;
   categories: Category[];
   transactions: Transaction[];
   monthlyBudget: number;
@@ -68,12 +72,13 @@ interface BudgetManagerProps {
 }
 
 export default function BudgetManager({
+  user,
   categories,
-  transactions,
+  transactions: initialTransactions = [],
   monthlyBudget,
-  budgets,
+  budgets: initialBudgets = [],
   periods,
-  globalBudgets,
+  globalBudgets: initialGlobalBudgets = [],
   accounts = [],
   assets = [],
   tags = [],
@@ -92,11 +97,52 @@ export default function BudgetManager({
   }, [periods]);
 
   const [selectedPeriod, setSelectedPeriod] = useState<string>('');
+  
+  const [loading, setLoading] = useState(true);
+  const [transactions, setTransactions] = useState<Transaction[]>(initialTransactions);
+  const [budgets, setBudgets] = useState<BudgetAllocation[]>(initialBudgets);
+  const [globalBudgets, setGlobalBudgets] = useState<GlobalBudget[]>(initialGlobalBudgets);
+
   useEffect(() => {
     if (!selectedPeriod && defaultPeriodId) {
       setSelectedPeriod(defaultPeriodId);
     }
   }, [defaultPeriodId, selectedPeriod]);
+
+  useEffect(() => {
+    if (!user?.uid || !selectedPeriod) {
+      setLoading(false);
+      return;
+    }
+    
+    setLoading(true);
+    let loadedCount = 0;
+    const checkLoaded = () => {
+      loadedCount++;
+      if (loadedCount >= 3) setLoading(false);
+    };
+
+    const unsubTransactions = subscribeToCollection(user.uid, 'transactions', (data) => {
+      setTransactions(data as Transaction[]);
+      checkLoaded();
+    }, [where('periodId', '==', selectedPeriod)]);
+
+    const unsubBudgets = subscribeToCollection(user.uid, 'budgets', (data) => {
+      setBudgets(data as BudgetAllocation[]);
+      checkLoaded();
+    }, [where('periodId', '==', selectedPeriod)]);
+
+    const unsubGlobalBudgets = subscribeToCollection(user.uid, 'globalBudgets', (data) => {
+      setGlobalBudgets(data as GlobalBudget[]);
+      checkLoaded();
+    }, [where('periodId', '==', selectedPeriod)]);
+
+    return () => {
+      unsubTransactions();
+      unsubBudgets();
+      unsubGlobalBudgets();
+    };
+  }, [user?.uid, selectedPeriod]);
 
   const { showToast } = useToast();
   const [isFormOpen, setIsFormOpen] = useState(false);
@@ -165,7 +211,7 @@ export default function BudgetManager({
     return { targetGlobal, totalTeralokasi, realisasiAktual, sisaSaldo: targetGlobal - realisasiAktual };
   }, [selectedPeriod, budgets, globalBudgets, transactionsByPeriod, monthlyBudget]);
   
-  const isLoadingBudgets = false;
+  const isLoadingBudgets = loading;
 
   const activeGlobalBudget = useMemo(() => {
     return globalBudgets.find(gb => gb.periodId === selectedPeriod);
@@ -458,6 +504,8 @@ export default function BudgetManager({
     }
   };
 
+
+
   return (
     <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500 pb-20">
       
@@ -632,10 +680,11 @@ export default function BudgetManager({
                   Set Target Anggaran Global Sekarang
                 </button>
               </div>
-            ) : isLoadingBudgets ? (
-              <div className="bg-white rounded-3xl border border-gray-100 p-10 flex flex-col items-center justify-center text-center gap-3">
-                <div className="w-16 h-16 rounded-full border-4 border-indigo-100 border-t-indigo-500 animate-spin" />
-                <p className="text-slate-500 font-medium mt-2">Memuat anggaran...</p>
+            ) : loading ? (
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 bg-white rounded-3xl p-6 border border-slate-100 shadow-sm">
+                {Array.from({ length: 4 }).map((_, i) => (
+                  <BudgetSkeleton key={i} />
+                ))}
               </div>
             ) : currentBudgets.length === 0 ? (
               <div className="bg-white rounded-3xl border border-dashed border-gray-300 p-10 flex flex-col items-center justify-center text-center gap-3">

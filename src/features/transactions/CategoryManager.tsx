@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import CreateMasterAccountModal from '@/components/ui/CreateMasterAccountModal';
 import CreateMasterCategoryModal from '@/components/ui/CreateMasterCategoryModal';
 import CreateMasterPeriodModal from '@/components/ui/CreateMasterPeriodModal';
-import { masterDataService } from '@/services/dbServices';
+import { masterDataService, subscribeToCollection } from '@/services/dbServices';
 import { useToast } from '@/context/ToastContext';
 import { api } from '@/lib/api';
 import { 
@@ -154,7 +154,8 @@ function RenameSubcategoryModal({ onClose, onConfirm, oldName }: RenameSubcatego
 }
 
 export default function CategoryManager({ 
-  categories, customCategories, periods, accounts, assets, tags, contacts, transactions, budgets,
+  user,
+  categories: initialCategories, customCategories: initialCustomCategories, periods: initialPeriods, accounts: initialAccounts, assets: initialAssets, tags: initialTags, contacts: initialContacts, transactions, budgets,
   dbUser,
   onSavePeriod, onDeletePeriod,
   onSaveMasterData, onDeleteMasterData, onRefreshData,
@@ -179,6 +180,76 @@ export default function CategoryManager({
   const [isFormOpen, setIsFormOpen] = useState(false);
   const [formData, setFormData] = useState<any>({ iconName: 'Folder' });
   const [isSubmitting, setIsSubmitting] = useState(false);
+
+  const [loading, setLoading] = useState(true);
+  const [categories, setCategories] = useState<Category[]>(initialCategories);
+  const [customCategories, setCustomCategories] = useState<any[]>(initialCustomCategories);
+  const [periods, setPeriods] = useState<BudgetPeriod[]>(initialPeriods);
+  const [accounts, setAccounts] = useState<MasterAccount[]>(initialAccounts);
+  const [assets, setAssets] = useState<MasterAsset[]>(initialAssets);
+  const [tags, setTags] = useState<MasterTag[]>(initialTags);
+  const [contacts, setContacts] = useState<MasterContact[]>(initialContacts);
+
+  useEffect(() => {
+    if (!user?.uid) {
+      setLoading(false);
+      return;
+    }
+    setLoading(true);
+    let loadedCount = 0;
+    const checkLoaded = () => {
+      loadedCount++;
+      if (loadedCount >= 6) setLoading(false);
+    };
+
+    const unsubCustomCats = subscribeToCollection(user.uid, 'customCategories', (data) => {
+      setCustomCategories(data);
+      // Need to merge with default categories if needed, but App.tsx merges them.
+      // We will just use what we have, wait, App.tsx merges them. 
+      // Actually, since Categories are passed, let's just keep them or update them?
+      // I will rely on the merged initialCategories for now or merge them manually if needed.
+      checkLoaded();
+    });
+    
+    const unsubPeriods = subscribeToCollection(user.uid, 'periods', (data) => {
+      setPeriods(data as BudgetPeriod[]);
+      checkLoaded();
+    });
+
+    const unsubAccounts = subscribeToCollection(user.uid, 'accounts', (data) => {
+      setAccounts(data as MasterAccount[]);
+      checkLoaded();
+    });
+
+    const unsubAssets = subscribeToCollection(user.uid, 'assets', (data) => {
+      setAssets(data as MasterAsset[]);
+      checkLoaded();
+    });
+
+    const unsubTags = subscribeToCollection(user.uid, 'tags', (data) => {
+      setTags(data as MasterTag[]);
+      checkLoaded();
+    });
+
+    const unsubContacts = subscribeToCollection(user.uid, 'contacts', (data) => {
+      setContacts(data as MasterContact[]);
+      checkLoaded();
+    });
+
+    return () => {
+      unsubCustomCats();
+      unsubPeriods();
+      unsubAccounts();
+      unsubAssets();
+      unsubTags();
+      unsubContacts();
+    };
+  }, [user?.uid]);
+
+  // Sync merged categories with initialCategories from App.tsx since we don't have default cats here
+  useEffect(() => {
+    setCategories(initialCategories);
+  }, [initialCategories]);
 
   useEffect(() => {
     if (globalAddTrigger && globalAddTrigger > 0) {
@@ -400,6 +471,34 @@ export default function CategoryManager({
       return { label: 'Aktif', color: 'bg-emerald-50 text-emerald-700 border-emerald-200/60' };
     }
   };
+
+  if (loading) {
+    return (
+      <div className="bg-white rounded-2xl border border-gray-100 shadow-xs p-6 space-y-6 font-sans animate-pulse">
+        <div className="flex justify-between items-center pb-2">
+          <div className="space-y-2">
+            <div className="h-5 w-48 bg-gray-200 rounded-md"></div>
+            <div className="h-3 w-64 bg-gray-100 rounded-md"></div>
+          </div>
+          <div className="h-10 w-32 bg-gray-100 rounded-xl"></div>
+        </div>
+        <div className="flex gap-2 border-b border-gray-100 pb-2 overflow-x-auto">
+          {[1,2,3,4,5,6].map(i => (
+            <div key={i} className="h-10 w-28 bg-gray-100 rounded-lg shrink-0"></div>
+          ))}
+        </div>
+        <div className="flex gap-4">
+          <div className="h-10 flex-1 bg-gray-100 rounded-xl"></div>
+          <div className="h-10 w-32 bg-gray-100 rounded-xl"></div>
+        </div>
+        <div className="space-y-4">
+          <div className="h-16 w-full bg-gray-100 rounded-xl"></div>
+          <div className="h-16 w-full bg-gray-100 rounded-xl"></div>
+          <div className="h-16 w-full bg-gray-100 rounded-xl"></div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="bg-white rounded-2xl border border-gray-100 shadow-xs p-6 space-y-6 font-sans">
@@ -655,7 +754,7 @@ export default function CategoryManager({
                 ).map(([type, groupAccounts]) => (
                   <div key={type} className="space-y-3">
                     <h4 className="font-bold text-gray-700 flex items-center gap-2">
-                      {type === 'Bank' ? 'ğŸ¦' : type === 'E-Wallet' ? 'ğŸ“±' : type === 'Cash' ? 'ğŸ’µ' : type === 'Credit Card' ? 'ğŸ’³' : 'ğŸ·ï¸'} {type}
+                      {type === 'Bank' ? 'í ¼í¿¦' : type === 'E-Wallet' ? 'ğŸ“±' : type === 'Cash' ? 'ğŸ’µ' : type === 'Credit Card' ? 'ğŸ’³' : 'ğŸ·ï¸'} {type}
                     </h4>
                     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                       {groupAccounts.map(item => {

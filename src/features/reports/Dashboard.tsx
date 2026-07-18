@@ -4,6 +4,9 @@ import { id as idLocale } from 'date-fns/locale';
 import GoldPriceTracker from './GoldPriceTracker';
 import BudgetMonitor from './BudgetMonitor';
 import { Category } from '@/types';
+import { getActiveDb } from '@/lib/firebase';
+import { doc, onSnapshot } from 'firebase/firestore';
+import { subscribeToCollection } from '@/services/dbServices';
 import { 
   AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer
 } from 'recharts';
@@ -15,6 +18,7 @@ import {
   Award, HelpCircle, Settings2, X, Repeat, Plus
 } from 'lucide-react';
 import * as LucideIcons from 'lucide-react';
+import { motion } from 'motion/react';
 
 interface DashboardProps {
   user: any;
@@ -74,7 +78,7 @@ export default function Dashboard({
   categories, 
   onOpenForm, 
   setActiveTab,
-  transactions = [],
+  transactions: initialTransactions = [],
   budgets = [],
   periods = [],
   globalBudgets = [],
@@ -82,6 +86,10 @@ export default function Dashboard({
   accounts = [],
   onSaveGlobalBudget
 }: DashboardProps) {
+  const [loading, setLoading] = useState(true);
+  const [transactions, setTransactions] = useState<any[]>(initialTransactions);
+  const [localSummary, setLocalSummary] = useState<any>(null);
+
   const currentUserData = useMemo(() => {
     if (!user) return null;
     return {
@@ -100,7 +108,50 @@ export default function Dashboard({
   const selectedMonth = dashboardDate.getMonth() + 1;
   const selectedYear = dashboardDate.getFullYear();
 
-  
+  const activePeriodId = useMemo(() => {
+    const targetMonthStr = selectedMonth < 10 ? `0${selectedMonth}` : `${selectedMonth}`;
+    const targetPrefix = `${selectedYear}-${targetMonthStr}`;
+    const matchingPeriod = periods.find((p: any) => {
+      if (p.startDate && p.startDate.startsWith(targetPrefix)) return true;
+      if (p.name && (p.name || '').toLowerCase().includes(targetPrefix)) return true;
+      return false;
+    });
+    return matchingPeriod?.id || periods[0]?.id || null;
+  }, [periods, selectedMonth, selectedYear]);
+
+  useEffect(() => {
+    if (!user?.uid) return;
+
+    setLoading(true);
+    let unsubTransactions: any;
+    let unsubSummary: any;
+
+    unsubTransactions = subscribeToCollection(user.uid, 'transactions', (data) => {
+      setTransactions(data);
+      setLoading(false);
+    });
+
+    if (activePeriodId) {
+      const summaryRef = doc(getActiveDb(), `users/${user.uid}/summaries/${activePeriodId}`);
+      unsubSummary = onSnapshot(summaryRef, (docSnap) => {
+        if (docSnap.exists()) {
+          setLocalSummary(docSnap.data());
+        } else {
+          setLocalSummary({ totalPemasukan: 0, totalPengeluaran: 0 });
+        }
+      }, (error) => {
+        console.error('Error fetching summary:', error);
+      });
+    } else {
+      setLocalSummary({ totalPemasukan: 0, totalPengeluaran: 0 });
+    }
+
+    return () => {
+      if (unsubTransactions) unsubTransactions();
+      if (unsubSummary) unsubSummary();
+    };
+  }, [user?.uid, activePeriodId]);
+
   // Calculate cashflow chart data locally
   const cashflowStatsData = useMemo(() => {
     const months = ['Jan', 'Feb', 'Mar', 'Apr', 'Mei', 'Jun', 'Jul', 'Ags', 'Sep', 'Okt', 'Nov', 'Des'];
@@ -153,17 +204,6 @@ export default function Dashboard({
   const handleNextMonth = () => {
     setDashboardDate(prev => addMonths(prev, 1));
   };
-
-  const activePeriodId = useMemo(() => {
-    const targetMonthStr = selectedMonth < 10 ? `0${selectedMonth}` : `${selectedMonth}`;
-    const targetPrefix = `${selectedYear}-${targetMonthStr}`;
-    const matchingPeriod = periods.find((p: any) => {
-      if (p.startDate && p.startDate.startsWith(targetPrefix)) return true;
-      if (p.name && (p.name || '').toLowerCase().includes(targetPrefix)) return true;
-      return false;
-    });
-    return matchingPeriod?.id || periods[0]?.id || null;
-  }, [periods, selectedMonth, selectedYear]);
 
   const activeGlobalBudget = useMemo(() => {
     if (!activePeriodId) return null;
@@ -279,6 +319,13 @@ export default function Dashboard({
 
   // Financial Metrics calculations
   const { totalIncome, totalExpense } = useMemo(() => {
+    if (localSummary) {
+      return {
+        totalIncome: localSummary.totalPemasukan || 0,
+        totalExpense: localSummary.totalPengeluaran || 0
+      };
+    }
+
     let income = 0;
     let expense = 0;
     monthlyTransactions.forEach(t => {
@@ -292,7 +339,7 @@ export default function Dashboard({
       totalIncome: income,
       totalExpense: expense
     };
-  }, [monthlyTransactions]);
+  }, [monthlyTransactions, localSummary]);
 
   const netSavingsAndBalance = useMemo(() => {
     // 1. Calculate Base Balance: Filter for active accounts with 'includeInNetWorth === true' and sum initial balances (Saldo Awal, saved as 'balance').
@@ -608,8 +655,46 @@ export default function Dashboard({
   const monthlyIncomeParts = formatIDRWithSplit(finalDisplayIncome);
   const monthlyExpenseParts = formatIDRWithSplit(finalDisplayExpense);
 
+  if (loading) {
+    return (
+      <div className="space-y-6 font-sans select-none pb-12 animate-pulse">
+        <div className="flex flex-col md:flex-row justify-between items-start md:items-end gap-6 pb-2">
+          <div className="flex items-center gap-4">
+            <div className="w-12 h-12 rounded-full bg-gray-200 border border-gray-100" />
+            <div>
+              <div className="h-4 w-28 bg-gray-200 rounded-md mb-2.5" />
+              <div className="h-7 w-40 bg-gray-200 rounded-md" />
+            </div>
+          </div>
+          <div className="h-10 w-48 bg-gray-100 rounded-xl" />
+        </div>
+        
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+          <div className="lg:col-span-1 space-y-6">
+            <div className="h-44 bg-gray-100 rounded-[24px]" />
+            <div className="grid grid-cols-2 gap-4">
+              <div className="h-32 bg-gray-100 rounded-[24px]" />
+              <div className="h-32 bg-gray-100 rounded-[24px]" />
+            </div>
+          </div>
+          <div className="lg:col-span-2 h-[328px] bg-gray-100 rounded-[24px]" />
+        </div>
+
+        <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-6">
+          <div className="xl:col-span-2 h-[420px] bg-gray-100 rounded-[24px]" />
+          <div className="h-[420px] bg-gray-100 rounded-[24px]" />
+        </div>
+      </div>
+    );
+  }
+
   return (
-    <div className="space-y-6 font-sans select-none pb-12">
+    <motion.div 
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      transition={{ duration: 0.5 }}
+      className="space-y-6 font-sans select-none pb-12"
+    >
       
       {/* 1. Header Row (Avatar, Greeting, Subtitle, and Month Navigator) */}
       <div className="flex flex-col md:flex-row justify-between items-start md:items-end gap-6 pb-2">
@@ -1387,6 +1472,6 @@ export default function Dashboard({
         </div>
       )}
 
-    </div>
+    </motion.div>
   );
 }

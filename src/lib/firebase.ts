@@ -1,5 +1,6 @@
 import { initializeApp, getApps } from 'firebase/app';
 import { getAuth, GoogleAuthProvider, setPersistence, browserLocalPersistence, Auth } from 'firebase/auth';
+import { initializeFirestore, persistentLocalCache, persistentMultipleTabManager, Firestore } from 'firebase/firestore';
 
 const devFirebaseConfig = {
   projectId: import.meta.env.VITE_FIREBASE_PROJECT_ID || "zippy-solution-c7c1c",
@@ -91,10 +92,27 @@ export function getActiveAuth(): Auth {
 
 // Ensure auth is exported for compatibility with existing imports
 export const auth = new Proxy({} as Auth, {
-  get(target, prop, receiver) {
+  get(target, prop) {
     const activeAuth = getActiveAuth();
-    const value = Reflect.get(activeAuth, prop, receiver);
+    const value = Reflect.get(activeAuth, prop);
     return typeof value === 'function' ? value.bind(activeAuth) : value;
   }
 });
+
+// Configure client-side Firestore database with multi-tab offline persistence enabled
+export const devDb = initializeFirestore(devApp, {
+  localCache: persistentLocalCache({
+    tabManager: persistentMultipleTabManager()
+  })
+});
+
+export const prdDb = prdApp ? initializeFirestore(prdApp, {
+  localCache: persistentLocalCache({
+    tabManager: persistentMultipleTabManager()
+  })
+}) : null;
+
+export function getActiveDb(): Firestore {
+  return getAuthEnv() === 'prd' && prdDb ? prdDb : devDb;
+}
 

@@ -1,5 +1,6 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import { Transaction, Category, BudgetPeriod, MasterAccount } from '@/types';
+import { subscribeToCollection } from '@/services/dbServices';
 import { 
   Trash2, Download, Edit2, Search, Filter, 
   ArrowLeftRight, BookOpen,
@@ -8,8 +9,10 @@ import {
 import * as LucideIcons from 'lucide-react';
 import * as XLSX from 'xlsx';
 import { motion, AnimatePresence } from 'motion/react';
+import { TransactionSkeleton } from '@/components/SkeletonLoader';
 
 interface TransactionListProps {
+  user?: any;
   categories: Category[];
   periods: BudgetPeriod[];
   accounts?: MasterAccount[];
@@ -18,7 +21,7 @@ interface TransactionListProps {
   transactions?: Transaction[];
 }
 
-export default function TransactionList({ categories, periods, accounts = [], onEdit, onDelete, transactions: allTransactions = [] }: TransactionListProps) {
+export default function TransactionList({ user, categories, periods, accounts = [], onEdit, onDelete, transactions: allTransactions = [] }: TransactionListProps) {
   const [searchTerm, setSearchTerm] = useState('');
   const [typeFilter, setTypeFilter] = useState<'semua' | 'pemasukan' | 'pengeluaran' | 'transfer'>('semua');
   const [selectedAttachmentUrl, setSelectedAttachmentUrl] = useState<string | null>(null);
@@ -26,6 +29,22 @@ export default function TransactionList({ categories, periods, accounts = [], on
   const [periodFilter, setPeriodFilter] = useState('semua');
   const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
   const [expandedGroups, setExpandedGroups] = useState<Set<string>>(new Set());
+
+  const [loading, setLoading] = useState(true);
+  const [localTransactions, setLocalTransactions] = useState<Transaction[]>(allTransactions);
+
+  useEffect(() => {
+    if (!user?.uid) {
+      setLoading(false);
+      return;
+    }
+    setLoading(true);
+    const unsubscribe = subscribeToCollection(user.uid, 'transactions', (data) => {
+      setLocalTransactions(data as Transaction[]);
+      setLoading(false);
+    });
+    return () => unsubscribe();
+  }, [user?.uid]);
 
   const toggleGroup = (groupId: string) => {
     setExpandedGroups(prev => {
@@ -39,11 +58,11 @@ export default function TransactionList({ categories, periods, accounts = [], on
     });
   };
 
-  const isLoading = false;
+  const isLoading = loading;
   const isError = false;
   
   const transactions = useMemo(() => {
-    let filtered = [...allTransactions];
+    let filtered = [...localTransactions];
     
     if (typeFilter !== 'semua') {
       if (typeFilter === 'pemasukan') filtered = filtered.filter(t => String(t.type) === 'Cr' || t.type?.toLowerCase() === 'pemasukan');
@@ -349,9 +368,11 @@ export default function TransactionList({ categories, periods, accounts = [], on
 
       {/* Transactions List */}
       <div className="overflow-hidden">
-        {isLoading ? (
-          <div className="py-12 flex justify-center items-center">
-            <div className="h-8 w-8 border-4 border-indigo-200 border-t-indigo-600 rounded-full animate-spin"></div>
+        {loading ? (
+          <div className="space-y-4 pt-4">
+            {Array.from({ length: 3 }).map((_, i) => (
+              <TransactionSkeleton key={i} />
+            ))}
           </div>
         ) : isError ? (
           <div className="py-12 text-center text-red-500">

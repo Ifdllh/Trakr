@@ -417,7 +417,9 @@ export default function App() {
             )}
 
             {activeTab === 'transactions' && (
-              <TransactionList periods={periods} 
+              <TransactionList 
+                user={user}
+                periods={periods} 
                 categories={mergedCategories}
                 accounts={accounts}
                 onEdit={handleEditRequest}
@@ -428,6 +430,7 @@ export default function App() {
 
             {activeTab === 'categories' && (
               <CategoryManager 
+                user={user}
                 categories={mergedCategories}
                 customCategories={customCategories}
                 periods={periods}
@@ -449,6 +452,7 @@ export default function App() {
 
             {activeTab === 'budgets' && (
               <BudgetManager 
+                user={user}
                 categories={mergedCategories}
                 transactions={transactions}
                 monthlyBudget={monthlyBudget}

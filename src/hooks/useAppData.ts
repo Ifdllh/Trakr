@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo, useCallback } from 'react';
-import { masterDataService, transactionService } from '@/services/dbServices';
+import { masterDataService, transactionService, subscribeToCollection } from '@/services/dbServices';
 import { 
   MasterAccount, MasterAsset, MasterTag, MasterContact,
   Transaction, BudgetAllocation, BudgetPeriod, GlobalBudget,
@@ -87,19 +87,30 @@ export function useAppData(user: FirebaseUser | null, isGuest: boolean) {
   }, [customCategories]);
 
   const refreshData = useCallback(async () => {
-    if (!user) return;
-    try {
-      const txRes = await transactionService.get();
-      const periodsRes = await masterDataService.get('periods');
-      const accountsRes = await masterDataService.get('accounts');
-      const assetsRes = await masterDataService.get('assets');
-      const tagsRes = await masterDataService.get('tags');
-      const contactsRes = await masterDataService.get('contacts');
-      const customCatRes = await masterDataService.get('customCategories');
-      const budgetsRes = await masterDataService.get('budgets');
-      const globalBudgetsRes = await masterDataService.get('globalBudgets');
+    // Real-time subscriptions handle updates automatically, so manual refresh is a clean no-op
+    return;
+  }, []);
 
-      setTransactions((Array.isArray(txRes) ? txRes : []).map((d: any) => ({
+  useEffect(() => {
+    if (!user) {
+      setTransactions([]);
+      setPeriods([]);
+      setAccounts([]);
+      setAssets([]);
+      setTags([]);
+      setContacts([]);
+      setCustomCategories([]);
+      setBudgets([]);
+      setGlobalBudgets([]);
+      setMonthlyBudget(0);
+      setLoadingData(false);
+      return;
+    }
+
+    setLoadingData(true);
+
+    const unsubTx = subscribeToCollection(user.uid, 'transactions', (data) => {
+      setTransactions(data.map((d: any) => ({
         ...d,
         id: d.id ? d.id.toString() : String(Math.random()),
         date: d.date || d.createdAt,
@@ -109,63 +120,89 @@ export function useAppData(user: FirebaseUser | null, isGuest: boolean) {
         contactId: d.contactId?.toString(),
         periodId: d.periodId?.toString()
       })));
-      setPeriods((Array.isArray(periodsRes) ? periodsRes : []).map((d: any) => ({
+      setLoadingData(false);
+    });
+
+    const unsubPeriods = subscribeToCollection(user.uid, 'periods', (data) => {
+      setPeriods(data.map((d: any) => ({
         ...d,
         id: d.id ? d.id.toString() : String(Math.random())
       })));
-      setAccounts((Array.isArray(accountsRes) ? accountsRes : []).map((d: any) => ({
+      setLoadingData(false);
+    });
+
+    const unsubAccounts = subscribeToCollection(user.uid, 'accounts', (data) => {
+      setAccounts(data.map((d: any) => ({
         ...d,
         id: d.id ? d.id.toString() : String(Math.random())
       })));
-      setAssets((Array.isArray(assetsRes) ? assetsRes : []).map((d: any) => ({
+      setLoadingData(false);
+    });
+
+    const unsubAssets = subscribeToCollection(user.uid, 'assets', (data) => {
+      setAssets(data.map((d: any) => ({
         ...d,
         id: d.id ? d.id.toString() : String(Math.random())
       })));
-      setTags((Array.isArray(tagsRes) ? tagsRes : []).map((d: any) => ({
+      setLoadingData(false);
+    });
+
+    const unsubTags = subscribeToCollection(user.uid, 'tags', (data) => {
+      setTags(data.map((d: any) => ({
         ...d,
         id: d.id ? d.id.toString() : String(Math.random())
       })));
-      setContacts((Array.isArray(contactsRes) ? contactsRes : []).map((d: any) => ({
+      setLoadingData(false);
+    });
+
+    const unsubContacts = subscribeToCollection(user.uid, 'contacts', (data) => {
+      setContacts(data.map((d: any) => ({
         ...d,
         id: d.id ? d.id.toString() : String(Math.random())
       })));
-      setCustomCategories((Array.isArray(customCatRes) ? customCatRes : []).map((d: any) => ({
+      setLoadingData(false);
+    });
+
+    const unsubCustomCategories = subscribeToCollection(user.uid, 'customCategories', (data) => {
+      setCustomCategories(data.map((d: any) => ({
         ...d,
         id: d.id ? d.id.toString() : String(Math.random())
       })));
-      setBudgets((Array.isArray(budgetsRes) ? budgetsRes : []).map((d: any) => ({
+      setLoadingData(false);
+    });
+
+    const unsubBudgets = subscribeToCollection(user.uid, 'budgets', (data) => {
+      setBudgets(data.map((d: any) => ({
         ...d,
         id: d.id ? d.id.toString() : String(Math.random()),
         periodId: d.periodId?.toString(),
         globalBudgetId: d.globalBudgetId?.toString()
       })));
-      setGlobalBudgets((Array.isArray(globalBudgetsRes) ? globalBudgetsRes : []).map((d: any) => ({
+      setLoadingData(false);
+    });
+
+    const unsubGlobalBudgets = subscribeToCollection(user.uid, 'globalBudgets', (data) => {
+      setGlobalBudgets(data.map((d: any) => ({
         ...d,
         id: d.id ? d.id.toString() : String(Math.random()),
         periodId: d.periodId?.toString(),
         totalTargetAmount: Number(d.totalTargetAmount)
       })));
       setLoadingData(false);
-    } catch (err: any) {
-      if (!err?.message?.includes('Quota') && !err?.message?.includes('429')) console.error('refreshData error:', err);
-      if (err?.message?.includes('Quota') || err?.message?.includes('429')) {
-        showToast('Batas penggunaan database harian tercapai. Silakan coba lagi besok.', 'error');
-      } else {
-        showToast(err?.message || 'Gagal menyinkronkan data dari server', 'error');
-      }
-      setLoadingData(false);
-    }
-  }, [user]);
+    });
 
-  useEffect(() => {
-    if (!user) {
-      setTransactions([]);
-      setMonthlyBudget(0);
-      return;
-    }
-    setLoadingData(true);
-    refreshData();
-  }, [user, refreshData]);
+    return () => {
+      unsubTx();
+      unsubPeriods();
+      unsubAccounts();
+      unsubAssets();
+      unsubTags();
+      unsubContacts();
+      unsubCustomCategories();
+      unsubBudgets();
+      unsubGlobalBudgets();
+    };
+  }, [user]);
 
   const handleUpdateBudget = async (budget: number) => {
     if (!user) return;
