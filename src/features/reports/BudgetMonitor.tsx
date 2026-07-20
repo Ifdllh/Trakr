@@ -1,4 +1,5 @@
 import { useMemo } from 'react';
+import { useTranslation } from 'react-i18next';
 import { Settings, Info, HelpCircle, Wallet, TrendingUp, AlertTriangle, ShieldCheck } from 'lucide-react';
 import * as LucideIcons from 'lucide-react';
 
@@ -21,6 +22,7 @@ export default function BudgetMonitor({
   transactions = [],
   globalBudgets = []
 }: BudgetMonitorProps) {
+  const { t } = useTranslation();
   const selectedMonth = globalDashboardDate.getMonth() + 1;
   const selectedYear = globalDashboardDate.getFullYear();
 
@@ -123,7 +125,7 @@ export default function BudgetMonitor({
             <div className="h-8 w-8 bg-indigo-50 text-indigo-600 rounded-lg flex items-center justify-center" id="budget-monitor-icon-container">
               <TrendingUp size={16} id="budget-monitor-trending-icon" />
             </div>
-            <h3 className="font-extrabold text-slate-900 text-base tracking-tight" id="budget-monitor-title">Pemantau Anggaran</h3>
+            <h3 className="font-extrabold text-slate-900 text-base tracking-tight" id="budget-monitor-title">{t('dashboard.budget_monitor_widget.title', 'Pemantau Anggaran')}</h3>
           </div>
           <button 
             id="budget-monitor-settings-btn"
@@ -131,7 +133,7 @@ export default function BudgetMonitor({
             className="flex items-center gap-1.5 text-xs font-bold text-indigo-600 hover:text-indigo-800 transition-colors cursor-pointer"
           >
             <Settings size={14} id="budget-monitor-settings-icon" />
-            <span>Atur</span>
+            <span>{t('dashboard.budget_monitor_widget.manage', 'Atur')}</span>
           </button>
         </div>
 
@@ -157,14 +159,14 @@ export default function BudgetMonitor({
           <div className="flex flex-col items-center justify-center py-8" id="budget-empty-state">
             <Wallet className="text-slate-300 w-12 h-12" id="empty-wallet-icon" />
             <p className="text-slate-500 text-sm mt-3 font-semibold" id="empty-state-text">
-              Belum ada anggaran untuk bulan ini.
+              {t('dashboard.budget_monitor_widget.no_budget_this_month', 'Belum ada anggaran untuk bulan ini.')}
             </p>
             <button
               id="create-budget-btn"
               onClick={() => setActiveTab && setActiveTab('budgets')}
               className="mt-4 px-4 py-2 bg-indigo-50 text-indigo-600 rounded-md hover:bg-indigo-100 text-sm font-semibold transition-colors cursor-pointer"
             >
-              + Buat Anggaran
+              {t('dashboard.budget_monitor_widget.create_budget', '+ Buat Anggaran')}
             </button>
           </div>
         ) : (
@@ -180,7 +182,7 @@ export default function BudgetMonitor({
                 {isOverBudget ? <AlertTriangle size={18} /> : <ShieldCheck size={18} />}
               </div>
               <div className="min-w-0 flex-1">
-                <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Sisa Anggaran</span>
+                <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">{t('dashboard.budget_monitor_widget.remaining_budget', 'Sisa Anggaran')}</span>
                 <h3 className={`text-xl font-black tracking-tight mt-0.5 tabular-nums ${
                   isOverBudget ? 'text-rose-600' : 'text-emerald-600'
                 }`}>
@@ -192,14 +194,14 @@ export default function BudgetMonitor({
             {/* Mini Progress Bar */}
             <div className="space-y-2">
               <div className="flex justify-between items-center text-xs">
-                <span className="text-slate-500 font-semibold">Progres Penggunaan</span>
+                <span className="text-slate-500 font-semibold">{t('dashboard.budget_monitor_widget.spending_progress', 'Progres Penggunaan')}</span>
                 <span className={`font-bold ${
                   progressPercent < 75 
                     ? 'text-emerald-600' 
                     : progressPercent < 100 
                     ? 'text-amber-600' 
                     : 'text-rose-600'
-                }`}>{progressPercent}% Terpakai</span>
+                }`}>{progressPercent}% {t('dashboard.budget_monitor_widget.used_suffix', 'Terpakai')}</span>
               </div>
               <div className="w-full h-2.5 bg-slate-100 rounded-full overflow-hidden">
                 <div 
@@ -214,8 +216,8 @@ export default function BudgetMonitor({
                 />
               </div>
               <div className="flex justify-between items-center text-[10px] text-slate-400 font-medium">
-                <span>Terpakai: <strong className="text-slate-700 font-bold tabular-nums">{formatIDR(totalSpent)}</strong></span>
-                <span>Total Anggaran: <strong className="text-slate-700 font-bold tabular-nums">{formatIDR(totalBudget)}</strong></span>
+                <span>{t('dashboard.budget_monitor_widget.used_prefix', 'Terpakai:')} <strong className="text-slate-700 font-bold tabular-nums">{formatIDR(totalSpent)}</strong></span>
+                <span>{t('dashboard.budget_monitor_widget.total_budget', 'Total Anggaran:')} <strong className="text-slate-700 font-bold tabular-nums">{formatIDR(totalBudget)}</strong></span>
               </div>
             </div>
           </div>
@@ -225,7 +227,7 @@ export default function BudgetMonitor({
       <div className="mt-4 p-3 bg-indigo-50/50 border border-indigo-100/50 rounded-2xl flex gap-2 items-start text-[9px] text-indigo-900/90 font-medium leading-relaxed" id="budget-monitor-tip">
         <Info size={12} className="shrink-0 text-indigo-600 mt-0.5" id="budget-tip-icon" />
         <p id="budget-tip-text">
-          Alokasikan anggaran belanja secara bijak setiap bulan. Pengendalian realisasi anggaran di bawah 75% membantu Anda mengamankan pos tabungan masa depan.
+          {t('dashboard.budget_monitor_widget.info_box', 'Alokasikan anggaran belanja secara bijak setiap bulan. Pengendalian realisasi anggaran di bawah 75% membantu Anda mengamankan pos tabungan masa depan.')}
         </p>
       </div>
     </div>

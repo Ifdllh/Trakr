@@ -10,6 +10,7 @@ import CreateMasterCategoryModal from "@/components/ui/CreateMasterCategoryModal
 import CreateSubCategoryModal from "@/components/ui/CreateSubCategoryModal";
 import { z } from 'zod';
 import { useToast } from '@/context/ToastContext';
+import { useTranslation } from 'react-i18next';
 
 export const recurringTransactionSchema = z.object({
   isRecurring: z.boolean().default(false),
@@ -32,10 +33,35 @@ interface TransactionFormProps {
   dbUser?: any;
 }
 
+const formatPeriodName = (name: string, lang: string) => {
+  if (!name) return '';
+  if (lang !== 'en') return name;
+  const mapping: Record<string, string> = {
+    'Januari': 'January',
+    'Februari': 'February',
+    'Maret': 'March',
+    'April': 'April',
+    'Mei': 'May',
+    'Juni': 'June',
+    'Juli': 'July',
+    'Agustus': 'August',
+    'September': 'September',
+    'Oktober': 'October',
+    'November': 'November',
+    'Desember': 'December'
+  };
+  const parts = name.split(' ');
+  if (parts.length === 2 && mapping[parts[0]]) {
+    return `${mapping[parts[0]]} ${parts[1]}`;
+  }
+  return name;
+};
+
 export default function TransactionForm({ 
   categories, onSave, onClose, transactionToEdit, initialType,
   accounts = [], assets = [], tags = [], contacts = [], onSaveMasterData, periods = [], dbUser
 }: TransactionFormProps) {
+  const { t, i18n } = useTranslation();
   const [type, setType] = useState<TransactionType>(initialType || 'pengeluaran');
   const [amount, setAmount] = useState<string>('');
   const [category, setCategory] = useState<string>('');
@@ -110,7 +136,7 @@ export default function TransactionForm({
 
   const handleSubCategoryQuickAddClick = () => {
     if (!category) {
-      showToast('Silakan pilih Kategori Utama terlebih dahulu.', 'error');
+      showToast(t('form.toast_select_category_first'), 'error');
       return;
     }
     setIsSubCategoryModalOpen(true);
@@ -187,14 +213,14 @@ export default function TransactionForm({
       const data = response.data;
       if (data && data.secureUrl) {
         setAttachmentUrl(data.secureUrl);
-        showToast('Struk berhasil diunggah!', 'success');
+        showToast(t('form.toast_upload_success'), 'success');
       } else {
         throw new Error('Url aman tidak ditemukan dalam respon.');
       }
     } catch (err: any) {
 
-      const errorMessage = err?.response?.data?.error || err?.message || 'Gagal mengunggah struk.';
-      showToast(`Gagal mengunggah struk: ${errorMessage}`, 'error');
+      const errorMessage = err?.response?.data?.error || err?.message || t('form.toast_upload_fail');
+      showToast(`${t('form.toast_upload_fail')}: ${errorMessage}`, 'error');
     } finally {
       setIsUploading(false);
     }
@@ -205,22 +231,22 @@ export default function TransactionForm({
 
     const parsedAmount = parseFloat(amount);
     if (isNaN(parsedAmount) || parsedAmount <= 0) {
-      showToast('Masukkan jumlah uang yang valid dan lebih dari 0.', 'error');
+      showToast(t('form.toast_valid_amount'), 'error');
       return;
     }
     
     if (!accountId) {
-      showToast('Pilih sumber dana (Rekening) terlebih dahulu.', 'error');
+      showToast(t('form.toast_select_account'), 'error');
       return;
     }
 
     if (type === 'transfer') {
       if (!destinationAccountId) {
-        showToast('Pilih rekening tujuan terlebih dahulu.', 'error');
+        showToast(t('form.toast_select_dest_account'), 'error');
         return;
       }
       if (accountId === destinationAccountId) {
-        showToast('Rekening sumber dan tujuan tidak boleh sama.', 'error');
+        showToast(t('form.toast_same_account'), 'error');
         return;
       }
     }
@@ -235,9 +261,9 @@ export default function TransactionForm({
         });
       } catch (zodErr: any) {
         if (zodErr instanceof z.ZodError) {
-          showToast(zodErr.issues[0]?.message || 'Validasi transaksi rutin gagal.', 'error');
+          showToast(zodErr.issues[0]?.message || t('form.toast_recurring_fail'), 'error');
         } else {
-          showToast('Validasi transaksi rutin gagal.', 'error');
+          showToast(t('form.toast_recurring_fail'), 'error');
         }
         return;
       }
@@ -324,12 +350,12 @@ export default function TransactionForm({
     if (type !== 'transfer' && isSplit && !transactionToEdit) {
       const validRows = splitRows.filter(r => r.category);
       if (validRows.length < 2) {
-        showToast('Harap masukkan rincian pembagian kategori untuk setidaknya 2 baris.', 'error');
+        showToast(t('form.toast_split_min_rows'), 'error');
         return;
       }
 
       if (!isSplitBalanced) {
-        showToast(`Total rincian (${formatIDR(splitSum)}) harus sama dengan Jumlah Uang (${formatIDR(totalGrandAmount)}).`, 'error');
+        showToast(t('form.toast_split_unbalanced', { splitSum: formatIDR(splitSum), totalGrandAmount: formatIDR(totalGrandAmount) }), 'error');
         return;
       }
 
@@ -340,13 +366,13 @@ export default function TransactionForm({
           type,
           amount: parseFloat(row.amount) || 0,
           category: row.category,
-          subcategory: row.subcategory || 'Lainnya',
+          subcategory: row.subcategory || (i18n.language === 'id' ? 'Lainnya' : 'Others'),
           date,
           accountId: String(accountId),
           splitGroupId: splitGroupId,
         };
 
-        const rowDesc = row.description || description || `Bagi Transaksi - ${row.category}`;
+        const rowDesc = row.description || description || `${i18n.language === 'id' ? 'Bagi Transaksi' : 'Split Transaction'} - ${row.category}`;
         if (rowDesc) p.description = rowDesc;
         if (assetId) p.assetId = String(assetId);
         if (tagId) p.tagId = String(tagId);
@@ -361,7 +387,7 @@ export default function TransactionForm({
       setIsSubmitting(true);
       try {
         await onSave(payloads);
-        showToast('Transaksi bagi (split) berhasil disimpan!', 'success');
+        showToast(t('form.toast_split_save_success'), 'success');
         setAmount('');
         setCategory('');
         setSubcategory('');
@@ -372,18 +398,18 @@ export default function TransactionForm({
         setRecurringEndDate(null);
         onClose();
       } catch (err: any) {
-        showToast(err.message || 'Gagal menyimpan transaksi bagi.', 'error');
+        showToast(err.message || t('form.toast_split_save_fail'), 'error');
       } finally {
         setIsSubmitting(false);
       }
     } else {
       if (!category && type !== 'transfer') {
-        showToast('Pilih kategori terlebih dahulu.', 'error');
+        showToast(t('form.toast_select_category'), 'error');
         return;
       }
 
       if (!subcategory && type !== 'transfer') {
-        showToast('Pilih sub-kategori terlebih dahulu.', 'error');
+        showToast(t('form.toast_select_subcategory'), 'error');
         return;
       }
 
@@ -391,7 +417,7 @@ export default function TransactionForm({
         type,
         amount: parsedAmount,
         category: type === 'transfer' ? 'Transfer' : category,
-        subcategory: type === 'transfer' ? 'Transfer' : (subcategory || 'Lainnya'),
+        subcategory: type === 'transfer' ? 'Transfer' : (subcategory || (i18n.language === 'id' ? 'Lainnya' : 'Others')),
         date,
         accountId: String(accountId),
       };
@@ -409,10 +435,10 @@ export default function TransactionForm({
         setIsSubmitting(true);
         try {
           await onSave(payload, transactionToEdit.id);
-          showToast('Transaksi berhasil diperbarui!', 'success');
+          showToast(t('form.toast_update_success'), 'success');
           onClose();
         } catch (err: any) {
-          showToast(err.message || 'Gagal menyimpan transaksi.', 'error');
+          showToast(err.message || t('form.toast_save_fail'), 'error');
         } finally {
           setIsSubmitting(false);
         }
@@ -420,7 +446,7 @@ export default function TransactionForm({
         setIsSubmitting(true);
         try {
           await onSave(payload);
-          showToast('Transaksi berhasil disimpan!', 'success');
+          showToast(t('form.toast_save_success'), 'success');
           setAmount('');
           setCategory('');
           setSubcategory('');
@@ -431,7 +457,7 @@ export default function TransactionForm({
           setRecurringEndDate(null);
           onClose();
         } catch (err: any) {
-          showToast(err.message || 'Gagal menyimpan transaksi.', 'error');
+          showToast(err.message || t('form.toast_save_fail'), 'error');
         } finally {
           setIsSubmitting(false);
         }
@@ -445,26 +471,26 @@ export default function TransactionForm({
       if (quickAddType === 'accounts') {
         const newId = await onSaveMasterData('accounts', { accountName: quickAddName, accountType: 'Cash', balance: 0, isActive: true });
         if (typeof newId === 'string') setAccountId(String(newId));
-        showToast('Rekening berhasil ditambahkan.', 'success');
+        showToast(t('form.toast_master_add_success'), 'success');
       } else if (quickAddType === 'assets') {
         const newId = await onSaveMasterData('assets', { assetName: quickAddName, assetCategory: 'Gold', currentValue: 0, isActive: true });
         if (typeof newId === 'string') setAssetId(String(newId));
-        showToast('Aset berhasil ditambahkan.', 'success');
+        showToast(t('form.toast_master_add_success'), 'success');
       } else if (quickAddType === 'tags') {
         const newId = await onSaveMasterData('tags', { tagName: quickAddName, description: '', isActive: true });
         if (typeof newId === 'string') setTagId(String(newId));
-        showToast('Tag berhasil ditambahkan.', 'success');
+        showToast(t('form.toast_master_add_success'), 'success');
       } else if (quickAddType === 'contacts') {
         const newId = await onSaveMasterData('contacts', { contactName: quickAddName, contactType: 'Payee', isActive: true });
         if (typeof newId === 'string') setContactId(String(newId));
-        showToast('Kontak berhasil ditambahkan.', 'success');
+        showToast(t('form.toast_master_add_success'), 'success');
       }
 
       setQuickAddType(null);
       setQuickAddName('');
       setQuickAddSub('');
     } catch (e: any) {
-      showToast(e.message || 'Gagal menambahkan data.', 'error');
+      showToast(e.message || t('form.toast_master_add_fail'), 'error');
     }
   };
 
@@ -475,7 +501,7 @@ export default function TransactionForm({
         <div className="bg-gray-50/50 border-b border-gray-100 shrink-0">
           <div className="px-6 py-5 flex items-center justify-between">
             <h2 className="text-lg font-bold text-gray-900">
-              {transactionToEdit ? '✏️ Edit Transaksi' : '➕ Catat Transaksi Baru'}
+              {transactionToEdit ? t('form.edit_title') : t('form.create_title')}
             </h2>
             <button 
               onClick={onClose} 
@@ -504,7 +530,7 @@ export default function TransactionForm({
                   type === 'pengeluaran' ? 'bg-white text-red-600 shadow-sm' : 'text-gray-500 hover:text-gray-700'
                 }`}
               >
-                Pengeluaran
+                {t('form.type_expense')}
               </button>
               <button
                 type="button"
@@ -523,7 +549,7 @@ export default function TransactionForm({
                   type === 'pemasukan' ? 'bg-white text-emerald-600 shadow-sm' : 'text-gray-500 hover:text-gray-700'
                 }`}
               >
-                Pemasukan
+                {t('form.type_income')}
               </button>
               <button
                 type="button"
@@ -542,7 +568,7 @@ export default function TransactionForm({
                   type === 'transfer' ? 'bg-white text-blue-600 shadow-sm' : 'text-gray-500 hover:text-gray-700'
                 }`}
               >
-                Transfer
+                {t('form.type_transfer')}
               </button>
             </div>
           </div>
@@ -555,7 +581,7 @@ export default function TransactionForm({
             {/* Amount Input */}
             <div>
               <label className="block text-xs font-semibold text-gray-700 uppercase tracking-wider mb-1.5">
-                Jumlah Uang
+                {t('form.amount_label')}
               </label>
               <div className="relative rounded-xl shadow-sm">
                 <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none z-10">
@@ -577,8 +603,8 @@ export default function TransactionForm({
             {type !== 'transfer' && type !== 'pemasukan' && !transactionToEdit && (
               <div className="flex items-center justify-between bg-slate-50 border border-slate-100 p-3 rounded-xl shrink-0">
                 <div className="flex flex-col">
-                  <span className="text-xs font-bold text-slate-700">Bagi Transaksi (Split)</span>
-                  <span className="text-[10px] text-slate-400">Pecah pengeluaran ke beberapa kategori</span>
+                  <span className="text-xs font-bold text-slate-700">{t('form.split_toggle')}</span>
+                  <span className="text-[10px] text-slate-400">{t('form.split_toggle_desc')}</span>
                 </div>
                 <button
                   type="button"
@@ -601,13 +627,13 @@ export default function TransactionForm({
               isSplit && !transactionToEdit ? (
                 <div className="space-y-4 border border-slate-100 p-4 rounded-xl bg-slate-50/50">
                 <div className="flex items-center justify-between">
-                  <span className="text-xs font-extrabold text-slate-500 uppercase tracking-wider">Rincian Pembagian Kategori</span>
+                  <span className="text-xs font-extrabold text-slate-500 uppercase tracking-wider">{t('form.split_details')}</span>
                   <button
                     type="button"
                     onClick={() => setSplitRows([...splitRows, { category: '', subcategory: '', amount: '', description: '' }])}
                     className="text-xs text-indigo-600 hover:text-indigo-700 font-bold flex items-center gap-1 bg-white border border-indigo-100 px-2 py-1 rounded-lg shadow-xs cursor-pointer"
                   >
-                    <Plus size={12} /> Tambah Rincian
+                    <Plus size={12} /> {t('form.add_detail')}
                   </button>
                 </div>
 
@@ -630,7 +656,7 @@ export default function TransactionForm({
                               ? 'text-slate-200 cursor-not-allowed opacity-40'
                               : 'text-slate-400 hover:text-red-500 hover:bg-red-50 cursor-pointer'
                           }`}
-                          title={splitRows.length <= 2 ? "Minimal harus memiliki 2 rincian" : "Hapus rincian ini"}
+                          title={splitRows.length <= 2 ? t('form.min_details_warning') : t('form.remove_detail')}
                         >
                           <Trash2 size={14} />
                         </button>
@@ -639,7 +665,7 @@ export default function TransactionForm({
                           {/* Main Category */}
                           <div>
                             <label className="block text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-0.5">
-                              Kategori Utama
+                              {t('form.category_main')}
                             </label>
                             <select
                               value={row.category}
@@ -651,7 +677,7 @@ export default function TransactionForm({
                               }}
                               className="block w-full px-2 py-1 border border-gray-200 bg-white rounded-lg text-xs focus:outline-none focus:ring-1 focus:ring-indigo-500 focus:border-indigo-500"
                             >
-                              <option value="" disabled>Pilih...</option>
+                              <option value="" disabled>{t('form.choose_category')}</option>
                               {availableCategories.map((cat) => (
                                 <option key={cat.id} value={cat.name}>
                                   {cat.name}
@@ -663,7 +689,7 @@ export default function TransactionForm({
                           {/* Sub Category */}
                           <div>
                             <label className="block text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-0.5">
-                              Sub-Kategori
+                              {t('form.category_sub')}
                             </label>
                             <select
                               value={row.subcategory}
@@ -674,7 +700,7 @@ export default function TransactionForm({
                               }}
                               className="block w-full px-2 py-1 border border-gray-200 bg-white rounded-lg text-xs focus:outline-none focus:ring-1 focus:ring-indigo-500 focus:border-indigo-500"
                             >
-                              <option value="" disabled>Pilih...</option>
+                              <option value="" disabled>{t('form.choose_subcategory')}</option>
                               {rowSubcategories.map((sub, idx) => (
                                 <option key={idx} value={sub}>
                                   {sub}
@@ -688,7 +714,7 @@ export default function TransactionForm({
                           {/* Nominal */}
                           <div>
                             <label className="block text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-0.5">
-                              Nominal (Rp)
+                              {i18n.language === 'id' ? 'Nominal (Rp)' : 'Amount (Rp)'}
                             </label>
                             <NumericFormat
                               value={row.amount}
@@ -708,7 +734,7 @@ export default function TransactionForm({
                           {/* Description/Catatan */}
                           <div>
                             <label className="block text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-0.5">
-                              Catatan Rincian
+                              {i18n.language === 'id' ? 'Catatan Rincian' : 'Detail Note'}
                             </label>
                             <input
                               type="text"
@@ -718,7 +744,7 @@ export default function TransactionForm({
                                 newRows[index].description = e.target.value;
                                 setSplitRows(newRows);
                               }}
-                              placeholder="Keterangan rincian..."
+                              placeholder={i18n.language === 'id' ? 'Keterangan rincian...' : 'Detail description...'}
                               className="block w-full px-2 py-1 border border-gray-200 rounded-lg text-xs focus:outline-none focus:ring-1 focus:ring-indigo-500 focus:border-indigo-500"
                             />
                           </div>
@@ -735,20 +761,20 @@ export default function TransactionForm({
                     : 'bg-red-50 text-red-800 border-red-500'
                 }`}>
                   <span className="tabular-nums text-[13px] tracking-tight">
-                    Total Rincian: {formatIDR(splitSum)} / {formatIDR(totalGrandAmount)}
+                    {t('form.split_total')}: {formatIDR(splitSum)} / {formatIDR(totalGrandAmount)}
                   </span>
                   <span className="text-[11px] uppercase tracking-wider">
                     {isSplitBalanced ? (
                       <span className="flex items-center gap-1.5 text-green-700 bg-green-100/80 px-2.5 py-1 rounded-md border border-green-200">
-                        <Check size={14} className="stroke-[3px]" /> Seimbang (Sesuai)
+                        <Check size={14} className="stroke-[3px]" /> {t('form.split_balanced')}
                       </span>
                     ) : splitSum > totalGrandAmount ? (
                       <span className="text-red-700 bg-red-100/80 px-2.5 py-1 rounded-md border border-red-200">
-                        Kelebihan {formatIDR(splitSum - totalGrandAmount)}
+                        {t('form.split_unbalanced')} {formatIDR(splitSum - totalGrandAmount)}
                       </span>
                     ) : (
                       <span className="text-red-700 bg-red-100/80 px-2.5 py-1 rounded-md border border-red-200">
-                        Kurang {formatIDR(totalGrandAmount - splitSum)}
+                        {t('form.split_underallocated')} {formatIDR(totalGrandAmount - splitSum)}
                       </span>
                     )}
                   </span>
@@ -759,11 +785,11 @@ export default function TransactionForm({
                 <div>
                   <div className="flex items-center justify-between mb-1.5">
                     <label className="block text-xs font-semibold text-gray-700 uppercase tracking-wider">
-                      Kategori Utama
+                      {t('form.category_main')}
                     </label>
                     {onSaveMasterData && (
                       <button type="button" onClick={() => setQuickAddType('categories')} className="text-[10px] text-indigo-600 font-bold hover:underline flex items-center cursor-pointer">
-                        <Plus size={10} className="mr-0.5" /> Tambah
+                        <Plus size={10} className="mr-0.5" /> {t('form.add_btn')}
                       </button>
                     )}
                   </div>
@@ -772,7 +798,7 @@ export default function TransactionForm({
                     onChange={(e) => setCategory(e.target.value)}
                     className="block w-full px-3 py-2.5 border border-gray-200 bg-white rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
                   >
-                    <option value="" disabled>Pilih Kategori...</option>
+                    <option value="" disabled>{t('form.choose_category')}</option>
                     {availableCategories.map((cat) => (
                       <option key={cat.id} value={cat.name}>
                         {cat.name}
@@ -789,7 +815,7 @@ export default function TransactionForm({
                 <div>
                   <div className="flex items-center justify-between mb-1.5">
                     <label className="block text-xs font-semibold text-gray-700 uppercase tracking-wider">
-                      Sub-Kategori
+                      {t('form.category_sub')}
                     </label>
                     {onSaveMasterData && (
                       <button 
@@ -801,7 +827,7 @@ export default function TransactionForm({
                             : 'text-gray-400 opacity-60 hover:text-gray-500'
                         }`}
                       >
-                        <Plus size={10} className="mr-0.5" /> Tambah
+                        <Plus size={10} className="mr-0.5" /> {t('form.add_btn')}
                       </button>
                     )}
                   </div>
@@ -810,8 +836,8 @@ export default function TransactionForm({
                     onChange={(e) => setSubcategory(e.target.value)}
                     className="block w-full px-3 py-2.5 border border-gray-200 bg-white rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
                   >
-                    <option value="" disabled>Pilih Sub-Kategori...</option>
-                    {availableSubcategories.length === 0 && <option value="">- Kosong -</option>}
+                    <option value="" disabled>{t('form.choose_subcategory')}</option>
+                    {availableSubcategories.length === 0 && <option value="">{t('form.empty_subcategory')}</option>}
                     {availableSubcategories.map((sub, idx) => (
                       <option key={idx} value={sub}>
                         {sub}
@@ -834,7 +860,7 @@ export default function TransactionForm({
                 <div>
                   <div className="flex items-center justify-between mb-1.5">
                     <label className="block text-xs font-semibold text-gray-700 uppercase tracking-wider">
-                      Rekening Asal <span className="text-red-500">*</span>
+                      {t('form.source_account')} <span className="text-red-500">*</span>
                     </label>
                   </div>
                   <select
@@ -843,7 +869,7 @@ export default function TransactionForm({
                     onChange={(e) => setAccountId(e.target.value)}
                     className="block w-full px-3 py-2.5 border border-gray-200 bg-white rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
                   >
-                    <option value="" disabled>Pilih Rekening Asal...</option>
+                    <option value="" disabled>{t('form.choose_source_account')}</option>
                     {accounts.map((acc) => (
                       <option key={acc.id} value={acc.id}>
                         {acc.accountName} - {acc.accountType}
@@ -851,7 +877,7 @@ export default function TransactionForm({
                     ))}
                     {accountId && !accounts.some((acc) => acc.id === accountId) && (
                       <option value={accountId}>
-                        Memuat rekening baru...
+                        {t('form.loading_new_account')}
                       </option>
                     )}
                   </select>
@@ -859,7 +885,7 @@ export default function TransactionForm({
                 <div>
                   <div className="flex items-center justify-between mb-1.5">
                     <label className="block text-xs font-semibold text-gray-700 uppercase tracking-wider">
-                      Rekening Tujuan <span className="text-red-500">*</span>
+                      {t('form.destination_account')} <span className="text-red-500">*</span>
                     </label>
                   </div>
                   <select
@@ -868,7 +894,7 @@ export default function TransactionForm({
                     onChange={(e) => setDestinationAccountId(e.target.value)}
                     className="block w-full px-3 py-2.5 border border-gray-200 bg-white rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
                   >
-                    <option value="" disabled>Pilih Rekening Tujuan...</option>
+                    <option value="" disabled>{t('form.choose_destination_account')}</option>
                     {accounts.map((acc) => (
                       <option key={acc.id} value={acc.id} disabled={acc.id === accountId}>
                         {acc.accountName} - {acc.accountType}
@@ -876,7 +902,7 @@ export default function TransactionForm({
                     ))}
                     {destinationAccountId && !accounts.some((acc) => acc.id === destinationAccountId) && (
                       <option value={destinationAccountId}>
-                        Memuat rekening baru...
+                        {t('form.loading_new_account')}
                       </option>
                     )}
                   </select>
@@ -886,11 +912,11 @@ export default function TransactionForm({
             <div>
               <div className="flex items-center justify-between mb-1.5">
                 <label className="block text-xs font-semibold text-gray-700 uppercase tracking-wider">
-                  Sumber Dana (Rekening) <span className="text-red-500">*</span>
+                  {t('form.select_fund_source')} <span className="text-red-500">*</span>
                 </label>
                 {onSaveMasterData && (
                   <button type="button" onClick={() => setQuickAddType('accounts')} className="text-[10px] text-indigo-600 font-bold hover:underline flex items-center cursor-pointer">
-                    <Plus size={10} className="mr-0.5" /> Tambah
+                    <Plus size={10} className="mr-0.5" /> {t('form.add_btn')}
                   </button>
                 )}
               </div>
@@ -900,7 +926,7 @@ export default function TransactionForm({
                 onChange={(e) => setAccountId(e.target.value)}
                 className="block w-full px-3 py-2.5 border border-gray-200 bg-white rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
               >
-                <option value="" disabled>Pilih Rekening...</option>
+                <option value="" disabled>{t('form.choose_fund_source')}</option>
                 {accounts.map((acc) => (
                   <option key={acc.id} value={acc.id}>
                     {acc.accountName} - {acc.accountType}
@@ -908,12 +934,12 @@ export default function TransactionForm({
                 ))}
                 {accountId && !accounts.some((acc) => acc.id === accountId) && (
                   <option value={accountId}>
-                    Memuat rekening baru...
+                    {t('form.loading_new_account')}
                   </option>
                 )}
               </select>
               {accounts.length === 0 && (
-                <p className="mt-1 text-xs text-amber-600 font-medium">⚠️ Anda belum memiliki master data rekening.</p>
+                <p className="mt-1 text-xs text-amber-600 font-medium">{t('form.no_accounts_warning')}</p>
               )}
             </div>
             )}
@@ -921,7 +947,7 @@ export default function TransactionForm({
             {/* Date Picker */}
             <div>
               <label className="block text-xs font-semibold text-gray-700 uppercase tracking-wider mb-1.5">
-                Tanggal Transaksi
+                {t('form.transaction_date')}
               </label>
               <div className="relative">
                 <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none z-10">
@@ -937,15 +963,15 @@ export default function TransactionForm({
               </div>
               {matchedPeriod ? (
                 <p className="text-[10px] text-emerald-600 font-bold mt-1.5 flex items-center gap-1">
-                  ✓ Masuk ke periode anggaran: {matchedPeriod.name}
+                  ✓ {t('form.matched_period')} {formatPeriodName(matchedPeriod.name, i18n.language)}
                 </p>
               ) : dbUser?.autoCreatePeriods ? (
                 <p className="text-[10px] text-indigo-600 font-bold mt-1.5 flex items-center gap-1">
-                  ✨ Periode baru akan dibuat otomatis saat disimpan.
+                  ✨ {t('form.auto_period_creation')}
                 </p>
               ) : (
                 <p className="text-[10px] text-amber-600 font-bold mt-1.5 flex items-center gap-1">
-                  ⚠️ Periode untuk tanggal ini belum dibuat di Master Data.
+                  ⚠️ {t('form.period_not_created')}
                 </p>
               )}
             </div>
@@ -953,7 +979,7 @@ export default function TransactionForm({
             {/* Notes/Description */}
             <div>
               <label className="block text-xs font-semibold text-gray-700 uppercase tracking-wider mb-1.5">
-                Catatan / Keterangan (Opsional)
+                {t('form.description_label')}
               </label>
               <div className="relative">
                 <div className="absolute top-3 left-0 pl-3 flex items-start pointer-events-none z-10">
@@ -962,7 +988,7 @@ export default function TransactionForm({
                 <textarea
                   value={description}
                   onChange={(e) => setDescription(e.target.value)}
-                  placeholder="Contoh: Makan siang bersama tim, bensin bulanan..."
+                  placeholder={t('form.description_placeholder')}
                   rows={2}
                   className="block w-full pl-10 pr-3 py-2.5 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
                 />
@@ -972,7 +998,7 @@ export default function TransactionForm({
             {/* Receipt Attachment Upload Area */}
             <div>
               <label className="block text-xs font-semibold text-gray-700 uppercase tracking-wider mb-1.5">
-                Lampiran Struk Belanja (Opsional)
+                {t('form.attachment_label')}
               </label>
               
               {attachmentUrl ? (
@@ -987,21 +1013,21 @@ export default function TransactionForm({
                     />
                   </div>
                   <div className="flex-1 min-w-0">
-                    <p className="text-xs font-bold text-gray-750 truncate">Struk berhasil dilampirkan</p>
+                    <p className="text-xs font-bold text-gray-750 truncate">{t('form.attachment_success')}</p>
                     <a
                       href={attachmentUrl}
                       target="_blank"
                       rel="noreferrer"
                       className="text-[10px] text-indigo-600 font-bold hover:underline"
                     >
-                      Lihat Gambar Penuh
+                      {t('form.view_full_image')}
                     </a>
                   </div>
                   <button
                     type="button"
                     onClick={() => setAttachmentUrl('')}
                     className="p-1 rounded-full text-gray-400 hover:text-red-500 hover:bg-red-50 transition-colors shrink-0 cursor-pointer"
-                    title="Hapus Struk"
+                    title={t('form.remove_attachment')}
                   >
                     <X size={16} />
                   </button>
@@ -1046,16 +1072,16 @@ export default function TransactionForm({
                   {isUploading ? (
                     <div className="flex flex-col items-center justify-center space-y-2 py-2">
                       <div className="animate-spin rounded-full h-6 w-6 border-2 border-indigo-600 border-t-transparent"></div>
-                      <p className="text-xs font-bold text-gray-500">Mengunggah struk ke cloud...</p>
+                      <p className="text-xs font-bold text-gray-500">{t('form.uploading_receipt')}</p>
                     </div>
                   ) : (
                     <div className="flex flex-col items-center justify-center space-y-1.5 py-1">
                       <PlusCircle className="h-6 w-6 text-indigo-500" />
                       <p className="text-xs font-bold text-gray-750">
-                        Unggah Bukti Struk (JPG, PNG, WEBP)
+                        {t('form.upload_receipt_title')}
                       </p>
                       <p className="text-[10px] text-gray-400 font-medium">
-                        Seret & letakkan atau klik untuk memilih file
+                        {t('form.drag_drop_desc')}
                       </p>
                     </div>
                   )}
@@ -1063,99 +1089,7 @@ export default function TransactionForm({
               )}
             </div>
 
-            {/* Advanced Options Accordion */}
-            <div className="border border-gray-200 rounded-xl overflow-hidden bg-gray-50/30 shrink-0">
-              <button
-                type="button"
-                onClick={() => setIsAdvancedOpen(!isAdvancedOpen)}
-                className="w-full flex items-center justify-between p-3 text-sm font-semibold text-gray-700 hover:bg-gray-100 transition-colors cursor-pointer"
-              >
-                <span>⚙️ Opsi Lanjutan (Aset, Proyek, Kontak)</span>
-                {isAdvancedOpen ? <ChevronUp size={18} /> : <ChevronDown size={18} />}
-              </button>
-              
-              {isAdvancedOpen && (
-                <div className="p-4 border-t border-gray-200 space-y-4">
-                  {/* Asset */}
-                  <div>
-                    <div className="flex items-center justify-between mb-1.5">
-                      <label className="block text-xs font-semibold text-gray-700 uppercase tracking-wider">
-                        Aset Terkait (Opsional)
-                      </label>
-                      {onSaveMasterData && (
-                        <button type="button" onClick={() => setQuickAddType('assets')} className="text-[10px] text-indigo-600 font-bold hover:underline flex items-center cursor-pointer">
-                          <Plus size={10} className="mr-0.5" /> Tambah
-                        </button>
-                      )}
-                    </div>
-                    <select
-                      value={assetId}
-                      onChange={(e) => setAssetId(e.target.value)}
-                      className="block w-full px-3 py-2.5 border border-gray-200 bg-white rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
-                    >
-                      <option value="">- Tidak ada aset -</option>
-                      {assets.map((ast) => (
-                        <option key={ast.id} value={ast.id}>
-                          {ast.assetName}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
 
-                  {/* Tag */}
-                  <div>
-                    <div className="flex items-center justify-between mb-1.5">
-                      <label className="block text-xs font-semibold text-gray-700 uppercase tracking-wider">
-                        Proyek / Tag (Opsional)
-                      </label>
-                      {onSaveMasterData && (
-                        <button type="button" onClick={() => setQuickAddType('tags')} className="text-[10px] text-indigo-600 font-bold hover:underline flex items-center cursor-pointer">
-                          <Plus size={10} className="mr-0.5" /> Tambah
-                        </button>
-                      )}
-                    </div>
-                    <select
-                      value={tagId}
-                      onChange={(e) => setTagId(e.target.value)}
-                      className="block w-full px-3 py-2.5 border border-gray-200 bg-white rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
-                    >
-                      <option value="">- Tidak ada tag -</option>
-                      {tags.map((tg) => (
-                        <option key={tg.id} value={tg.id}>
-                          {tg.tagName}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-
-                  {/* Contact */}
-                  <div>
-                    <div className="flex items-center justify-between mb-1.5">
-                      <label className="block text-xs font-semibold text-gray-700 uppercase tracking-wider">
-                        Pihak Terkait (Opsional)
-                      </label>
-                      {onSaveMasterData && (
-                        <button type="button" onClick={() => setQuickAddType('contacts')} className="text-[10px] text-indigo-600 font-bold hover:underline flex items-center cursor-pointer">
-                          <Plus size={10} className="mr-0.5" /> Tambah
-                        </button>
-                      )}
-                    </div>
-                    <select
-                      value={contactId}
-                      onChange={(e) => setContactId(e.target.value)}
-                      className="block w-full px-3 py-2.5 border border-gray-200 bg-white rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
-                    >
-                      <option value="">- Tidak ada kontak -</option>
-                      {contacts.map((cnt) => (
-                        <option key={cnt.id} value={cnt.id}>
-                          {cnt.contactName} ({cnt.contactType})
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-                </div>
-              )}
-            </div>
           </div>
 
           {/* Buttons (Sticky Footer) */}
@@ -1165,7 +1099,7 @@ export default function TransactionForm({
               onClick={onClose}
               className="flex-1 py-3 px-4 bg-gray-50 hover:bg-gray-100 text-gray-700 rounded-xl text-sm font-semibold transition-all cursor-pointer"
             >
-              Batal
+              {t('form.cancel_btn')}
             </button>
             <button
               type="submit"
@@ -1177,7 +1111,7 @@ export default function TransactionForm({
               ) : (
                 <>
                   <Check size={16} />
-                  Simpan Catatan
+                  {t('form.save_btn')}
                 </>
               )}
             </button>
@@ -1223,18 +1157,18 @@ export default function TransactionForm({
         {quickAddType && quickAddType !== 'accounts' && quickAddType !== 'categories' && (
           <div className="absolute inset-0 bg-white/90 backdrop-blur-sm z-20 flex items-center justify-center p-6">
             <div className="bg-white rounded-xl shadow-xl border border-gray-100 p-5 w-full">
-              <h3 className="font-bold text-gray-900 mb-4">Tambah {quickAddType}</h3>
+              <h3 className="font-bold text-gray-900 mb-4">{t('form.add_btn')} {quickAddType}</h3>
               <input 
                 type="text"
-                placeholder="Nama..."
+                placeholder={t('form.quick_add_name_placeholder')}
                 value={quickAddName}
                 onChange={e => setQuickAddName(e.target.value)}
                 className="block w-full px-3 py-2 mb-3 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
                 autoFocus
               />
               <div className="flex gap-2 justify-end">
-                <button type="button" onClick={() => setQuickAddType(null)} className="px-4 py-2 text-xs font-semibold text-gray-600 hover:bg-gray-50 rounded-lg cursor-pointer">Batal</button>
-                <button type="button" onClick={handleQuickAdd} className="px-4 py-2 text-xs font-semibold text-white bg-indigo-600 hover:bg-indigo-700 rounded-lg cursor-pointer">Simpan</button>
+                <button type="button" onClick={() => setQuickAddType(null)} className="px-4 py-2 text-xs font-semibold text-gray-600 hover:bg-gray-50 rounded-lg cursor-pointer">{t('form.cancel_btn')}</button>
+                <button type="button" onClick={handleQuickAdd} className="px-4 py-2 text-xs font-semibold text-white bg-indigo-600 hover:bg-indigo-700 rounded-lg cursor-pointer">{t('form.save_btn')}</button>
               </div>
             </div>
           </div>

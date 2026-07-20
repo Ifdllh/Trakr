@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { useTranslation } from 'react-i18next';
 import { api } from '@/lib/api';
 import { 
   TrendingUp, 
@@ -30,6 +31,7 @@ interface GoldPriceResponse {
 }
 
 export default function GoldPriceTracker() {
+  const { t } = useTranslation();
   const [data, setData] = useState<GoldPriceResponse | null>(null);
   const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
@@ -67,11 +69,11 @@ export default function GoldPriceTracker() {
           }
         }
       } else {
-        throw new Error('Gagal memuat struktur data emas yang valid.');
+        throw new Error(t('dashboard.gold_tracker.err_invalid_data', 'Gagal memuat struktur data emas yang valid.'));
       }
     } catch (err: any) {
 
-      setError('Gagal menghubungkan ke server harga emas. Silakan coba lagi.');
+      setError(t('dashboard.gold_tracker.err_connect_fail', 'Gagal menghubungkan ke server harga emas. Silakan coba lagi.'));
     } finally {
       setLoading(false);
       setRefreshing(false);
@@ -159,16 +161,16 @@ export default function GoldPriceTracker() {
                 <div className="h-8 w-8 bg-amber-50 text-amber-600 rounded-lg flex items-center justify-center">
                   <TrendingUp size={16} />
                 </div>
-                <h3 className="text-base font-extrabold text-slate-900 tracking-tight">Pantauan Logam Mulia</h3>
+                <h3 className="text-base font-extrabold text-slate-900 tracking-tight">{t('dashboard.gold_tracker.title', 'Pantauan Logam Mulia')}</h3>
               </div>
-              <p className="text-[10px] text-gray-400 font-medium">Harga emas 1 gram dari sumber resmi</p>
+              <p className="text-[10px] text-gray-400 font-medium">{t('dashboard.gold_tracker.title_desc', 'Harga emas 1 gram dari sumber resmi')}</p>
             </div>
             
             <button 
               onClick={() => fetchGoldPrices(true)}
               disabled={loading || refreshing}
               className="p-2 hover:bg-slate-50 active:bg-slate-100 rounded-xl transition-colors text-slate-400 hover:text-slate-600 disabled:opacity-50 cursor-pointer"
-              title="Perbarui Harga"
+              title={t('dashboard.gold_tracker.update_price', 'Perbarui Harga')}
             >
               <RefreshCw size={14} className={refreshing || loading ? "animate-spin" : ""} />
             </button>
@@ -177,19 +179,19 @@ export default function GoldPriceTracker() {
           {loading ? (
             <div className="flex flex-col items-center justify-center py-12 gap-3">
               <RefreshCw size={24} className="animate-spin text-amber-500" />
-              <span className="text-xs font-semibold text-slate-500">Menghubungkan ke API logam mulia...</span>
+              <span className="text-xs font-semibold text-slate-500">{t('dashboard.gold_tracker.connect_api', 'Menghubungkan ke API logam mulia...')}</span>
             </div>
           ) : error ? (
             <div className="p-4 bg-rose-50 border border-rose-100 rounded-2xl text-rose-600 flex items-start gap-2.5 text-xs font-medium">
               <AlertCircle size={16} className="shrink-0 mt-0.5" />
               <div>
-                <p className="font-bold mb-1">Terjadi Gangguan</p>
+                <p className="font-bold mb-1">{t('dashboard.gold_tracker.error_title', 'Terjadi Gangguan')}</p>
                 <p>{error}</p>
                 <button 
                   onClick={() => fetchGoldPrices(false)}
                   className="mt-2 text-[10px] font-extrabold text-white bg-rose-600 hover:bg-rose-700 px-3 py-1 rounded-md transition-colors"
                 >
-                  Coba Lagi
+                  {t('dashboard.gold_tracker.try_again', 'Coba Lagi')}
                 </button>
               </div>
             </div>
@@ -239,13 +241,13 @@ export default function GoldPriceTracker() {
                     {vendor.buyPrice !== null ? (
                       <div className="flex items-center gap-3 text-right">
                         <div>
-                          <span className="text-[8px] uppercase font-bold text-slate-400 block tracking-wider leading-none mb-0.5">Beli</span>
+                          <span className="text-[8px] uppercase font-bold text-slate-400 block tracking-wider leading-none mb-0.5">{t('dashboard.gold_tracker.buy', 'BELI')}</span>
                           <span className="text-xs font-black text-slate-900 tabular-nums">
                             {formatIDR(vendor.buyPrice || 0)}
                           </span>
                         </div>
                         <div className="border-l border-gray-100 pl-3">
-                          <span className="text-[8px] uppercase font-bold text-slate-400 block tracking-wider leading-none mb-0.5">Jual (Buyback)</span>
+                          <span className="text-[8px] uppercase font-bold text-slate-400 block tracking-wider leading-none mb-0.5">{t('dashboard.gold_tracker.sell', 'JUAL (BUYBACK)')}</span>
                           <span className="text-xs font-black text-slate-700 tabular-nums">
                             {formatIDR(vendor.sellPrice || 0)}
                           </span>
@@ -253,7 +255,7 @@ export default function GoldPriceTracker() {
                       </div>
                     ) : (
                       <div className="bg-slate-50 border border-gray-100 text-slate-500 text-[9px] font-extrabold px-2.5 py-1 rounded-lg">
-                        Data tertunda
+                        {t('dashboard.gold_tracker.pending_data', 'Data tertunda')}
                       </div>
                     )}
                   </div>
@@ -267,7 +269,7 @@ export default function GoldPriceTracker() {
           <div className="border-t border-gray-50 pt-4 mt-4 flex items-center justify-between text-[9px] font-medium text-gray-400">
             <span className="flex items-center gap-1">
               <Clock size={10} />
-              Last Updated: {formatLastUpdated(data.lastUpdated)}
+              {t('dashboard.gold_tracker.last_updated', 'Terakhir Diperbarui:')} {formatLastUpdated(data.lastUpdated)}
             </span>
           </div>
         )}
@@ -282,10 +284,10 @@ export default function GoldPriceTracker() {
                 <div className="h-8 w-8 bg-amber-50 text-amber-600 rounded-lg flex items-center justify-center">
                   <Award size={16} />
                 </div>
-                <h3 className="text-base font-extrabold text-slate-900 tracking-tight">Kalkulator Estimasi Sebaran</h3>
+                <h3 className="text-base font-extrabold text-slate-900 tracking-tight">{t('dashboard.gold_tracker.calc_title', 'Kalkulator Estimasi Sebaran')}</h3>
               </div>
               <p className="text-[10px] text-gray-400 font-medium">
-                Simulasi nilai aset emas berdasarkan harga {activeVendor?.name || 'Antam'}
+                {t('dashboard.gold_tracker.calc_desc', 'Simulasi nilai aset emas berdasarkan harga {{vendor}}', { vendor: activeVendor?.name || 'Antam' })}
               </p>
             </div>
             
@@ -298,7 +300,7 @@ export default function GoldPriceTracker() {
           {/* Calculator Input Fields */}
           <div className="grid grid-cols-3 gap-3 mb-5">
             <div className="bg-slate-50 focus-within:bg-white rounded-xl p-3 border border-transparent hover:border-slate-200 focus-within:ring-2 focus-within:ring-amber-500/20 focus-within:border-amber-500 transition-all">
-              <span className="text-[8px] uppercase font-extrabold text-slate-500 block mb-1 tracking-wider">Gramasi (g)</span>
+              <span className="text-[8px] uppercase font-extrabold text-slate-500 block mb-1 tracking-wider">{t('dashboard.gold_tracker.weight', 'GRAMASI (G)')}</span>
               <input 
                 type="number" 
                 min="0.01"
@@ -309,7 +311,7 @@ export default function GoldPriceTracker() {
               />
             </div>
             <div className="bg-slate-50 focus-within:bg-white rounded-xl p-3 border border-transparent hover:border-slate-200 focus-within:ring-2 focus-within:ring-amber-500/20 focus-within:border-amber-500 transition-all relative">
-              <span className="text-[8px] uppercase font-extrabold text-slate-500 block mb-1 tracking-wider">Beli / g</span>
+              <span className="text-[8px] uppercase font-extrabold text-slate-500 block mb-1 tracking-wider">{t('dashboard.gold_tracker.buy_per_g', 'BELI / G')}</span>
               <input 
                 type={isFocusBuy ? "number" : "text"} 
                 value={displayBuyValue}
@@ -324,12 +326,12 @@ export default function GoldPriceTracker() {
                   onClick={() => setCustomBuyPrice('')}
                   className="absolute right-2 top-2 text-[8px] text-gray-400 hover:text-amber-500 font-bold px-1"
                 >
-                  Reset
+                  {t('dashboard.gold_tracker.reset', 'Reset')}
                 </button>
               )}
             </div>
             <div className="bg-slate-50 focus-within:bg-white rounded-xl p-3 border border-transparent hover:border-slate-200 focus-within:ring-2 focus-within:ring-amber-500/20 focus-within:border-amber-500 transition-all relative">
-              <span className="text-[8px] uppercase font-extrabold text-slate-500 block mb-1 tracking-wider">Jual / g</span>
+              <span className="text-[8px] uppercase font-extrabold text-slate-500 block mb-1 tracking-wider">{t('dashboard.gold_tracker.sell_per_g', 'JUAL / G')}</span>
               <input 
                 type={isFocusSell ? "number" : "text"} 
                 value={displaySellValue}
@@ -344,7 +346,7 @@ export default function GoldPriceTracker() {
                   onClick={() => setCustomSellPrice('')}
                   className="absolute right-2 top-2 text-[8px] text-gray-400 hover:text-amber-500 font-bold px-1"
                 >
-                  Reset
+                  {t('dashboard.gold_tracker.reset', 'Reset')}
                 </button>
               )}
             </div>
@@ -355,7 +357,7 @@ export default function GoldPriceTracker() {
             <div className="flex items-center justify-between">
               <div className="space-y-0.5">
                 <span className="text-[9px] uppercase font-extrabold text-gray-400 tracking-wider flex items-center gap-1">
-                  Estimasi Nilai Jual (Buyback)
+                  {t('dashboard.gold_tracker.est_sell_value', 'ESTIMASI NILAI JUAL (BUYBACK)')}
                 </span>
                 <p className="text-lg font-black text-slate-900 tabular-nums tracking-tight">
                   {formatIDR(estimatedValue)}
@@ -368,13 +370,13 @@ export default function GoldPriceTracker() {
 
             <div className="border-t border-gray-100 pt-3 flex items-center justify-between">
               <div className="space-y-0.5">
-                <span className="text-[9px] uppercase font-extrabold text-gray-400 tracking-wider block">Spread (Selisih Biaya)</span>
+                <span className="text-[9px] uppercase font-extrabold text-gray-400 tracking-wider block">{t('dashboard.gold_tracker.spread_cost', 'SPREAD (SELISIH BIAYA)')}</span>
                 <p className="text-sm font-bold text-rose-600 tabular-nums">
                   -{formatIDR(spreadValue)}
                 </p>
               </div>
               <div className="text-right">
-                <span className="text-[9px] uppercase font-extrabold text-gray-400 tracking-wider block">Persentase Selisih</span>
+                <span className="text-[9px] uppercase font-extrabold text-gray-400 tracking-wider block">{t('dashboard.gold_tracker.spread_percentage', 'PERSENTASE SELISIH')}</span>
                 <p className="text-xs font-black text-rose-600 tabular-nums">
                   {currentBuy > 0 ? ((currentBuy - currentSell) / currentBuy * 100).toFixed(1) : '0.0'}%
                 </p>
@@ -382,7 +384,7 @@ export default function GoldPriceTracker() {
             </div>
 
             <div className="border-t border-gray-100 pt-3 flex items-center justify-between" id="calculator-bep-row">
-              <span className="text-xs text-slate-500 uppercase tracking-wide font-medium">Target Harga Balik Modal (BEP)</span>
+              <span className="text-xs text-slate-500 uppercase tracking-wide font-medium">{t('dashboard.gold_tracker.bep_target', 'TARGET HARGA BALIK MODAL (BEP)')}</span>
               <span className="text-sm font-semibold text-slate-700 tabular-nums">
                 {formatIDR(currentBuy)} / gr
               </span>
@@ -393,7 +395,7 @@ export default function GoldPriceTracker() {
         <div className="mt-4 p-3 bg-indigo-50 border border-indigo-100 rounded-2xl flex gap-2.5 items-start text-[10px] text-indigo-900 font-semibold leading-relaxed">
           <Info size={14} className="shrink-0 text-indigo-600 mt-0.5" />
           <p>
-            Nilai spread (selisih beli &amp; jual) mencerminkan biaya transaksi investasi awal. Simpan logam mulia jangka panjang untuk mengompensasi spread ini.
+            {t('dashboard.gold_tracker.info_text', 'Nilai spread (selisih beli & jual) mencerminkan biaya transaksi investasi awal. Simpan logam mulia jangka panjang untuk mengompensasi spread ini.')}
           </p>
         </div>
       </div>

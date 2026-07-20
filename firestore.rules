@@ -43,7 +43,8 @@ service cloud.firestore {
              (!data.keys().hasAny(['autoCreatePeriods']) || data.autoCreatePeriods is bool) &&
              (!data.keys().hasAny(['theme']) || data.theme is string) &&
              (!data.keys().hasAny(['privacyMode']) || data.privacyMode is bool) &&
-             (!data.keys().hasAny(['defaultLandingPage']) || data.defaultLandingPage is string);
+             (!data.keys().hasAny(['defaultLandingPage']) || data.defaultLandingPage is string) &&
+             (!data.keys().hasAny(['language']) || (data.language is string && data.language.size() <= 8));
     }
 
     function isValidTransaction(data) {
@@ -95,7 +96,8 @@ service cloud.firestore {
                     incoming().diff(existing()).affectedKeys().hasOnly([
                       'monthlyBudget', 'displayName', 'phoneNumber', 'photoURL', 'updatedAt', 
                       'currency', 'financialStartDay', 'uid', 'email', 'createdAt',
-                      'firstDayOfWeek', 'autoCreatePeriods', 'theme', 'privacyMode', 'defaultLandingPage'
+                      'firstDayOfWeek', 'autoCreatePeriods', 'theme', 'privacyMode', 'defaultLandingPage',
+                      'language'
                     ]);
                     
       allow delete: if isAuthenticated() && isOwner(userId) && isValidId(userId);

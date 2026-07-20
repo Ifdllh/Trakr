@@ -1,4 +1,5 @@
 import { useState, useMemo, useEffect } from 'react';
+import { useTranslation } from 'react-i18next';
 import { Transaction, Category, BudgetPeriod, MasterAccount } from '@/types';
 import { subscribeToCollection } from '@/services/dbServices';
 import { 
@@ -21,7 +22,32 @@ interface TransactionListProps {
   transactions?: Transaction[];
 }
 
+const formatPeriodName = (name: string, lang: string) => {
+  if (!name) return '';
+  if (lang !== 'en') return name;
+  const mapping: Record<string, string> = {
+    'Januari': 'January',
+    'Februari': 'February',
+    'Maret': 'March',
+    'April': 'April',
+    'Mei': 'May',
+    'Juni': 'June',
+    'Juli': 'July',
+    'Agustus': 'August',
+    'September': 'September',
+    'Oktober': 'October',
+    'November': 'November',
+    'Desember': 'December'
+  };
+  const parts = name.split(' ');
+  if (parts.length === 2 && mapping[parts[0]]) {
+    return `${mapping[parts[0]]} ${parts[1]}`;
+  }
+  return name;
+};
+
 export default function TransactionList({ user, categories, periods, accounts = [], onEdit, onDelete, transactions: allTransactions = [] }: TransactionListProps) {
+  const { t, i18n } = useTranslation();
   const [searchTerm, setSearchTerm] = useState('');
   const [typeFilter, setTypeFilter] = useState<'semua' | 'pemasukan' | 'pengeluaran' | 'transfer'>('semua');
   const [selectedAttachmentUrl, setSelectedAttachmentUrl] = useState<string | null>(null);
@@ -140,8 +166,9 @@ export default function TransactionList({ user, categories, periods, accounts = 
   // Group transactions by date
 
   const handleExportExcel = () => {
+    const locale = i18n.language === 'en' ? 'en-US' : 'id-ID';
     const dataToExport = filteredTransactions.map(t => ({
-      'Tanggal': new Date(t.date).toLocaleDateString('id-ID', { day: '2-digit', month: 'long', year: 'numeric' }),
+      'Tanggal': new Date(t.date).toLocaleDateString(locale, { day: '2-digit', month: 'long', year: 'numeric' }),
       'Tipe': t.type === 'pemasukan' ? 'Pemasukan' : t.type === 'transfer' ? 'Transfer' : 'Pengeluaran',
       'Kategori': t.category,
       'Sumber Dana': t.accountId,
@@ -170,16 +197,17 @@ export default function TransactionList({ user, categories, periods, accounts = 
   }, [groupedTransactions]);
 
   const formatDateHeader = (dateString: string) => {
+    const locale = i18n.language === 'en' ? 'en-US' : 'id-ID';
     if (typeof dateString === 'string' && dateString.includes('-')) {
         const parts = dateString.split('T')[0].split('-');
         if (parts.length === 3) {
             const d = new Date(parseInt(parts[0]), parseInt(parts[1]) - 1, parseInt(parts[2]));
-            return d.toLocaleDateString('id-ID', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
+            return d.toLocaleDateString(locale, { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
         }
     }
     const dateObj = new Date(dateString);
     if (isNaN(dateObj.getTime())) return dateString;
-    return dateObj.toLocaleDateString('id-ID', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
+    return dateObj.toLocaleDateString(locale, { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
   };
 
   const formatIDR = (num: number) => {
@@ -240,19 +268,19 @@ export default function TransactionList({ user, categories, periods, accounts = 
       {/* Title & Stats */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
-          <h3 className="text-base font-extrabold text-gray-900">📑 Semua Transaksi</h3>
-          <p className="text-xs text-gray-400">Kelola dan telusuri semua catatan pengeluaran & pemasukan Anda</p>
+          <h3 className="text-base font-extrabold text-gray-900">{t('transactions.title')}</h3>
+          <p className="text-xs text-gray-400">{t('transactions.subtitle')}</p>
         </div>
         <div className="flex items-center gap-3 self-start">
           <div className="text-xs text-gray-500 font-semibold bg-gray-50 px-3.5 py-1.5 rounded-full border border-gray-100">
-            Menampilkan {filteredTransactions.length} dari {transactions.length} transaksi
+            {t('transactions.showing_count', { filtered_count: filteredTransactions.length, total_count: transactions.length })}
           </div>
           <button 
             onClick={handleExportExcel}
             className="flex items-center gap-1.5 px-3.5 py-1.5 text-xs font-bold text-indigo-600 bg-white border border-gray-200 rounded-full hover:bg-indigo-50 hover:border-indigo-200 transition-colors"
           >
             <Download size={14} />
-            Export Excel
+            {t('transactions.export_excel')}
           </button>
         </div>
       </div>
@@ -262,7 +290,7 @@ export default function TransactionList({ user, categories, periods, accounts = 
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2 text-xs font-bold text-gray-400 uppercase tracking-wider">
             <Filter size={14} />
-            Saring & Cari
+            {t('transactions.filter_and_search')}
           </div>
           {(typeFilter !== 'semua' || categoryFilter !== 'semua' || periodFilter !== 'semua') && (
             <button
@@ -275,7 +303,7 @@ export default function TransactionList({ user, categories, periods, accounts = 
               className="text-xs font-extrabold text-red-600 hover:text-red-700 flex items-center gap-1 transition-colors cursor-pointer"
             >
               <X size={14} />
-              Reset Filter
+              {t('transactions.reset_filter')}
             </button>
           )}
         </div>
@@ -287,7 +315,7 @@ export default function TransactionList({ user, categories, periods, accounts = 
           </div>
           <input
             type="text"
-            placeholder="Cari catatan..."
+            placeholder={t('transactions.search_placeholder')}
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
             className="w-full pl-9 pr-3 py-2.5 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 bg-white"
@@ -301,10 +329,10 @@ export default function TransactionList({ user, categories, periods, accounts = 
             onChange={(e) => setTypeFilter(e.target.value as any)}
             className="w-full px-3 py-2.5 border border-gray-200 rounded-xl text-sm bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500"
           >
-            <option value="semua">Semua Tipe</option>
-            <option value="pengeluaran">💸 Hanya Pengeluaran</option>
-            <option value="pemasukan">💰 Hanya Pemasukan</option>
-            <option value="transfer">🔄 Hanya Transfer</option>
+            <option value="semua">{t('transactions.all_types')}</option>
+            <option value="pengeluaran">{t('transactions.only_expenses')}</option>
+            <option value="pemasukan">{t('transactions.only_income')}</option>
+            <option value="transfer">{t('transactions.only_transfers')}</option>
           </select>
         </div>
 
@@ -315,7 +343,7 @@ export default function TransactionList({ user, categories, periods, accounts = 
             onChange={(e) => setCategoryFilter(e.target.value)}
             className="w-full px-3 py-2.5 border border-gray-200 rounded-xl text-sm bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500"
           >
-            <option value="semua">Semua Kategori</option>
+            <option value="semua">{t('transactions.all_categories')}</option>
             {uniqueCategoriesUsed.map((cat, idx) => (
               <option key={idx} value={cat}>{cat}</option>
             ))}
@@ -329,9 +357,9 @@ export default function TransactionList({ user, categories, periods, accounts = 
             onChange={(e) => setPeriodFilter(e.target.value)}
             className="w-full px-3 py-2.5 border border-gray-200 rounded-xl text-sm bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500"
           >
-            <option value="semua">Semua Periode</option>
+            <option value="semua">{t('transactions.all_periods')}</option>
             {periods.map((p) => (
-              <option key={p.id} value={p.id}>{p.name}</option>
+              <option key={p.id} value={p.id}>{formatPeriodName(p.name, i18n.language)}</option>
             ))}
           </select>
         </div>
@@ -347,17 +375,17 @@ export default function TransactionList({ user, categories, periods, accounts = 
         return (
           <div className="flex flex-wrap sm:flex-nowrap items-center justify-between gap-4 p-4 bg-gray-50 rounded-xl border border-gray-100">
             <div className="flex-1">
-              <p className="text-[11px] font-bold text-gray-400 uppercase tracking-wider mb-0.5">Total Pemasukan</p>
+              <p className="text-[11px] font-bold text-gray-400 uppercase tracking-wider mb-0.5">{t('transactions.total_income')}</p>
               <p className="text-base font-semibold text-emerald-600 tabular-nums">+{formatIDR(totalIncome)}</p>
             </div>
             <div className="w-px h-8 bg-gray-200 hidden sm:block"></div>
             <div className="flex-1 sm:text-center">
-              <p className="text-[11px] font-bold text-gray-400 uppercase tracking-wider mb-0.5">Total Pengeluaran</p>
+              <p className="text-[11px] font-bold text-gray-400 uppercase tracking-wider mb-0.5">{t('transactions.total_expense')}</p>
               <p className="text-base font-semibold text-red-600 tabular-nums">-{formatIDR(totalExpense)}</p>
             </div>
             <div className="w-px h-8 bg-gray-200 hidden sm:block"></div>
             <div className="flex-1 sm:text-right">
-              <p className="text-[11px] font-bold text-gray-400 uppercase tracking-wider mb-0.5">Saldo Bersih</p>
+              <p className="text-[11px] font-bold text-gray-400 uppercase tracking-wider mb-0.5">{t('transactions.net_balance')}</p>
               <p className={`text-base font-semibold tabular-nums ${netBalance >= 0 ? 'text-indigo-600' : 'text-red-600'}`}>
                 {netBalance >= 0 ? '+' : ''}{formatIDR(netBalance)}
               </p>
@@ -376,14 +404,14 @@ export default function TransactionList({ user, categories, periods, accounts = 
           </div>
         ) : isError ? (
           <div className="py-12 text-center text-red-500">
-            Terjadi kesalahan saat memuat data.
+            {t('transactions.error_loading')}
           </div>
         ) : sortedDates.length === 0 ? (
           <div className="py-12 text-center border-2 border-dashed border-gray-100 rounded-2xl">
             <BookOpen size={40} className="text-gray-300 mx-auto mb-2.5" />
-            <p className="text-sm font-bold text-gray-500">Tidak ada transaksi ditemukan</p>
+            <p className="text-sm font-bold text-gray-500">{t('transactions.no_transactions_found')}</p>
             <p className="text-xs text-gray-400 mt-1 max-w-xs mx-auto">
-              Coba sesuaikan filter pencarian atau tambahkan transaksi baru untuk memulai pencatatan.
+              {t('transactions.no_transactions_desc')}
             </p>
           </div>
         ) : (
@@ -467,9 +495,9 @@ export default function TransactionList({ user, categories, periods, accounts = 
                                 
                                 <div className="space-y-1.5 flex-1">
                                   <div className="flex flex-wrap items-center gap-2">
-                                    <span className="font-bold text-sm text-gray-800">Struk Multi-Kategori</span>
+                                    <span className="font-bold text-sm text-gray-800">{t('transactions.multi_category_receipt')}</span>
                                     <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold border bg-indigo-50 text-indigo-700 border-indigo-200">
-                                      🥞 Split ({children.length} Kategori)
+                                      {t('transactions.split_categories', { count: children.length })}
                                     </span>
                                   </div>
                                   
@@ -479,7 +507,7 @@ export default function TransactionList({ user, categories, periods, accounts = 
                                         🏦 {getAccountName(firstChild.accountId)}
                                       </span>
                                     )}
-                                    <span className="text-gray-400 font-medium">Klik untuk rincian</span>
+                                    <span className="text-gray-400 font-medium">{t('transactions.click_for_details')}</span>
                                   </div>
                                 </div>
                               </div>
@@ -493,7 +521,7 @@ export default function TransactionList({ user, categories, periods, accounts = 
                                       setSelectedAttachmentUrl(attachmentUrl);
                                     }}
                                     className="p-1.5 bg-slate-100 hover:bg-slate-200 text-slate-600 rounded-lg transition-colors cursor-pointer"
-                                    title="Lihat Struk"
+                                    title={t('transactions.view_receipt')}
                                   >
                                     <Paperclip size={16} />
                                   </button>
@@ -559,7 +587,7 @@ export default function TransactionList({ user, categories, periods, accounts = 
                                                   setSelectedAttachmentUrl(child.attachmentUrl!);
                                                 }}
                                                 className="p-1 bg-slate-100 hover:bg-slate-200 text-slate-600 rounded transition-colors cursor-pointer"
-                                                title="Lihat Struk"
+                                                title={t('transactions.view_receipt')}
                                               >
                                                 <Paperclip size={12} />
                                               </button>
@@ -573,7 +601,7 @@ export default function TransactionList({ user, categories, periods, accounts = 
                                           <div className="flex items-center gap-1.5">
                                             {confirmDeleteId === child.id ? (
                                               <div className="flex items-center gap-1 bg-red-50 p-0.5 rounded border border-red-100">
-                                                <span className="text-[9px] font-bold text-red-600 px-1">Hapus?</span>
+                                                <span className="text-[9px] font-bold text-red-600 px-1">{t('transactions.delete_confirm')}</span>
                                                 <button
                                                   onClick={(e) => {
                                                     e.stopPropagation();
@@ -582,7 +610,7 @@ export default function TransactionList({ user, categories, periods, accounts = 
                                                   }}
                                                   className="px-1.5 py-0.5 bg-red-600 text-white rounded text-[9px] font-extrabold hover:bg-red-700 transition-colors cursor-pointer"
                                                 >
-                                                  Ya
+                                                  {t('transactions.yes')}
                                                 </button>
                                                 <button
                                                   onClick={(e) => {
@@ -591,7 +619,7 @@ export default function TransactionList({ user, categories, periods, accounts = 
                                                   }}
                                                   className="px-1.5 py-0.5 bg-white text-gray-700 rounded text-[9px] font-semibold hover:bg-gray-100 transition-colors border border-gray-200 cursor-pointer"
                                                 >
-                                                  Batal
+                                                  {t('transactions.cancel')}
                                                 </button>
                                               </div>
                                             ) : (
@@ -602,7 +630,7 @@ export default function TransactionList({ user, categories, periods, accounts = 
                                                     onEdit(child);
                                                   }}
                                                   className="p-2 rounded text-slate-300 hover:text-indigo-600 hover:bg-indigo-50 transition-colors cursor-pointer"
-                                                  title="Ubah Transaksi"
+                                                  title={t('transactions.edit_transaction')}
                                                 >
                                                   <Edit2 size={15} />
                                                 </button>
@@ -612,7 +640,7 @@ export default function TransactionList({ user, categories, periods, accounts = 
                                                     setConfirmDeleteId(child.id);
                                                   }}
                                                   className="p-2 rounded text-slate-300 hover:text-red-500 hover:bg-red-50 transition-colors cursor-pointer"
-                                                  title="Hapus Transaksi"
+                                                  title={t('transactions.delete_transaction')}
                                                 >
                                                   <Trash2 size={15} />
                                                 </button>
@@ -629,59 +657,59 @@ export default function TransactionList({ user, categories, periods, accounts = 
                           </div>
                         );
                       } else {
-                        const t = item.transaction!;
+                        const tx = item.transaction!;
                         return (
                           <div 
-                            key={t.id}
+                            key={tx.id}
                             className="p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-4 transition-all hover:bg-gray-50/50 group"
                           >
                             {/* Left block (Icon, Subcategory, Category, Notes) */}
                             <div className="flex items-start gap-4 flex-1">
                               <div className={`h-11 w-11 rounded-xl flex items-center justify-center shrink-0 border ${
-                                t.type === 'pemasukan' 
+                                tx.type === 'pemasukan' 
                                   ? 'bg-emerald-50 text-emerald-600 border-emerald-100' 
-                                  : t.type === 'transfer'
+                                  : tx.type === 'transfer'
                                   ? 'bg-blue-50 text-blue-600 border-blue-100'
                                   : 'bg-red-50 text-red-600 border-red-100'
                               }`}>
-                                {t.type === 'transfer' ? <ArrowLeftRight size={20} /> : renderCategoryIcon(t.category)}
+                                {tx.type === 'transfer' ? <ArrowLeftRight size={20} /> : renderCategoryIcon(tx.category)}
                               </div>
                               
                               <div className="space-y-1.5 flex-1">
                                 <div className="flex flex-wrap items-center gap-2">
-                                  <span className="font-bold text-sm text-gray-800">{t.subcategory}</span>
+                                  <span className="font-bold text-sm text-gray-800">{tx.subcategory}</span>
                                   {(() => {
-                                    const colStyleOrClass = getCategoryColor(t.category);
+                                    const colStyleOrClass = getCategoryColor(tx.category);
                                     const isStyleObj = typeof colStyleOrClass === 'object';
                                     return (
                                       <span 
                                         className={`inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[10px] font-bold border ${isStyleObj ? '' : colStyleOrClass}`}
                                         style={isStyleObj ? colStyleOrClass : undefined}
                                       >
-                                        {t.category}
+                                        {tx.category}
                                       </span>
                                     );
                                   })()}
                                 </div>
                                 
                                 <div className="flex flex-wrap items-center gap-2.5 text-xs">
-                                  {t.accountId && t.type !== 'transfer' && (
+                                  {tx.accountId && tx.type !== 'transfer' && (
                                     <span className="font-semibold text-indigo-600 bg-indigo-50 px-2 py-0.5 rounded-md border border-indigo-100 flex items-center gap-1">
-                                      🏦 {getAccountName(t.accountId)}
+                                      🏦 {getAccountName(tx.accountId)}
                                     </span>
                                   )}
-                                  {t.type === 'transfer' && t.accountId && t.destinationAccountId && (
+                                  {tx.type === 'transfer' && tx.accountId && tx.destinationAccountId && (
                                     <span className="font-semibold text-blue-600 bg-blue-50 px-2 py-0.5 rounded-md border border-blue-100 flex items-center gap-1">
-                                      🏦 {getAccountName(t.accountId)} <ArrowLeftRight size={12} /> {getAccountName(t.destinationAccountId)}
+                                      🏦 {getAccountName(tx.accountId)} <ArrowLeftRight size={12} /> {getAccountName(tx.destinationAccountId)}
                                     </span>
                                   )}
-                                  {t.isRecurring && (
+                                  {tx.isRecurring && (
                                     <span className="font-bold text-violet-700 bg-violet-50 px-2 py-0.5 rounded-md border border-violet-100 flex items-center gap-1">
-                                      🔄 Rutin ({t.recurringFrequency === 'DAILY' ? 'Harian' : t.recurringFrequency === 'WEEKLY' ? 'Mingguan' : t.recurringFrequency === 'MONTHLY' ? 'Bulanan' : t.recurringFrequency === 'YEARLY' ? 'Tahunan' : 'Berulang'}{t.recurringEndDate ? `, s/d ${new Date(t.recurringEndDate).toLocaleDateString('id-ID')}` : ''})
+                                      🔄 {t('transactions.recurring')} ({tx.recurringFrequency === 'DAILY' ? t('transactions.daily') : tx.recurringFrequency === 'WEEKLY' ? t('transactions.weekly') : tx.recurringFrequency === 'MONTHLY' ? t('transactions.monthly') : tx.recurringFrequency === 'YEARLY' ? t('transactions.yearly') : t('transactions.recurring_other')}{tx.recurringEndDate ? `, ${t('transactions.until')} ${new Date(tx.recurringEndDate).toLocaleDateString(i18n.language === 'en' ? 'en-US' : 'id-ID')}` : ''})
                                     </span>
                                   )}
-                                  {t.description && (
-                                    <span className="text-gray-500 font-medium">💬 {t.description}</span>
+                                  {tx.description && (
+                                    <span className="text-gray-500 font-medium">💬 {tx.description}</span>
                                   )}
                                 </div>
                               </div>
@@ -690,54 +718,54 @@ export default function TransactionList({ user, categories, periods, accounts = 
                             {/* Right block (Amount and Actions) */}
                             <div className="flex sm:flex-col items-center sm:items-end justify-between sm:justify-center gap-3">
                               <div className="flex items-center gap-2">
-                                {t.attachmentUrl && (
+                                {tx.attachmentUrl && (
                                   <button
-                                    onClick={() => setSelectedAttachmentUrl(t.attachmentUrl!)}
+                                    onClick={() => setSelectedAttachmentUrl(tx.attachmentUrl!)}
                                     className="p-1.5 bg-slate-100 hover:bg-slate-200 text-slate-600 rounded-lg transition-colors cursor-pointer"
-                                    title="Lihat Struk"
+                                    title={t('transactions.view_receipt')}
                                   >
                                     <Paperclip size={16} />
                                   </button>
                                 )}
-                                <span className={`text-sm font-black tabular-nums ${t.type === 'pemasukan' ? 'text-emerald-700' : t.type === 'transfer' ? 'text-blue-600' : 'text-red-600'}`}>
-                                  {t.type === 'pemasukan' ? '+' : t.type === 'transfer' ? '⇄' : '-'} {formatIDR(t.amount)}
+                                <span className={`text-sm font-black tabular-nums ${tx.type === 'pemasukan' ? 'text-emerald-700' : tx.type === 'transfer' ? 'text-blue-600' : 'text-red-600'}`}>
+                                  {tx.type === 'pemasukan' ? '+' : tx.type === 'transfer' ? '⇄' : '-'} {formatIDR(tx.amount)}
                                 </span>
                               </div>
                               
                               {/* Actions */}
                               <div className="flex items-center gap-1.5">
-                                {confirmDeleteId === t.id ? (
+                                {confirmDeleteId === tx.id ? (
                                   <div className="flex items-center gap-1 animate-fade-in bg-red-50 p-1 rounded-lg border border-red-100">
-                                    <span className="text-[10px] font-bold text-red-600 px-1">Hapus?</span>
+                                    <span className="text-[10px] font-bold text-red-600 px-1">{t('transactions.delete_confirm')}</span>
                                     <button
                                       onClick={async () => {
-                                        await onDelete(t.id);
+                                        await onDelete(tx.id);
                                         setConfirmDeleteId(null);
                                       }}
                                       className="px-2 py-1 bg-red-600 text-white rounded text-[10px] font-extrabold hover:bg-red-700 transition-colors cursor-pointer"
                                     >
-                                      Ya
+                                      {t('transactions.yes')}
                                     </button>
                                     <button
                                       onClick={() => setConfirmDeleteId(null)}
                                       className="px-2 py-1 bg-white text-gray-700 rounded text-[10px] font-semibold hover:bg-gray-100 transition-colors border border-gray-200 cursor-pointer"
                                     >
-                                      Batal
+                                      {t('transactions.cancel')}
                                     </button>
                                   </div>
                                 ) : (
                                   <>
                                     <button
-                                      onClick={() => onEdit(t)}
+                                      onClick={() => onEdit(tx)}
                                       className="p-2 rounded-lg text-slate-300 hover:text-indigo-600 hover:bg-indigo-50 transition-colors cursor-pointer"
-                                      title="Ubah Transaksi"
+                                      title={t('transactions.edit_transaction')}
                                     >
                                       <Edit2 size={16} />
                                     </button>
                                     <button
-                                      onClick={() => setConfirmDeleteId(t.id)}
+                                      onClick={() => setConfirmDeleteId(tx.id)}
                                       className="p-2 rounded-lg text-slate-300 hover:text-red-500 hover:bg-red-50 transition-colors cursor-pointer"
-                                      title="Hapus Transaksi"
+                                      title={t('transactions.delete_transaction')}
                                     >
                                       <Trash2 size={16} />
                                     </button>
@@ -778,7 +806,7 @@ export default function TransactionList({ user, categories, periods, accounts = 
               {/* Header */}
               <div className="flex items-center justify-between px-6 py-4 bg-slate-950 border-b border-slate-800">
                 <span className="text-sm font-bold text-slate-200 flex items-center gap-2">
-                  🧾 Bukti Fisik Struk Transaksi
+                  🧾 {t('transactions.receipt_proof')}
                 </span>
                 <div className="flex items-center gap-2">
                   <a
@@ -786,14 +814,14 @@ export default function TransactionList({ user, categories, periods, accounts = 
                     target="_blank"
                     rel="noreferrer"
                     className="p-2 text-slate-400 hover:text-white hover:bg-slate-800 rounded-lg transition-colors"
-                    title="Buka di Tab Baru"
+                    title={t('transactions.open_new_tab')}
                   >
                     <Download size={18} />
                   </a>
                   <button
                     onClick={() => setSelectedAttachmentUrl(null)}
                     className="p-2 text-slate-400 hover:text-white hover:bg-slate-800 rounded-lg transition-colors cursor-pointer"
-                    title="Tutup"
+                    title={t('transactions.close')}
                   >
                     <X size={18} />
                   </button>

@@ -3,6 +3,7 @@ import { Plus, HelpCircle } from 'lucide-react';
 import * as LucideIcons from 'lucide-react';
 import { Category } from '@/types';
 import { useToast } from '@/context/ToastContext';
+import { useTranslation } from 'react-i18next';
 
 const COMMON_ICONS = [
   'Folder', 'ShoppingBag', 'Utensils', 'Car', 'Receipt', 
@@ -50,6 +51,7 @@ export default function CreateMasterCategoryModal({
   allCategories
 }: CreateMasterCategoryModalProps) {
   const { showToast } = useToast();
+  const { t } = useTranslation();
   // If editing, use existing properties
   const [formData, setFormData] = useState<any>(
     categoryToEdit 
@@ -163,11 +165,11 @@ export default function CreateMasterCategoryModal({
       }
       
       if (categoryToEdit) {
-        showToast('Kategori berhasil diubah.', 'success');
+        showToast(t('toast.success.update') || 'Kategori berhasil diubah.', 'success');
       } else if (formData.parentCategory) {
-        showToast('Sub-kategori berhasil ditambahkan.', 'success');
+        showToast(t('toast.success.create') || 'Sub-kategori berhasil ditambahkan.', 'success');
       } else {
-        showToast('Kategori berhasil ditambahkan.', 'success');
+        showToast(t('toast.success.create') || 'Kategori berhasil ditambahkan.', 'success');
       }
       
       if (onSuccess && !categoryToEdit) {
@@ -187,7 +189,7 @@ export default function CreateMasterCategoryModal({
       <div className="bg-white rounded-3xl w-full max-w-md overflow-hidden shadow-2xl flex flex-col max-h-[90vh]">
         <div className="p-6 border-b border-gray-100 flex justify-between items-center bg-gray-50">
           <h3 className="text-lg font-black text-gray-900">
-            {categoryToEdit ? 'Ubah' : 'Tambah'} Master {formData.parentCategory ? 'Sub-Kategori' : 'Kategori'}
+            {categoryToEdit ? t('master_data.edit_master_category') : (formData.parentCategory ? t('master_data.add_master_subcategory') : t('master_data.add_master_category'))}
           </h3>
           <button onClick={onClose} className="text-gray-400 hover:bg-gray-200 p-2 rounded-full cursor-pointer">
             <Plus size={20} className="rotate-45" />
@@ -196,12 +198,12 @@ export default function CreateMasterCategoryModal({
         <div className="p-6 overflow-y-auto">
           <form onSubmit={handleSubmit} className="space-y-4">
             <div>
-              <label className="text-sm font-bold text-gray-700 mb-1 block">Tipe Master Data</label>
-              <input disabled type="text" value={formData.type === 'pengeluaran' ? 'Kategori Pengeluaran' : 'Kategori Pemasukan'} className="w-full border border-gray-200 rounded-xl px-4 py-3 bg-gray-50 text-gray-500" />
+              <label className="text-sm font-bold text-gray-700 mb-1 block">{t('master_data.master_data_type')}</label>
+              <input disabled type="text" value={formData.type === 'pengeluaran' ? t('master_data.tab_expense_categories') : t('master_data.tab_income_categories')} className="w-full border border-gray-200 rounded-xl px-4 py-3 bg-gray-50 text-gray-500" />
             </div>
             {formData.parentCategory && (
               <div>
-                <label className="text-sm font-bold text-gray-700 mb-1 block">Induk Kategori</label>
+                <label className="text-sm font-bold text-gray-700 mb-1 block">{t('master_data.parent_category')}</label>
                 <input disabled type="text" value={formData.parentCategory} className="w-full border border-gray-200 rounded-xl px-4 py-3 bg-gray-50 text-gray-500" />
               </div>
             )}
@@ -209,7 +211,7 @@ export default function CreateMasterCategoryModal({
             {!formData.parentCategory && (
               <>
                 <div>
-                  <label className="text-sm font-bold text-gray-700 mb-2 block font-sans">Pilih Ikon</label>
+                  <label className="text-sm font-bold text-gray-700 mb-2 block font-sans">{t('master_data.select_icon')}</label>
                   <div className="flex gap-2 overflow-x-auto pb-2 no-scrollbar">
                     {COMMON_ICONS.map(iconName => {
                       const IconComp = (LucideIcons as any)[iconName] || HelpCircle;
@@ -238,7 +240,7 @@ export default function CreateMasterCategoryModal({
                 </div>
 
                 <div>
-                  <label className="text-sm font-bold text-gray-700 mb-2 block font-sans">Pilih Warna</label>
+                  <label className="text-sm font-bold text-gray-700 mb-2 block font-sans">{t('master_data.select_color')}</label>
                   <div className="flex gap-3 overflow-x-auto pb-1.5 no-scrollbar">
                     {SWATCH_COLORS.map(color => {
                       const isSelected = selectedColor === color.hex;
@@ -269,15 +271,17 @@ export default function CreateMasterCategoryModal({
             )}
 
             <div>
-              <label className="text-sm font-bold text-gray-700 mb-1 block">Nama {formData.parentCategory ? 'Sub-Kategori' : 'Kategori'}</label>
+              <label className="text-sm font-bold text-gray-700 mb-1 block">
+                {formData.parentCategory ? t('master_data.subcategory_name') : t('master_data.category_name')}
+              </label>
               <input required type="text" value={formData.name || ''} onChange={e => setFormData({...formData, name: e.target.value})} className="w-full border border-gray-200 rounded-xl px-4 py-3 focus:outline-none focus:ring-2 focus:ring-indigo-500" />
             </div>
-            <p className="text-xs text-amber-600 mt-2 font-medium">Catatan: Data kustom akan ditambahkan bersama master data standar Trakr.</p>
+            <p className="text-xs text-amber-600 mt-2 font-medium">{t('master_data.note_custom_data')}</p>
             
             <div className="flex gap-3 pt-4 border-t border-gray-100">
-              <button type="button" onClick={onClose} className="flex-1 py-3 px-4 bg-gray-50 text-gray-700 font-bold rounded-xl hover:bg-gray-100 transition-colors cursor-pointer">Batal</button>
+              <button type="button" onClick={onClose} className="flex-1 py-3 px-4 bg-gray-50 text-gray-700 font-bold rounded-xl hover:bg-gray-100 transition-colors cursor-pointer">{t('master_data.cancel_btn')}</button>
               <button type="submit" disabled={isSubmitting} className="flex-1 py-3 px-4 bg-indigo-600 text-white font-bold rounded-xl hover:bg-indigo-700 transition-colors disabled:opacity-50 cursor-pointer">
-                {isSubmitting ? 'Menyimpan...' : 'Simpan'}
+                {isSubmitting ? (t('budgets.saving_loading') || 'Menyimpan...') : t('master_data.save_btn')}
               </button>
             </div>
           </form>

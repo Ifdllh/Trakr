@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { HelpCircle, X } from 'lucide-react';
 import * as LucideIcons from 'lucide-react';
 import { useToast } from '@/context/ToastContext';
+import { useTranslation } from 'react-i18next';
 
 const COMMON_ICONS = [
   'Folder', 'ShoppingBag', 'Utensils', 'Car', 'Receipt', 
@@ -28,6 +29,7 @@ export default function CreateSubCategoryModal({
   type 
 }: CreateSubCategoryModalProps) {
   const { showToast } = useToast();
+  const { t } = useTranslation();
   const [name, setName] = useState('');
   const [iconName, setIconName] = useState('Folder');
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -35,7 +37,7 @@ export default function CreateSubCategoryModal({
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!name.trim()) {
-      showToast('Nama sub-kategori tidak boleh kosong', 'error');
+      showToast(t('toast.error.empty_name') || 'Nama sub-kategori tidak boleh kosong', 'error');
       return;
     }
 
@@ -53,7 +55,7 @@ export default function CreateSubCategoryModal({
       };
       
       const newId = await onSave('customCategories', dataToSave);
-      showToast('Sub-kategori berhasil ditambahkan.', 'success');
+      showToast(t('master_data.toast_master_add_success') || 'Sub-kategori berhasil ditambahkan.', 'success');
       
       if (onSuccess) {
         onSuccess(newId || name.trim(), name.trim());
@@ -73,9 +75,9 @@ export default function CreateSubCategoryModal({
         <div className="p-6 border-b border-gray-100 flex justify-between items-center bg-gray-50/50">
           <div>
             <h3 className="text-lg font-black text-gray-900">
-              Tambah Sub-Kategori Baru
+              {t('master_data.add_master_subcategory')}
             </h3>
-            <p className="text-xs text-gray-500 mt-0.5">Menambahkan sub-kategori kustom</p>
+            <p className="text-xs text-gray-500 mt-0.5">{t('master_data.add_custom_subcategory_desc')}</p>
           </div>
           <button 
             onClick={onClose} 
@@ -92,7 +94,7 @@ export default function CreateSubCategoryModal({
             {/* Visual Parent Lock */}
             <div>
               <label className="text-xs font-bold text-gray-500 uppercase tracking-wider mb-1 block">
-                Kategori Induk (Terkunci)
+                {t('master_data.parent_category_locked')}
               </label>
               <div className="relative">
                 <input 
@@ -110,12 +112,12 @@ export default function CreateSubCategoryModal({
             {/* Type Information */}
             <div>
               <label className="text-xs font-bold text-gray-500 uppercase tracking-wider mb-1 block">
-                Tipe Transaksi
+                {t('master_data.transaction_type')}
               </label>
               <input 
                 disabled 
                 type="text" 
-                value={type === 'pengeluaran' ? '🔴 Pengeluaran' : '🟢 Pemasukan'} 
+                value={type === 'pengeluaran' ? '🔴 ' + t('master_data.tab_expense_categories').replace('💸 ', '') : '🟢 ' + t('master_data.tab_income_categories').replace('💰 ', '')} 
                 className="w-full border border-gray-200 rounded-xl px-4 py-3 bg-gray-50 text-gray-500 font-medium select-none cursor-not-allowed" 
               />
             </div>
@@ -123,7 +125,7 @@ export default function CreateSubCategoryModal({
             {/* Icon Picker */}
             <div>
               <label className="text-xs font-bold text-gray-500 uppercase tracking-wider mb-2 block">
-                Pilih Ikon
+                {t('master_data.select_icon')}
               </label>
               <div className="flex gap-2 overflow-x-auto pb-2 no-scrollbar">
                 {COMMON_ICONS.map(name => {
@@ -149,12 +151,12 @@ export default function CreateSubCategoryModal({
             {/* Sub-Category Name Input */}
             <div>
               <label className="text-xs font-bold text-gray-700 uppercase tracking-wider mb-1 block">
-                Nama Sub-Kategori Baru
+                {t('master_data.subcategory_name')}
               </label>
               <input 
                 required 
                 type="text" 
-                placeholder="Contoh: McD, Starbucks, Bensin..." 
+                placeholder={t('master_data.subcategory_placeholder')} 
                 value={name} 
                 onChange={e => setName(e.target.value)} 
                 className="w-full border border-gray-200 rounded-xl px-4 py-3 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-all font-medium text-gray-800" 
@@ -162,7 +164,7 @@ export default function CreateSubCategoryModal({
             </div>
 
             <p className="text-xs text-amber-600 mt-2 font-semibold bg-amber-50/50 p-2.5 rounded-lg border border-amber-100">
-              💡 Catatan: Sub-kategori baru ini akan langsung ditambahkan ke kategori utama "{parentCategoryName}" dan terpilih secara otomatis.
+              {t('master_data.subcategory_note', { parent: parentCategoryName })}
             </p>
             
             {/* Action Buttons */}
@@ -172,7 +174,7 @@ export default function CreateSubCategoryModal({
                 onClick={onClose} 
                 className="flex-1 py-3 px-4 bg-gray-50 text-gray-700 font-bold rounded-xl hover:bg-gray-100 transition-colors cursor-pointer"
               >
-                Batal
+                {t('master_data.cancel_btn')}
               </button>
               <button 
                 type="submit" 
@@ -181,7 +183,7 @@ export default function CreateSubCategoryModal({
               >
                 {isSubmitting ? (
                   <div className="h-5 w-5 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
-                ) : 'Simpan'}
+                ) : t('master_data.save_btn')}
               </button>
             </div>
           </form>

@@ -4,6 +4,7 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import { Plus } from 'lucide-react';
 import { useToast } from '@/context/ToastContext';
+import { useTranslation } from 'react-i18next';
 
 const indonesianMonths: Record<string, number> = {
   januari: 0, jan: 0,
@@ -90,6 +91,7 @@ export default function CreateMasterPeriodModal({
   periods = []
 }: CreateMasterPeriodModalProps) {
   const { showToast } = useToast();
+  const { t } = useTranslation();
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   const { register, handleSubmit, setValue, watch, formState: { errors } } = useForm<PeriodFormValues>({
@@ -116,10 +118,10 @@ export default function CreateMasterPeriodModal({
     setIsSubmitting(true);
     try {
       await onSave('periods', { ...values, isActive: true }, periodToEdit?.id);
-      showToast('Periode berhasil disimpan.', 'success');
+      showToast(t('master_data.toast_save_success') || 'Periode berhasil disimpan.', 'success');
       onClose();
     } catch (err: any) {
-      showToast(err.message || 'Gagal menyimpan master data periode.', 'error');
+      showToast(err.message || t('master_data.toast_save_fail') || 'Gagal menyimpan master data periode.', 'error');
     } finally {
       setIsSubmitting(false);
     }
@@ -185,7 +187,7 @@ export default function CreateMasterPeriodModal({
       <div className="bg-white rounded-3xl w-full max-w-md overflow-hidden shadow-2xl flex flex-col max-h-[90vh]">
         <div className="p-6 border-b border-gray-100 flex justify-between items-center bg-gray-50">
           <h3 className="text-lg font-black text-gray-900">
-            {periodToEdit ? 'Ubah' : 'Tambah'} Master Periode
+            {periodToEdit ? t('master_data.edit_master_period') : t('master_data.add_master_period')}
           </h3>
           <button 
             type="button"
@@ -198,7 +200,7 @@ export default function CreateMasterPeriodModal({
         <div className="p-6 overflow-y-auto">
           <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
             <div>
-              <label className="text-xs font-black text-slate-500 uppercase mb-1.5 block">Nama Periode Baru</label>
+              <label className="text-xs font-black text-slate-500 uppercase mb-1.5 block">{t('master_data.new_period_name')}</label>
               <input 
                 {...register('name', {
                   onChange: (e) => handleNameChange(e.target.value)
@@ -207,18 +209,20 @@ export default function CreateMasterPeriodModal({
                 className={`w-full border rounded-xl px-4 py-3 text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-indigo-500 ${
                   isDuplicateName ? 'border-red-300' : 'border-gray-200'
                 }`}
-                placeholder="Contoh: Maret 2026" 
+                placeholder={t('master_data.example_period') || 'Contoh: Maret 2026'} 
               />
               {isDuplicateName && (
-                <p className="mt-1 text-xs font-bold text-red-600">⚠️ Periode ini sudah terdaftar di Master Data</p>
+                <p className="mt-1 text-xs font-bold text-red-600">{t('master_data.duplicate_period_warning')}</p>
               )}
               {errors.name && !isDuplicateName && (
-                <p className="mt-1 text-xs font-bold text-red-600">{errors.name.message}</p>
+                <p className="mt-1 text-xs font-bold text-red-600">
+                  {errors.name.message === 'Nama periode wajib diisi' ? t('master_data.validation_period_name_required') : errors.name.message}
+                </p>
               )}
             </div>
 
             <div>
-              <label className="text-xs font-black text-slate-500 uppercase mb-1.5 block">Tanggal Mulai</label>
+              <label className="text-xs font-black text-slate-500 uppercase mb-1.5 block">{t('master_data.start_date')}</label>
               <div className="relative">
                 <div className="w-full border border-gray-200 rounded-xl px-4 py-3 text-xs font-semibold bg-gray-50 text-gray-500 cursor-not-allowed flex items-center justify-between min-h-[44px]">
                   <span>
@@ -233,12 +237,14 @@ export default function CreateMasterPeriodModal({
                 />
               </div>
               {errors.startDate && (
-                <p className="mt-1 text-xs font-bold text-red-600">{errors.startDate.message}</p>
+                <p className="mt-1 text-xs font-bold text-red-600">
+                  {errors.startDate.message === 'Tanggal mulai wajib diisi' ? t('master_data.validation_start_date_required') : errors.startDate.message}
+                </p>
               )}
             </div>
 
             <div>
-              <label className="text-xs font-black text-slate-500 uppercase mb-1.5 block">Tanggal Berakhir</label>
+              <label className="text-xs font-black text-slate-500 uppercase mb-1.5 block">{t('master_data.end_date')}</label>
               <div className="relative">
                 <div className="w-full border border-gray-200 rounded-xl px-4 py-3 text-xs font-semibold bg-gray-50 text-gray-500 cursor-not-allowed flex items-center justify-between min-h-[44px]">
                   <span>
@@ -253,7 +259,9 @@ export default function CreateMasterPeriodModal({
                 />
               </div>
               {errors.endDate && (
-                <p className="mt-1 text-xs font-bold text-red-600">{errors.endDate.message}</p>
+                <p className="mt-1 text-xs font-bold text-red-600">
+                  {errors.endDate.message === 'Tanggal berakhir wajib diisi' ? t('master_data.validation_end_date_required') : errors.endDate.message === 'Tanggal Berakhir tidak boleh lebih awal dari Tanggal Mulai' ? t('master_data.validation_end_date_before_start') : errors.endDate.message}
+                </p>
               )}
             </div>
 
@@ -264,14 +272,14 @@ export default function CreateMasterPeriodModal({
                 disabled={isSubmitting}
                 className="flex-1 py-3 px-4 bg-gray-50 text-gray-700 font-bold rounded-xl text-xs hover:bg-gray-100 transition-colors border border-gray-100 cursor-pointer"
               >
-                Batal
+                {t('master_data.cancel_btn')}
               </button>
               <button 
                 type="submit" 
                 disabled={isSaveDisabled} 
                 className="flex-1 bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-3 px-4 rounded-xl text-xs transition-colors disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
               >
-                {isSubmitting ? 'Menyimpan...' : 'Simpan'}
+                {isSubmitting ? (t('budgets.saving_loading') || 'Menyimpan...') : t('master_data.save_btn')}
               </button>
             </div>
           </form>

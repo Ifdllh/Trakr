@@ -1,5 +1,5 @@
 import { initializeApp, getApps } from 'firebase/app';
-import { getAuth, GoogleAuthProvider, setPersistence, browserLocalPersistence, Auth } from 'firebase/auth';
+import { getAuth, GoogleAuthProvider, setPersistence, browserSessionPersistence, Auth } from 'firebase/auth';
 import { initializeFirestore, persistentLocalCache, persistentMultipleTabManager, Firestore } from 'firebase/firestore';
 
 const devFirebaseConfig = {
@@ -22,14 +22,14 @@ const prdFirebaseConfig = {
 
 export const devApp = getApps().find(app => app.name === 'dev') || initializeApp(devFirebaseConfig, 'dev');
 export const devAuth = getAuth(devApp);
-setPersistence(devAuth, browserLocalPersistence).catch(() => {});
+setPersistence(devAuth, browserSessionPersistence).catch(() => {});
 
 let _prdApp;
 let _prdAuth: Auth | null = null;
 if (prdFirebaseConfig.projectId) {
   _prdApp = getApps().find(app => app.name === 'prd') || initializeApp(prdFirebaseConfig, 'prd');
   _prdAuth = getAuth(_prdApp);
-  setPersistence(_prdAuth, browserLocalPersistence).catch(() => {});
+  setPersistence(_prdAuth, browserSessionPersistence).catch(() => {});
 }
 export const prdApp = _prdApp;
 export const prdAuth = _prdAuth;

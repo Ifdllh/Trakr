@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { useTranslation } from 'react-i18next';
 import CreateMasterAccountModal from '@/components/ui/CreateMasterAccountModal';
 import CreateMasterCategoryModal from '@/components/ui/CreateMasterCategoryModal';
 import CreateMasterPeriodModal from '@/components/ui/CreateMasterPeriodModal';
@@ -18,6 +19,7 @@ import {
 import * as LucideIcons from 'lucide-react';
 
 interface CategoryManagerProps {
+  user?: any;
   categories: Category[];
   customCategories: any[];
   periods: BudgetPeriod[];
@@ -45,6 +47,7 @@ interface DeleteConfirmationModalProps {
 }
 
 function DeleteConfirmationModal({ onClose, onConfirm, title, message }: DeleteConfirmationModalProps) {
+  const { t } = useTranslation();
   const { showToast } = useToast();
   const [isDeleting, setIsDeleting] = useState(false);
 
@@ -62,7 +65,7 @@ function DeleteConfirmationModal({ onClose, onConfirm, title, message }: DeleteC
             disabled={isDeleting}
             className="flex-1 py-2.5 rounded-xl bg-gray-50 text-gray-700 font-bold hover:bg-gray-100 transition-all text-xs cursor-pointer border border-gray-100"
           >
-            Batal
+            {t('cancel') || 'Batal'}
           </button>
           <button
             onClick={async () => {
@@ -71,7 +74,7 @@ function DeleteConfirmationModal({ onClose, onConfirm, title, message }: DeleteC
                 await onConfirm();
                 onClose();
               } catch (err: any) {
-                const errMsg = err.response?.data?.error || err.response?.data?.message || err.message || 'Gagal menghapus';
+                const errMsg = err.response?.data?.error || err.response?.data?.message || err.message || t('master_data.toast_delete_fail') || 'Gagal menghapus';
                 showToast(errMsg, 'error');
               } finally {
                 setIsDeleting(false);
@@ -80,7 +83,7 @@ function DeleteConfirmationModal({ onClose, onConfirm, title, message }: DeleteC
             disabled={isDeleting}
             className="flex-1 py-2.5 rounded-xl bg-red-600 text-white font-bold hover:bg-red-700 transition-all text-xs disabled:opacity-50 cursor-pointer"
           >
-            {isDeleting ? 'Memproses...' : 'Ya, Hapus'}
+            {isDeleting ? (t('master_data.deleting') || 'Memproses...') : (t('confirm.btn.yes_delete') || 'Ya, Hapus')}
           </button>
         </div>
       </div>
@@ -96,6 +99,7 @@ interface RenameSubcategoryModalProps {
 }
 
 function RenameSubcategoryModal({ onClose, onConfirm, oldName }: RenameSubcategoryModalProps) {
+  const { t } = useTranslation();
   const { showToast } = useToast();
   const [newName, setNewName] = useState(oldName);
   const [isSaving, setIsSaving] = useState(false);
@@ -104,17 +108,17 @@ function RenameSubcategoryModal({ onClose, onConfirm, oldName }: RenameSubcatego
     <div className="fixed inset-0 z-[70] flex items-center justify-center bg-black/50 backdrop-blur-sm p-4 animate-fade-in">
       <div className="bg-white rounded-3xl w-full max-w-sm overflow-hidden shadow-2xl p-6 space-y-4 border border-gray-100">
         <h4 className="text-sm font-extrabold text-gray-900 flex items-center gap-2">
-          📝 Ubah Nama Sub-Kategori
+          📝 {t('master_data.rename_subcategory_title') || 'Ubah Nama Sub-Kategori'}
         </h4>
         <div>
-          <label className="text-[10px] font-black text-gray-400 uppercase mb-1.5 block">Nama Sub-Kategori</label>
+          <label className="text-[10px] font-black text-gray-400 uppercase mb-1.5 block">{t('master_data.rename_subcategory_label') || 'Nama Sub-Kategori'}</label>
           <input
             required
             type="text"
             value={newName}
             onChange={e => setNewName(e.target.value)}
             className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-indigo-500"
-            placeholder="Masukkan nama baru..."
+            placeholder={t('master_data.rename_subcategory_placeholder') || 'Masukkan nama baru...'}
           />
         </div>
         <div className="flex gap-3 pt-2">
@@ -123,7 +127,7 @@ function RenameSubcategoryModal({ onClose, onConfirm, oldName }: RenameSubcatego
             disabled={isSaving}
             className="flex-1 py-2.5 rounded-xl bg-gray-50 text-gray-700 font-bold hover:bg-gray-100 transition-all text-xs cursor-pointer border border-gray-100"
           >
-            Batal
+            {t('cancel') || 'Batal'}
           </button>
           <button
             onClick={async () => {
@@ -137,7 +141,7 @@ function RenameSubcategoryModal({ onClose, onConfirm, oldName }: RenameSubcatego
                 await onConfirm(trimmed);
                 onClose();
               } catch (err: any) {
-                showToast(err.message || 'Gagal mengubah nama', 'error');
+                showToast(err.message || t('master_data.toast_save_fail') || 'Gagal mengubah nama', 'error');
               } finally {
                 setIsSaving(false);
               }
@@ -145,7 +149,7 @@ function RenameSubcategoryModal({ onClose, onConfirm, oldName }: RenameSubcatego
             disabled={isSaving}
             className="flex-1 py-2.5 rounded-xl bg-indigo-600 text-white font-bold hover:bg-indigo-700 transition-all text-xs disabled:opacity-50 cursor-pointer"
           >
-            {isSaving ? 'Menyimpan...' : 'Simpan'}
+            {isSaving ? (t('form.saving_preferences') || 'Menyimpan...') : (t('master_data.save') || 'Simpan')}
           </button>
         </div>
       </div>
@@ -161,6 +165,7 @@ export default function CategoryManager({
   onSaveMasterData, onDeleteMasterData, onRefreshData,
   globalAddTrigger
 }: CategoryManagerProps) {
+  const { t, i18n } = useTranslation();
   const { showToast } = useToast();
   const [activeTab, setActiveTab] = useState<'pengeluaran' | 'pemasukan' | 'periode' | 'rekening' | 'aset' | 'tag' | 'kontak'>('pengeluaran');
   
@@ -464,11 +469,11 @@ export default function CategoryManager({
     today.setHours(0, 0, 0, 0);
     
     if (today < start) {
-      return { label: 'Mendatang', color: 'bg-blue-50 text-blue-700 border-blue-200/60' };
+      return { label: t('master_data.status_upcoming') || 'Mendatang', color: 'bg-blue-50 text-blue-700 border-blue-200/60' };
     } else if (today > end) {
-      return { label: 'Selesai', color: 'bg-slate-100 text-slate-600 border-slate-200/60' };
+      return { label: t('master_data.status_finished') || 'Selesai', color: 'bg-slate-100 text-slate-600 border-slate-200/60' };
     } else {
-      return { label: 'Aktif', color: 'bg-emerald-50 text-emerald-700 border-emerald-200/60' };
+      return { label: t('master_data.status_active') || 'Aktif', color: 'bg-emerald-50 text-emerald-700 border-emerald-200/60' };
     }
   };
 
@@ -505,8 +510,8 @@ export default function CategoryManager({
       {/* Title & Description */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
-          <h3 className="text-base font-extrabold text-gray-900">📚 Master Data</h3>
-          <p className="text-xs text-gray-400">Master database kategori dan periode untuk klasifikasi dan anggaran</p>
+          <h3 className="text-base font-extrabold text-gray-900">{t('master_data.title') || '📚 Master Data'}</h3>
+          <p className="text-xs text-gray-400">{t('master_data.subtitle') || 'Master database kategori dan periode untuk klasifikasi dan anggaran'}</p>
         </div>
       </div>
 
@@ -519,7 +524,7 @@ export default function CategoryManager({
               activeTab === 'pengeluaran' ? 'bg-white text-red-600 shadow-xs' : 'text-gray-400 hover:text-gray-600'
             }`}
           >
-            💸 Kategori Pengeluaran
+            {t('master_data.tab_expense_categories') || '💸 Kategori Pengeluaran'}
           </button>
           <button
             onClick={() => setActiveTab('pemasukan')}
@@ -527,7 +532,7 @@ export default function CategoryManager({
               activeTab === 'pemasukan' ? 'bg-white text-emerald-600 shadow-xs' : 'text-gray-400 hover:text-gray-600'
             }`}
           >
-            💰 Kategori Pemasukan
+            {t('master_data.tab_income_categories') || '💰 Kategori Pemasukan'}
           </button>
           <button
             onClick={() => setActiveTab('periode')}
@@ -535,7 +540,7 @@ export default function CategoryManager({
               activeTab === 'periode' ? 'bg-white text-indigo-700 shadow-xs' : 'text-gray-400 hover:text-gray-600'
             }`}
           >
-            📅 Master Periode
+            {t('master_data.tab_periods') || '📅 Master Periode'}
           </button>
           <button
             onClick={() => setActiveTab('rekening')}
@@ -543,7 +548,7 @@ export default function CategoryManager({
               activeTab === 'rekening' ? 'bg-white text-indigo-700 shadow-xs' : 'text-gray-400 hover:text-gray-600'
             }`}
           >
-            💳 Master Rekening
+            {t('master_data.tab_accounts') || '💳 Master Rekening'}
           </button>
           <button
             onClick={() => setActiveTab('aset')}
@@ -551,7 +556,7 @@ export default function CategoryManager({
               activeTab === 'aset' ? 'bg-white text-indigo-700 shadow-xs' : 'text-gray-400 hover:text-gray-600'
             }`}
           >
-            📈 Master Aset
+            {t('master_data.tab_assets') || '📈 Master Aset'}
           </button>
           <button
             onClick={() => setActiveTab('tag')}
@@ -559,7 +564,7 @@ export default function CategoryManager({
               activeTab === 'tag' ? 'bg-white text-indigo-700 shadow-xs' : 'text-gray-400 hover:text-gray-600'
             }`}
           >
-            🏷️ Master Tag/Proyek
+            {t('master_data.tab_tags') || '🏷️ Master Tag/Proyek'}
           </button>
           <button
             onClick={() => setActiveTab('kontak')}
@@ -567,7 +572,7 @@ export default function CategoryManager({
               activeTab === 'kontak' ? 'bg-white text-indigo-700 shadow-xs' : 'text-gray-400 hover:text-gray-600'
             }`}
           >
-            👥 Master Kontak
+            {t('master_data.tab_contacts') || '👥 Master Kontak'}
           </button>
         </div>
       </div>
@@ -578,7 +583,7 @@ export default function CategoryManager({
           <div className="relative w-full sm:max-w-xs">
             <input
               type="text"
-              placeholder="Cari kategori atau sub-kategori..."
+              placeholder={t('master_data.search_categories_placeholder') || 'Cari kategori atau sub-kategori...'}
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               className="w-full bg-gray-50 border border-gray-200 rounded-xl pl-9 pr-4 py-2.5 text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:bg-white transition-all text-gray-700 shadow-xs"
@@ -602,13 +607,13 @@ export default function CategoryManager({
           className="bg-indigo-600 hover:bg-indigo-700 text-white px-5 py-2.5 rounded-xl text-xs font-extrabold transition-all shadow-md flex items-center justify-center gap-2 cursor-pointer w-full sm:w-auto"
         >
           <Plus size={16} /> 
-          {activeTab === 'pengeluaran' ? 'Tambah Kategori' :
-           activeTab === 'pemasukan' ? 'Tambah Kategori' :
-           activeTab === 'rekening' ? 'Tambah Rekening' :
-           activeTab === 'aset' ? 'Tambah Aset' :
-           activeTab === 'tag' ? 'Tambah Tag' :
-           activeTab === 'periode' ? 'Tambah Periode' :
-           'Tambah Kontak'}
+          {activeTab === 'pengeluaran' ? (t('master_data.btn_add_category') || 'Tambah Kategori') :
+           activeTab === 'pemasukan' ? (t('master_data.btn_add_category') || 'Tambah Kategori') :
+           activeTab === 'rekening' ? (t('master_data.btn_add_account') || 'Tambah Rekening') :
+           activeTab === 'aset' ? (t('master_data.btn_add_asset') || 'Tambah Aset') :
+           activeTab === 'tag' ? (t('master_data.btn_add_tag') || 'Tambah Tag') :
+           activeTab === 'periode' ? (t('master_data.btn_add_period') || 'Tambah Periode') :
+           (t('master_data.btn_add_contact') || 'Tambah Kontak')}
         </button>
       </div>
 
@@ -620,7 +625,7 @@ export default function CategoryManager({
                 <tr>
                   <th className="p-4 font-bold cursor-pointer hover:bg-gray-100 transition-colors" onClick={() => handleSort('name')}>
                     <div className="flex items-center gap-2">
-                      Nama Periode
+                      {t('master_data.period_col_name') || 'Nama Periode'}
                       {sortColumn === 'name' && (
                         <ChevronDown size={14} className={sortDirection === 'asc' ? 'rotate-180 transition-transform' : 'transition-transform'} />
                       )}
@@ -628,7 +633,7 @@ export default function CategoryManager({
                   </th>
                   <th className="p-4 font-bold cursor-pointer hover:bg-gray-100 transition-colors" onClick={() => handleSort('startDate')}>
                     <div className="flex items-center gap-2">
-                      Tanggal Mulai
+                      {t('master_data.period_col_start') || 'Tanggal Mulai'}
                       {sortColumn === 'startDate' && (
                         <ChevronDown size={14} className={sortDirection === 'asc' ? 'rotate-180 transition-transform' : 'transition-transform'} />
                       )}
@@ -636,20 +641,20 @@ export default function CategoryManager({
                   </th>
                   <th className="p-4 font-bold cursor-pointer hover:bg-gray-100 transition-colors" onClick={() => handleSort('endDate')}>
                     <div className="flex items-center gap-2">
-                      Tanggal Berakhir
+                      {t('master_data.period_col_end') || 'Tanggal Selesai'}
                       {sortColumn === 'endDate' && (
                         <ChevronDown size={14} className={sortDirection === 'asc' ? 'rotate-180 transition-transform' : 'transition-transform'} />
                       )}
                     </div>
                   </th>
-                  <th className="p-4 font-bold">Status</th>
-                  <th className="p-4 font-bold text-center w-24">Aksi</th>
+                  <th className="p-4 font-bold">{t('master_data.period_col_status') || 'Status'}</th>
+                  <th className="p-4 font-bold text-center w-24">{t('master_data.period_col_action') || 'Aksi'}</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-100">
                 {sortedPeriods.length === 0 ? (
                   <tr>
-                    <td colSpan={5} className="p-4 text-center text-gray-400 italic">Belum ada master data periode.</td>
+                    <td colSpan={5} className="p-4 text-center text-gray-400 italic">{t('master_data.empty_state_title') || 'Belum ada master data.'}</td>
                   </tr>
                 ) : (
                   sortedPeriods.map(p => (
@@ -668,12 +673,12 @@ export default function CategoryManager({
                       </td>
                       <td className="p-4">
                         {(() => {
-                          const status = getPeriodStatus(p.startDate, p.endDate);
-                          return (
-                            <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-bold border ${status.color}`}>
-                              {status.label}
-                            </span>
-                          );
+                           const status = getPeriodStatus(p.startDate, p.endDate);
+                           return (
+                             <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-bold border ${status.color}`}>
+                               {status.label}
+                             </span>
+                           );
                         })()}
                       </td>
                       <td className="p-4">
@@ -692,7 +697,7 @@ export default function CategoryManager({
                             disabled={deletingPeriodId === p.id}
                             onClick={() => setDeleteConfirmPeriod(p)}
                             className="text-gray-400 hover:text-red-500 transition-colors cursor-pointer disabled:opacity-50"
-                            title="Hapus"
+                            title={t('delete') || 'Hapus'}
                           >
                             {deletingPeriodId === p.id ? (
                               <LucideIcons.Loader2 size={16} className="animate-spin text-red-500" />
@@ -713,10 +718,10 @@ export default function CategoryManager({
         <div className="space-y-4">
           <div className="flex justify-between items-center mb-4">
             <h3 className="text-lg font-bold text-gray-800">
-              {activeTab === 'rekening' && '💳 Master Rekening (E-Wallet/Bank)'}
-              {activeTab === 'aset' && '📈 Master Aset & Investasi'}
-              {activeTab === 'tag' && '🏷️ Master Tag / Proyek'}
-              {activeTab === 'kontak' && '👥 Master Kontak / Pihak Terkait'}
+              {activeTab === 'rekening' && t('master_data.tab_accounts')}
+              {activeTab === 'aset' && t('master_data.tab_assets')}
+              {activeTab === 'tag' && t('master_data.tab_tags')}
+              {activeTab === 'kontak' && t('master_data.tab_contacts')}
             </h3>
           </div>
 
@@ -728,9 +733,9 @@ export default function CategoryManager({
                     <svg className="w-24 h-24 mb-6 text-gray-300" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z" />
                     </svg>
-                    <h3 className="text-xl font-bold text-gray-800 mb-2">Belum ada rekening yang ditambahkan</h3>
+                    <h3 className="text-xl font-bold text-gray-800 mb-2">{t('master_data.no_accounts_added', 'Belum ada rekening yang ditambahkan')}</h3>
                     <p className="text-gray-500 mb-6 max-w-sm text-sm">
-                      Tambahkan rekening bank, e-wallet, atau kas tunai untuk mulai melacak keuangan Anda.
+                      {t('master_data.no_accounts_desc', 'Tambahkan rekening bank, e-wallet, atau kas tunai untuk mulai melacak keuangan Anda.')}
                     </p>
                     <button
                       onClick={() => {
@@ -740,7 +745,7 @@ export default function CategoryManager({
                       className="px-6 py-3 bg-indigo-600 text-white font-bold rounded-xl hover:bg-indigo-700 transition-colors flex items-center gap-2 cursor-pointer shadow-sm hover:shadow-md"
                     >
                       <Plus size={20} />
-                      Tambah Rekening
+                      {t('master_data.btn_add_account')}
                     </button>
                   </div>
                 ) : (
@@ -754,7 +759,7 @@ export default function CategoryManager({
                 ).map(([type, groupAccounts]) => (
                   <div key={type} className="space-y-3">
                     <h4 className="font-bold text-gray-700 flex items-center gap-2">
-                      {type === 'Bank' ? '������' : type === 'E-Wallet' ? '📱' : type === 'Cash' ? '💵' : type === 'Credit Card' ? '💳' : '🏷️'} {type}
+                      {type === 'Bank' ? <LucideIcons.Landmark className="w-5 h-5 text-indigo-500" /> : type === 'E-Wallet' ? <LucideIcons.Smartphone className="w-5 h-5 text-emerald-500" /> : type === 'Cash' ? <LucideIcons.Banknote className="w-5 h-5 text-amber-500" /> : type === 'Credit Card' ? <LucideIcons.CreditCard className="w-5 h-5 text-rose-500" /> : <LucideIcons.Tag className="w-5 h-5 text-gray-500" />} {type}
                     </h4>
                     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                       {groupAccounts.map(item => {
@@ -772,7 +777,7 @@ export default function CategoryManager({
                               </p>
                               {item.includeInNetWorth === false && (
                                 <span className="inline-flex items-center gap-1 bg-gray-100 text-gray-500 text-[10px] font-bold px-2 py-0.5 rounded mt-1 w-fit" id={`rekening-exclude-badge-${item.id}`}>
-                                  <LucideIcons.EyeOff size={10} /> Dikecualikan
+                                  <LucideIcons.EyeOff size={10} /> {t('master_data.excluded', 'Dikecualikan')}
                                 </span>
                               )}
                             </div>
@@ -780,7 +785,7 @@ export default function CategoryManager({
                           
                           <div className="flex items-center gap-3 shrink-0">
                             <div className="text-right">
-                              <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wider block">Saldo</span>
+                              <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wider block">{t('master_data.account_col_balance')}</span>
                               <span className={`text-sm font-semibold font-mono ${(item.currentBalance !== undefined ? item.currentBalance : item.balance) < 0 ? 'text-red-500' : 'text-slate-800'}`}>
                                 Rp {(item.currentBalance !== undefined ? item.currentBalance : item.balance).toLocaleString('id-ID')}
                               </span>
@@ -790,7 +795,7 @@ export default function CategoryManager({
                                 setAccountToEdit(item);
                                 setIsFormOpen(true);
                               }} className="text-slate-400 hover:text-indigo-600 hover:bg-white p-1 rounded transition-colors cursor-pointer" title="Edit"><Edit2 size={14} /></button>
-                              <button onClick={() => setDeleteTarget({ type: 'account', account: item })} className="text-slate-400 hover:text-red-500 hover:bg-white p-1 rounded transition-colors cursor-pointer" title="Hapus"><Trash2 size={14} /></button>
+                              <button onClick={() => setDeleteTarget({ type: 'account', account: item })} className="text-slate-400 hover:text-red-500 hover:bg-white p-1 rounded transition-colors cursor-pointer" title={t('delete') || 'Hapus'}><Trash2 size={14} /></button>
                             </div>
                           </div>
                         </div>
@@ -815,9 +820,9 @@ export default function CategoryManager({
                       <p className="text-xs text-gray-500 font-medium">{item.assetCategory}</p>
                     </div>
                   </div>
-                  <button onClick={() => confirm('Hapus?') && onDeleteMasterData('assets', item.id)} className="text-gray-300 hover:text-red-500 opacity-0 group-hover:opacity-100 transition-all cursor-pointer"><Trash2 size={16} /></button>
+                  <button onClick={() => window.confirm(t('confirm.delete.message')) && onDeleteMasterData('assets', item.id)} className="text-gray-300 hover:text-red-500 opacity-0 group-hover:opacity-100 transition-all cursor-pointer"><Trash2 size={16} /></button>
                 </div>
-                <div className="mt-2 text-sm font-bold text-slate-700">Nilai: Rp {item.currentValue.toLocaleString('id-ID')}</div>
+                <div className="mt-2 text-sm font-bold text-slate-700">{t('master_data.asset_col_value')}: Rp {item.currentValue.toLocaleString('id-ID')}</div>
               </div>
             ))}
 
@@ -832,7 +837,7 @@ export default function CategoryManager({
                       <h4 className="font-extrabold text-sm text-gray-800">{item.tagName}</h4>
                     </div>
                   </div>
-                  <button onClick={() => confirm('Hapus?') && onDeleteMasterData('tags', item.id)} className="text-gray-300 hover:text-red-500 opacity-0 group-hover:opacity-100 transition-all cursor-pointer"><Trash2 size={16} /></button>
+                  <button onClick={() => window.confirm(t('confirm.delete.message')) && onDeleteMasterData('tags', item.id)} className="text-gray-300 hover:text-red-500 opacity-0 group-hover:opacity-100 transition-all cursor-pointer"><Trash2 size={16} /></button>
                 </div>
                 {item.description && <p className="mt-1 text-xs text-gray-500">{item.description}</p>}
               </div>
@@ -850,7 +855,7 @@ export default function CategoryManager({
                       <p className="text-xs text-gray-500 font-medium">{item.contactType}</p>
                     </div>
                   </div>
-                  <button onClick={() => confirm('Hapus?') && onDeleteMasterData('contacts', item.id)} className="text-gray-300 hover:text-red-500 opacity-0 group-hover:opacity-100 transition-all cursor-pointer"><Trash2 size={16} /></button>
+                  <button onClick={() => window.confirm(t('confirm.delete.message')) && onDeleteMasterData('contacts', item.id)} className="text-gray-300 hover:text-red-500 opacity-0 group-hover:opacity-100 transition-all cursor-pointer"><Trash2 size={16} /></button>
                 </div>
               </div>
             ))}
@@ -861,7 +866,7 @@ export default function CategoryManager({
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           {displayedCategories.length === 0 ? (
             <div className="col-span-full py-8 text-center text-gray-400 italic text-xs font-semibold">
-              Tidak ada kategori yang cocok dengan pencarian Anda.
+              {t('master_data.search_no_results') || 'Tidak ada kategori yang cocok dengan pencarian Anda.'}
             </div>
           ) : (
             displayedCategories.map((cat) => {
@@ -885,7 +890,7 @@ export default function CategoryManager({
                     </div>
                     <div>
                       <h4 className="font-extrabold text-sm text-gray-800">{cat.name}</h4>
-                      <p className="text-[10px] text-gray-400 font-bold uppercase tracking-wider">{cat.subcategories.length} Sub-kategori</p>
+                      <p className="text-[10px] text-gray-400 font-bold uppercase tracking-wider">{cat.subcategories.length} {t('master_data.subcategories_label', 'Sub-kategori')}</p>
                     </div>
                   </div>
 
@@ -911,7 +916,7 @@ export default function CategoryManager({
                             }}
                             className="w-full text-left px-4 py-2 text-xs font-extrabold text-gray-600 hover:bg-gray-50 hover:text-indigo-600 flex items-center gap-2 transition-all cursor-pointer border-none bg-none"
                           >
-                            <Pencil size={11} /> Edit
+                            <Pencil size={11} /> {t('edit') || 'Edit'}
                           </button>
                           <button
                             onClick={() => {
@@ -920,7 +925,7 @@ export default function CategoryManager({
                             }}
                             className="w-full text-left px-4 py-2 text-xs font-extrabold text-red-600 hover:bg-red-50 flex items-center gap-2 transition-all cursor-pointer border-none bg-none"
                           >
-                            <Trash2 size={11} /> Hapus
+                            <Trash2 size={11} /> {t('delete') || 'Hapus'}
                           </button>
                         </div>
                       </>
@@ -952,7 +957,7 @@ export default function CategoryManager({
                                 setRenameTarget({ category: cat, oldName: sub });
                               }}
                               className="p-0.5 text-slate-400 hover:text-blue-600 hover:bg-white rounded transition-colors cursor-pointer"
-                              title="Ubah Nama"
+                              title={t('master_data.rename_subcategory_title') || 'Ubah Nama'}
                             >
                               <Pencil size={10} />
                             </button>
@@ -962,7 +967,7 @@ export default function CategoryManager({
                                 setDeleteTarget({ type: 'subcategory', category: cat, subName: sub });
                               }}
                               className="p-0.5 text-slate-400 hover:text-red-500 hover:bg-white rounded transition-colors cursor-pointer"
-                              title="Hapus"
+                              title={t('delete') || 'Hapus'}
                             >
                               <X size={10} />
                             </button>
@@ -980,7 +985,7 @@ export default function CategoryManager({
                   }}
                   className="mt-2 text-[10px] font-bold text-indigo-600 hover:text-indigo-800 bg-indigo-50 hover:bg-indigo-100 py-1.5 px-3 rounded-lg self-start transition-colors cursor-pointer"
                 >
-                  + Tambah Sub-Kategori
+                  + {t('master_data.add_subcategory') || 'Tambah Sub-Kategori'}
                 </button>
               </div>
             );
@@ -1030,12 +1035,10 @@ export default function CategoryManager({
           <div className="bg-white rounded-3xl w-full max-w-md overflow-hidden shadow-2xl flex flex-col max-h-[90vh]">
             <div className="p-6 border-b border-gray-100 flex justify-between items-center bg-gray-50">
               <h3 className="text-lg font-black text-gray-900">
-                Tambah Master {
-                  activeTab === 'aset' ? 'Aset' : 
-                  activeTab === 'tag' ? 'Tag' : 
-                  activeTab === 'kontak' ? 'Kontak' : 
-                  formData.parentCategory ? 'Sub-Kategori' : 'Kategori'
-                }
+                {activeTab === 'aset' ? (t('master_data.btn_add_asset') || 'Tambah Aset') : 
+                 activeTab === 'tag' ? (t('master_data.btn_add_tag') || 'Tambah Tag') : 
+                 activeTab === 'kontak' ? (t('master_data.btn_add_contact') || 'Tambah Kontak') : 
+                 formData.parentCategory ? (t('master_data.add_subcategory') || 'Tambah Sub-Kategori') : (t('master_data.btn_add_category') || 'Tambah Kategori')}
               </h3>
               <button onClick={() => setIsFormOpen(false)} className="text-gray-400 hover:bg-gray-200 p-2 rounded-full cursor-pointer">
                 <Plus size={20} className="rotate-45" />
@@ -1053,11 +1056,11 @@ export default function CategoryManager({
                 
                 try {
                   await onSaveMasterData(collectionName, formData, formData.id);
-                  showToast('Data berhasil disimpan!', 'success');
+                  showToast(t('master_data.toast_save_success') || 'Data berhasil disimpan!', 'success');
                   setIsFormOpen(false);
                   setFormData({});
                 } catch (error: any) {
-                  showToast(error?.message || 'Gagal menyimpan data', 'error');
+                  showToast(error?.message || t('master_data.toast_save_fail') || 'Gagal menyimpan data', 'error');
                 } finally {
                   setIsSubmitting(false);
                 }
@@ -1066,20 +1069,20 @@ export default function CategoryManager({
                 {activeTab === 'aset' && (
                   <>
                     <div>
-                      <label className="text-sm font-bold text-gray-700 mb-1 block">Nama Aset</label>
+                      <label className="text-sm font-bold text-gray-700 mb-1 block">{t('master_data.asset_col_name') || 'Nama Aset'}</label>
                       <input required type="text" value={formData.assetName || ''} onChange={e => setFormData({...formData, assetName: e.target.value})} className="w-full border border-gray-200 rounded-xl px-4 py-3" />
                     </div>
                     <div>
-                      <label className="text-sm font-bold text-gray-700 mb-1 block">Kategori Aset</label>
+                      <label className="text-sm font-bold text-gray-700 mb-1 block">{t('master_data.asset_col_category') || 'Kategori Aset'}</label>
                       <select required value={formData.assetCategory || ''} onChange={e => setFormData({...formData, assetCategory: e.target.value})} className="w-full border border-gray-200 rounded-xl px-4 py-3">
-                        <option value="">Pilih...</option>
-                        <option value="Gold">Emas</option>
-                        <option value="Mutual Fund">Reksadana</option>
-                        <option value="Stock">Saham</option>
+                        <option value="">{t('form.choose_category') || 'Pilih...'}</option>
+                        <option value="Gold">{t('master_data.gold', 'Emas')}</option>
+                        <option value="Mutual Fund">{t('master_data.mutual_fund', 'Reksadana')}</option>
+                        <option value="Stock">{t('master_data.stock', 'Saham')}</option>
                       </select>
                     </div>
                     <div>
-                      <label className="text-sm font-bold text-gray-700 mb-1 block">Nilai Saat Ini</label>
+                      <label className="text-sm font-bold text-gray-700 mb-1 block">{t('master_data.asset_col_value') || 'Nilai Saat Ini'}</label>
                       <input required type="number" value={formData.currentValue || ''} onChange={e => setFormData({...formData, currentValue: Number(e.target.value)})} className="w-full border border-gray-200 rounded-xl px-4 py-3" />
                     </div>
                   </>
@@ -1088,11 +1091,11 @@ export default function CategoryManager({
                 {activeTab === 'tag' && (
                   <>
                     <div>
-                      <label className="text-sm font-bold text-gray-700 mb-1 block">Nama Tag / Proyek</label>
+                      <label className="text-sm font-bold text-gray-700 mb-1 block">{t('master_data.tag_col_name') || 'Nama Tag / Proyek'}</label>
                       <input required type="text" value={formData.tagName || ''} onChange={e => setFormData({...formData, tagName: e.target.value})} className="w-full border border-gray-200 rounded-xl px-4 py-3" />
                     </div>
                     <div>
-                      <label className="text-sm font-bold text-gray-700 mb-1 block">Deskripsi (Opsional)</label>
+                      <label className="text-sm font-bold text-gray-700 mb-1 block">{t('master_data.tag_col_desc') || 'Deskripsi'} ({t('form.optional') || 'Opsional'})</label>
                       <input type="text" value={formData.description || ''} onChange={e => setFormData({...formData, description: e.target.value})} className="w-full border border-gray-200 rounded-xl px-4 py-3" />
                     </div>
                   </>
@@ -1101,16 +1104,16 @@ export default function CategoryManager({
                 {activeTab === 'kontak' && (
                   <>
                     <div>
-                      <label className="text-sm font-bold text-gray-700 mb-1 block">Nama Kontak</label>
+                      <label className="text-sm font-bold text-gray-700 mb-1 block">{t('master_data.contact_col_name') || 'Nama Kontak'}</label>
                       <input required type="text" value={formData.contactName || ''} onChange={e => setFormData({...formData, contactName: e.target.value})} className="w-full border border-gray-200 rounded-xl px-4 py-3" />
                     </div>
                     <div>
-                      <label className="text-sm font-bold text-gray-700 mb-1 block">Tipe Kontak</label>
+                      <label className="text-sm font-bold text-gray-700 mb-1 block">{t('master_data.contact_col_type') || 'Tipe Kontak'}</label>
                       <select required value={formData.contactType || ''} onChange={e => setFormData({...formData, contactType: e.target.value})} className="w-full border border-gray-200 rounded-xl px-4 py-3">
-                        <option value="">Pilih...</option>
-                        <option value="Payer">Pemberi Dana (Payer)</option>
-                        <option value="Payee">Penerima Dana (Payee)</option>
-                        <option value="Team Member">Anggota Tim</option>
+                        <option value="">{t('form.choose_category') || 'Pilih...'}</option>
+                        <option value="Payer">{t('master_data.contact_payer', 'Pemberi Dana (Payer)')}</option>
+                        <option value="Payee">{t('master_data.contact_payee', 'Penerima Dana (Payee)')}</option>
+                        <option value="Team Member">{t('master_data.contact_team', 'Anggota Tim')}</option>
                       </select>
                     </div>
                   </>
@@ -1118,7 +1121,7 @@ export default function CategoryManager({
 
                 <div className="pt-4 border-t border-gray-100">
                   <button type="submit" disabled={isSubmitting} className="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-3 px-4 rounded-xl transition-colors disabled:opacity-50 cursor-pointer">
-                    Simpan Master Data
+                    {t('master_data.save') || 'Simpan Master Data'}
                   </button>
                 </div>
               </form>
@@ -1131,32 +1134,36 @@ export default function CategoryManager({
       {deleteTarget && (
         <DeleteConfirmationModal
           onClose={() => setDeleteTarget(null)}
-          title={deleteTarget.type === 'category' ? 'Hapus Kategori Utama' : deleteTarget.type === 'account' ? 'Hapus Rekening' : 'Hapus Sub-Kategori'}
+          title={
+            deleteTarget.type === 'category' ? t('master_data.delete_category_title', 'Hapus Kategori Utama') :
+            deleteTarget.type === 'account' ? t('master_data.delete_account_title', 'Hapus Rekening') :
+            t('master_data.delete_subcategory_title', 'Hapus Sub-Kategori')
+          }
           message={
             deleteTarget.type === 'category' && deleteTarget.category
-              ? `Apakah Anda yakin ingin menghapus kategori "${deleteTarget.category.name}"? Sistem akan mendeteksi transaksi terkait; jika ditemukan, kategori ini akan disembunyikan (soft-delete) untuk melindungi histori keuangan Anda.`
+              ? t('master_data.confirm_delete_category_desc', 'Apakah Anda yakin ingin menghapus kategori "{{name}}"? Sistem akan mendeteksi transaksi terkait; jika ditemukan, kategori ini akan disembunyikan (soft-delete) untuk melindungi histori keuangan Anda.', { name: deleteTarget.category.name })
               : deleteTarget.type === 'account' && deleteTarget.account
-              ? `Apakah Anda yakin ingin menghapus rekening "${deleteTarget.account.accountName}"? Jika terdapat transaksi terkait, rekening ini akan disembunyikan (soft-delete).`
-              : deleteTarget.category ? `Apakah Anda yakin ingin menghapus sub-kategori "${deleteTarget.subName}" dari kategori "${deleteTarget.category.name}"? Jika terdapat transaksi yang menggunakannya, sub-kategori akan disembunyikan secara aman.` : ''
+              ? t('master_data.confirm_delete_account_desc', 'Apakah Anda yakin ingin menghapus rekening "{{name}}"? Jika terdapat transaksi terkait, rekening ini akan disembunyikan (soft-delete).', { name: deleteTarget.account.accountName })
+              : deleteTarget.category ? t('master_data.confirm_delete_subcategory_desc', 'Apakah Anda yakin ingin menghapus sub-kategori "{{subName}}" dari kategori "{{name}}"? Jika terdapat transaksi yang menggunakannya, sub-kategori akan disembunyikan secara aman.', { subName: deleteTarget.subName, name: deleteTarget.category.name }) : ''
           }
           onConfirm={async () => {
             try {
               if (deleteTarget.type === 'category' && deleteTarget.category) {
                 await handleDeleteCategory(deleteTarget.category);
-                showToast(`Kategori "${deleteTarget.category.name}" berhasil dihapus!`, 'success');
+                showToast(t('master_data.category_deleted_success', 'Kategori "{{name}}" berhasil dihapus!', { name: deleteTarget.category.name }), 'success');
               } else if (deleteTarget.type === 'subcategory' && deleteTarget.category && deleteTarget.subName) {
                 await handleDeleteSubcategory(deleteTarget.category, deleteTarget.subName);
-                showToast(`Sub-kategori "${deleteTarget.subName}" berhasil dihapus!`, 'success');
+                showToast(t('master_data.subcategory_deleted_success', 'Sub-kategori "{{name}}" berhasil dihapus!', { name: deleteTarget.subName }), 'success');
               } else if (deleteTarget.type === 'account' && deleteTarget.account) {
                 const accountName = deleteTarget.account.accountName;
-                showToast('Menghapus rekening...', 'info');
+                showToast(t('master_data.deleting_account', 'Menghapus rekening...'), 'info');
                 
                 // Fire and forget, the hook handles optimism
                 onDeleteMasterData('accounts', String(deleteTarget.account.id));
-                showToast(`Rekening "${accountName}" berhasil dihapus!`, 'success');
+                showToast(t('master_data.account_deleted_success', 'Rekening "{{name}}" berhasil dihapus!', { name: accountName }), 'success');
               }
             } catch (err: any) {
-              const errMsg = err.response?.data?.error || err.response?.data?.message || err.message || 'Gagal menghapus';
+              const errMsg = err.response?.data?.error || err.response?.data?.message || err.message || t('master_data.toast_delete_fail') || 'Gagal menghapus';
               showToast(errMsg, 'error');
               throw err;
             }
@@ -1182,9 +1189,9 @@ export default function CategoryManager({
             <div className="mx-auto w-12 h-12 bg-red-50 text-red-600 rounded-full flex items-center justify-center mb-4">
               <LucideIcons.AlertTriangle size={24} />
             </div>
-            <h3 className="text-lg font-bold text-gray-900 mb-2">Hapus Periode?</h3>
+            <h3 className="text-lg font-bold text-gray-900 mb-2">{t('confirm.delete.title') || 'Konfirmasi Hapus'}</h3>
             <p className="text-sm text-gray-500 mb-6">
-              Apakah Anda yakin ingin menghapus periode <strong className="text-gray-900">{deleteConfirmPeriod.name}</strong>? Tindakan ini tidak dapat dibatalkan.
+              {t('confirm.delete.message') || 'Apakah Anda yakin ingin menghapus data ini?'}
             </p>
             <div className="flex gap-3">
               <button
@@ -1192,7 +1199,7 @@ export default function CategoryManager({
                 disabled={deletingPeriodId !== null}
                 className="flex-1 bg-gray-100 hover:bg-gray-200 text-gray-700 font-bold py-3 rounded-xl transition-colors cursor-pointer"
               >
-                Batal
+                {t('cancel') || 'Batal'}
               </button>
               <button
                 onClick={() => handleDeletePeriodLogic(deleteConfirmPeriod)}
@@ -1202,10 +1209,10 @@ export default function CategoryManager({
                 {deletingPeriodId !== null ? (
                   <>
                     <LucideIcons.Loader2 size={16} className="animate-spin" />
-                    Menghapus...
+                    {t('master_data.deleting') || 'Menghapus...'}
                   </>
                 ) : (
-                  'Ya, Hapus'
+                  t('confirm.btn.yes_delete') || 'Ya, Hapus'
                 )}
               </button>
             </div>

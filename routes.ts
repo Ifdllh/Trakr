@@ -82,7 +82,8 @@ export function setupApiRoutes(app: any) {
         financialStartDay: parseInt(firestoreData?.financialStartDay) || 1,
         firstDayOfWeek: firestoreData?.firstDayOfWeek || 'Senin',
         autoCreatePeriods: firestoreData?.autoCreatePeriods ?? false,
-        photoURL: firestoreData?.photoURL || ''
+        photoURL: firestoreData?.photoURL || '',
+        language: firestoreData?.language || 'id'
       });
     } catch (e: any) {
       if (e?.message?.includes('429') || e?.message?.includes('Quota') || e?.code === 429) {
@@ -102,7 +103,7 @@ export function setupApiRoutes(app: any) {
       const exists = docSnap.exists;
       const firestoreData = exists ? (typeof docSnap.data === 'function' ? docSnap.data() : docSnap) : {};
 
-      const { displayName, phoneNumber, monthlyBudget, photoURL, financialStartDay, firstDayOfWeek, autoCreatePeriods } = req.body;
+      const { displayName, phoneNumber, monthlyBudget, photoURL, financialStartDay, firstDayOfWeek, autoCreatePeriods, language } = req.body;
       const updateData: any = {};
       
       updateData.uid = firestoreData.uid || req.userId!;
@@ -116,6 +117,7 @@ export function setupApiRoutes(app: any) {
       if (financialStartDay !== undefined) updateData.financialStartDay = parseInt(financialStartDay) || 1;
       if (firstDayOfWeek !== undefined) updateData.firstDayOfWeek = firstDayOfWeek;
       if (autoCreatePeriods !== undefined) updateData.autoCreatePeriods = autoCreatePeriods === true || autoCreatePeriods === 'true';
+      if (language !== undefined) updateData.language = language;
       
       await userDocRef.set(updateData, { merge: true });
       res.json({ success: true, ...updateData });

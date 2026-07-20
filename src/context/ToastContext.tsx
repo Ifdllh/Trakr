@@ -1,3 +1,4 @@
+import i18n from '@/i18n';
 import React, { createContext, useContext, useState, useCallback, useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { CheckCircle2, AlertCircle, Info, X } from 'lucide-react';
@@ -75,7 +76,7 @@ export const ToastProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       })
       .catch((err) => {
         const msg = typeof options.error === 'function' ? options.error(err) : options.error;
-        showToast(msg || err?.message || 'Terjadi kesalahan', 'error');
+        showToast(msg || err?.message || i18n.t('toast.error.general') || 'Terjadi kesalahan', 'error');
         throw err;
       });
   }, [showToast]);
