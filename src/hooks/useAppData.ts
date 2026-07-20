@@ -129,7 +129,7 @@ export function useAppData(user: FirebaseUser | null, isGuest: boolean) {
       setPeriods(data.map((d: any) => ({
         ...d,
         id: d.id ? d.id.toString() : String(Math.random())
-      })));
+      })).filter((p: any) => p.isActive !== false));
       setLoadingData(false);
     });
 

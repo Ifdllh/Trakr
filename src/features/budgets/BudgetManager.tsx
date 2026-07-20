@@ -51,35 +51,20 @@ interface BudgetManagerProps {
 const getLocalizedPeriodName = (period: BudgetPeriod | undefined, currentLanguage: string) => {
   if (!period) return '';
   
-  let dateToFormat: Date | null = null;
+  // Prioritizing the user-defined name is mandatory
+  const actualName = period.name || (period as any).periodName;
+  if (actualName) {
+    return actualName;
+  }
   
-  if (period.startDate) {
+  // Default fallback: use the endDate for the month calculation, not the startDate
+  let dateToFormat: Date | null = null;
+  if (period.endDate) {
     try {
-      const [year, month, day] = period.startDate.split('-').map(Number);
+      const [year, month, day] = period.endDate.split('-').map(Number);
       dateToFormat = new Date(year, month - 1, 15);
     } catch (e) {
       // ignore
-    }
-  }
-  
-  if (!dateToFormat || isNaN(dateToFormat.getTime())) {
-    // Try to parse from name (e.g., "Agustus 2026")
-    const indonesianMonths: Record<string, number> = {
-      januari: 0, jan: 0, februari: 1, pebruari: 1, feb: 1,
-      maret: 2, mar: 2, april: 3, apr: 3, mei: 4, may: 4,
-      juni: 5, jun: 5, juli: 6, jul: 6, agustus: 7, agu: 7,
-      september: 8, sep: 8, oktober: 9, okt: 9,
-      november: 10, nov: 10, desember: 11, des: 11
-    };
-    const trimmed = period.name.toLowerCase().trim();
-    const match = trimmed.match(/([a-z]+)\s+(\d{4})/) || trimmed.match(/(\d{4})\s+([a-z]+)/);
-    if (match) {
-      let monthPart = isNaN(Number(match[1])) ? match[1] : match[2];
-      let yearPart = isNaN(Number(match[1])) ? match[2] : match[1];
-      const monthIdx = indonesianMonths[monthPart];
-      if (monthIdx !== undefined) {
-        dateToFormat = new Date(Number(yearPart), monthIdx, 15);
-      }
     }
   }
   
@@ -88,17 +73,69 @@ const getLocalizedPeriodName = (period: BudgetPeriod | undefined, currentLanguag
     return new Intl.DateTimeFormat(locale, { month: 'long', year: 'numeric' }).format(dateToFormat);
   }
   
-  return period.name;
+  return '';
+};
+
+const isCategoryMatch = (t: any, budgetCategoryId: string, categoryInfo: any): boolean => {
+  // 1. Direct ID match
+  if (t.categoryId && String(t.categoryId) === String(budgetCategoryId)) return true;
+  if (t.category && String(t.category).toLowerCase().trim() === String(budgetCategoryId).toLowerCase().trim()) return true;
+
+  // 2. Original Name Match (fallback to whatever categoryInfo says)
+  if (categoryInfo && categoryInfo.name) {
+    if (t.category && String(t.category).toLowerCase().trim() === String(categoryInfo.name).toLowerCase().trim()) return true;
+  }
+
+  // 3. Robust English & Indonesian Mapping for Predefined Categories
+  const catIdLower = String(budgetCategoryId).toLowerCase();
+  
+  const englishMapping: Record<string, string> = {
+    'makanan': 'food & beverage',
+    'transportasi': 'transportation',
+    'belanja': 'shopping',
+    'hiburan': 'entertainment',
+    'tagihan': 'bills & utilities',
+    'kesehatan': 'health & medical',
+    'pendidikan': 'education',
+    'keluarga': 'family & personal',
+    'investasi': 'investment',
+    'asuransi': 'insurance',
+    'hadiah': 'gifts & donations',
+    'lainnya': 'others'
+  };
+
+  const idMapping: Record<string, string> = {
+    'makanan': 'makanan & minuman',
+    'transportasi': 'transportasi',
+    'belanja': 'belanja',
+    'hiburan': 'hiburan',
+    'tagihan': 'tagihan & utilitas',
+    'kesehatan': 'kesehatan',
+    'pendidikan': 'pendidikan',
+    'keluarga': 'keluarga & pribadi',
+    'investasi': 'investasi',
+    'asuransi': 'asuransi',
+    'hadiah': 'hadiah & donasi',
+    'lainnya': 'lainnya'
+  };
+
+  const enName = englishMapping[catIdLower];
+  if (enName && t.category && String(t.category).toLowerCase().trim() === enName) return true;
+
+  const idName = idMapping[catIdLower];
+  if (idName && t.category && String(t.category).toLowerCase().trim() === idName) return true;
+
+  return false;
 };
 
 export default function BudgetManager({
   user,
   categories,
-  transactions: initialTransactions = [],
+  transactions = [],
   monthlyBudget,
-  budgets: initialBudgets = [],
+  budgets = [],
   periods,
-  globalBudgets: initialGlobalBudgets = [],
+  globalBudgets = [],
   accounts = [],
   assets = [],
   tags = [],
@@ -135,21 +172,21 @@ export default function BudgetManager({
     });
   }, [t]);
 
+  // Filter out soft-deleted periods
+  const activePeriods = useMemo(() => periods.filter(p => p.isActive !== false), [periods]);
+
   const defaultPeriodId = useMemo(() => {
-    if (periods.length === 0) return '';
+    if (activePeriods.length === 0) return '';
     const now = new Date();
     const targetMonthStr = now.getMonth() + 1 < 10 ? `0${now.getMonth() + 1}` : `${now.getMonth() + 1}`;
     const targetPrefix = `${now.getFullYear()}-${targetMonthStr}`;
-    const matchingPeriod = periods.find(p => p.startDate && p.startDate.startsWith(targetPrefix));
-    return matchingPeriod?.id || periods[0]?.id || '';
-  }, [periods]);
+    const matchingPeriod = activePeriods.find(p => p.startDate && p.startDate.startsWith(targetPrefix));
+    return matchingPeriod?.id || activePeriods[0]?.id || '';
+  }, [activePeriods]);
 
   const [selectedPeriod, setSelectedPeriod] = useState<string>('');
   
-  const [loading, setLoading] = useState(true);
-  const [transactions, setTransactions] = useState<Transaction[]>(initialTransactions);
-  const [budgets, setBudgets] = useState<BudgetAllocation[]>(initialBudgets);
-  const [globalBudgets, setGlobalBudgets] = useState<GlobalBudget[]>(initialGlobalBudgets);
+  const [loading, setLoading] = useState(false);
 
   useEffect(() => {
     if (!selectedPeriod && defaultPeriodId) {
@@ -157,40 +194,6 @@ export default function BudgetManager({
     }
   }, [defaultPeriodId, selectedPeriod]);
 
-  useEffect(() => {
-    if (!user?.uid || !selectedPeriod) {
-      setLoading(false);
-      return;
-    }
-    
-    setLoading(true);
-    let loadedCount = 0;
-    const checkLoaded = () => {
-      loadedCount++;
-      if (loadedCount >= 3) setLoading(false);
-    };
-
-    const unsubTransactions = subscribeToCollection(user.uid, 'transactions', (data) => {
-      setTransactions(data as Transaction[]);
-      checkLoaded();
-    }, [where('periodId', '==', selectedPeriod)]);
-
-    const unsubBudgets = subscribeToCollection(user.uid, 'budgets', (data) => {
-      setBudgets(data as BudgetAllocation[]);
-      checkLoaded();
-    }, [where('periodId', '==', selectedPeriod)]);
-
-    const unsubGlobalBudgets = subscribeToCollection(user.uid, 'globalBudgets', (data) => {
-      setGlobalBudgets(data as GlobalBudget[]);
-      checkLoaded();
-    }, [where('periodId', '==', selectedPeriod)]);
-
-    return () => {
-      unsubTransactions();
-      unsubBudgets();
-      unsubGlobalBudgets();
-    };
-  }, [user?.uid, selectedPeriod]);
 
   const { showToast } = useToast();
   const [isFormOpen, setIsFormOpen] = useState(false);
@@ -219,32 +222,45 @@ export default function BudgetManager({
   // 2. Local computations for Budgets
   const currentBudgets = useMemo(() => budgets.filter(b => b.periodId === selectedPeriod), [budgets, selectedPeriod]);
   
-  const currentPeriodObj = useMemo(() => periods.find(p => p.id === selectedPeriod), [periods, selectedPeriod]);
+  const currentPeriodObj = useMemo(() => activePeriods.find(p => p.id === selectedPeriod), [activePeriods, selectedPeriod]);
 
   const transactionsByPeriod = useMemo(() => {
     if (!selectedPeriod) return [];
+    
+    // Fallback: get current period details to match by date bounds
+    const pObj = activePeriods.find(p => String(p.id) === String(selectedPeriod));
+    
     return transactions.filter((t: any) => {
-      const typeLower = t.type?.toLowerCase();
-      const isExpense = typeLower === 'dr' || typeLower === 'pengeluaran';
+      const typeLower = (t.type || '').toLowerCase();
+      // Ensure it is an expense
+      const isExpense = typeLower === 'dr' || typeLower === 'pengeluaran' || typeLower === 'expense';
       if (!isExpense) return false;
       
-      const match = t.periodId && String(t.periodId) === String(selectedPeriod);
-      if (match) return true;
+      // Strict ID matching first
+      if (t.periodId && String(t.periodId) === String(selectedPeriod)) return true;
       
-      if (t.date && currentPeriodObj?.startDate && currentPeriodObj?.endDate) {
-        const tDate = new Date(t.date);
-        const sDate = new Date(currentPeriodObj.startDate);
-        const eDate = new Date(currentPeriodObj.endDate);
+      // Fallback: Date bounds checking
+      if (pObj && pObj.startDate && pObj.endDate) {
+        const tDateRaw = t.date || t.createdAt;
+        if (!tDateRaw) return false;
         
-        tDate.setHours(0, 0, 0, 0);
-        sDate.setHours(0, 0, 0, 0);
-        eDate.setHours(0, 0, 0, 0);
+        const tDate = new Date(tDateRaw);
+        const sDate = new Date(pObj.startDate);
+        const eDate = new Date(pObj.endDate);
         
-        return tDate >= sDate && tDate <= eDate;
+        if (!isNaN(tDate.getTime()) && !isNaN(sDate.getTime()) && !isNaN(eDate.getTime())) {
+          tDate.setHours(0, 0, 0, 0);
+          sDate.setHours(0, 0, 0, 0);
+          eDate.setHours(0, 0, 0, 0);
+          
+          if (tDate >= sDate && tDate <= eDate) {
+            return true;
+          }
+        }
       }
       return false;
     });
-  }, [transactions, selectedPeriod, currentPeriodObj]);
+  }, [transactions, selectedPeriod, periods]);
 
   const budgetStatus = useMemo(() => {
     if (!selectedPeriod) return { targetGlobal: 0, totalTeralokasi: 0, realisasiAktual: 0, sisaSaldo: 0 };
@@ -266,7 +282,7 @@ export default function BudgetManager({
   }, [globalBudgets, selectedPeriod]);
 
   const { targetMonth, targetYear } = useMemo(() => {
-    const periodObj = periods.find(p => p.id === selectedPeriod || String(p.id) === String(selectedPeriod));
+    const periodObj = activePeriods.find(p => p.id === selectedPeriod || String(p.id) === String(selectedPeriod));
     let m = new Date().getMonth() + 1;
     let y = new Date().getFullYear();
     if (periodObj && periodObj.startDate) {
@@ -334,11 +350,17 @@ export default function BudgetManager({
 
   const budgetTransactions = useMemo(() => {
     if (!selectedBudgetForDetail?.categoryId || !selectedPeriod) return [];
-    return transactions.filter(t => 
-      t.periodId === selectedPeriod && 
-      (String(t.category) === String(selectedBudgetForDetail.categoryId) || String((t as any).categoryId) === String(selectedBudgetForDetail.categoryId))
-    );
-  }, [transactions, selectedPeriod, selectedBudgetForDetail]);
+    
+    const categoryInfo = expenseCategories.find(c => String(c.id) === String(selectedBudgetForDetail.categoryId));
+    
+    const data = transactionsByPeriod.filter((t: any) => isCategoryMatch(t, selectedBudgetForDetail.categoryId, categoryInfo));
+    console.log('Fetched Budget Transactions:', data);
+    return data;
+  }, [transactionsByPeriod, selectedPeriod, selectedBudgetForDetail, expenseCategories]);
+  const detailSpentAmount = useMemo(() => {
+    return budgetTransactions.reduce((sum, t) => sum + Number(t.amount || 0), 0);
+  }, [budgetTransactions]);
+
   const isLoadingTransactions = false;
 
   // Helper to render dynamic icons
@@ -566,15 +588,15 @@ export default function BudgetManager({
             onChange={(e) => setSelectedPeriod(e.target.value)}
             className="bg-transparent font-bold text-slate-800 outline-none cursor-pointer text-sm"
           >
-            {periods.length === 0 && <option value="">{t('budgets.no_period_title') || 'Belum Ada Periode'}</option>}
-            {periods.map((p) => (
-              <option key={p.id} value={p.id}>{getLocalizedPeriodName(p, i18n.language)}</option>
+            {activePeriods.length === 0 && <option value="">{t('budgets.no_period_title') || 'Belum Ada Periode'}</option>}
+            {activePeriods.map((p, idx) => (
+              <option key={`${p.id}-${idx}`} value={p.id}>{getLocalizedPeriodName(p, i18n.language)}</option>
             ))}
           </select>
         </div>
       </div>
 
-      {periods.length === 0 ? (
+      {activePeriods.length === 0 ? (
         <div className="bg-white rounded-3xl border border-dashed border-gray-300 p-10 flex flex-col items-center justify-center text-center gap-3">
           <div className="w-16 h-16 bg-indigo-50 text-indigo-300 rounded-full flex items-center justify-center">
             <Target size={32} />
@@ -705,7 +727,7 @@ export default function BudgetManager({
               <h3 className="font-bold text-slate-700">{t('budgets.budget_allocation_list') || 'Daftar Anggaran Kategori'} {currentPeriodObj ? `(${getLocalizedPeriodName(currentPeriodObj, i18n.language)})` : ''}</h3>
               <button
                 onClick={handleOpenForm}
-                disabled={periods.length === 0}
+                disabled={activePeriods.length === 0}
                 className="bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2.5 rounded-xl text-sm font-bold transition-all shadow-md shadow-indigo-600/20 flex items-center gap-2 disabled:opacity-50"
               >
                 <Plus size={16} /> {t('budgets.btn_set_budget') || 'Atur Anggaran'}
@@ -762,11 +784,7 @@ export default function BudgetManager({
 
                   const budgetAmount = getEffectiveBudgetAmount(budget, activeGlobalBudget?.totalTargetAmount || monthlyBudget || 0);
                   const spentAmount = transactionsByPeriod
-                    .filter((t: any) => 
-                      (t.category && categoryInfo.name && t.category.toLowerCase().trim() === categoryInfo.name.toLowerCase().trim()) ||
-                      (t.categoryId && String(t.categoryId) === String(categoryInfo.id)) ||
-                      (t.category && String(t.category) === String(categoryInfo.id))
-                    )
+                    .filter((t: any) => isCategoryMatch(t, budget.categoryId, categoryInfo))
                     .reduce((sum, t) => sum + Number(t.amount || 0), 0);
                   const rawPercentage = budgetAmount > 0 ? (spentAmount / budgetAmount) * 100 : 0;
                   const actualPercentage = Math.round(rawPercentage);
@@ -1015,8 +1033,8 @@ export default function BudgetManager({
                                         if (String(c.id) === String(currentCategoryId)) return true;
                                         return !watchedCategories?.some((wc: any, wcIdx: number) => wcIdx !== index && String(wc?.categoryId) === String(c.id));
                                       })
-                                      .map(c => (
-                                        <option key={c.id} value={c.id}>{c.name}</option>
+                                      .map((c, cIdx) => (
+                                        <option key={`${c.id}-${cIdx}`} value={c.id}>{c.name}</option>
                                       ))}
                                   </select>
                                 )}
@@ -1262,17 +1280,17 @@ export default function BudgetManager({
                     <div>
                       <span className="text-slate-400 font-bold uppercase tracking-wider block text-[10px]">{t('budgets.kpi_spent') || 'Total Realisasi'}</span>
                       <span className="font-extrabold text-red-600 text-xs md:text-sm tabular-nums">
-                        {formatIDR(selectedBudgetForDetail.actual_amount || 0)}
+                        {formatIDR(detailSpentAmount)}
                       </span>
                     </div>
                     <div className="text-right">
                       <span className="text-slate-400 font-bold uppercase tracking-wider block text-[10px]">{t('budgets.kpi_remaining') || 'Sisa Anggaran'}</span>
                       <span className={`font-extrabold text-xs md:text-sm tabular-nums ${
-                        getEffectiveBudgetAmount(selectedBudgetForDetail, activeGlobalBudget?.totalTargetAmount || 0) - (selectedBudgetForDetail.actual_amount || 0) < 0 
+                        getEffectiveBudgetAmount(selectedBudgetForDetail, activeGlobalBudget?.totalTargetAmount || 0) - (detailSpentAmount) < 0 
                           ? 'text-red-500 font-black' 
                           : 'text-emerald-600'
                       }`}>
-                        {formatIDR(getEffectiveBudgetAmount(selectedBudgetForDetail, activeGlobalBudget?.totalTargetAmount || 0) - (selectedBudgetForDetail.actual_amount || 0))}
+                        {formatIDR(getEffectiveBudgetAmount(selectedBudgetForDetail, activeGlobalBudget?.totalTargetAmount || 0) - (detailSpentAmount))}
                       </span>
                     </div>
                   </div>

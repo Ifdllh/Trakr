@@ -11,6 +11,7 @@ interface BudgetMonitorProps {
   budgets?: any[];
   transactions?: any[];
   globalBudgets?: any[];
+  selectedPeriod?: any;
 }
 
 export default function BudgetMonitor({
@@ -20,33 +21,38 @@ export default function BudgetMonitor({
   periods = [],
   budgets = [],
   transactions = [],
-  globalBudgets = []
+  globalBudgets = [],
+  selectedPeriod
 }: BudgetMonitorProps) {
   const { t } = useTranslation();
-  const selectedMonth = globalDashboardDate.getMonth() + 1;
-  const selectedYear = globalDashboardDate.getFullYear();
 
   // 1. Find the matching active period
   const activePeriodId = useMemo(() => {
-    const targetMonthStr = selectedMonth < 10 ? `0${selectedMonth}` : `${selectedMonth}`;
-    const targetPrefix = `${selectedYear}-${targetMonthStr}`;
-    const matchingPeriod = periods.find((p: any) => {
-      if (p.startDate && p.startDate.startsWith(targetPrefix)) return true;
-      if (p.name && (p.name || '').toLowerCase().includes(targetPrefix)) return true;
-      return false;
-    });
-    return matchingPeriod?.id || null;
-  }, [periods, selectedMonth, selectedYear]);
+    return selectedPeriod?.id || null;
+  }, [selectedPeriod]);
 
   const activePeriodObj = useMemo(() => {
-    return periods.find((p: any) => String(p.id) === String(activePeriodId));
-  }, [periods, activePeriodId]);
+    return selectedPeriod || null;
+  }, [selectedPeriod]);
 
   // 2. Compute raw budgets for the current active period
   const rawBudgets = useMemo(() => {
      if (!activePeriodId) return [];
-     return budgets.filter((b: any) => String(b.periodId) === String(activePeriodId));
-  }, [budgets, activePeriodId]);
+     return budgets.filter((b: any) => {
+       // Primary Fix: Match by periodId
+       if (b.periodId) {
+         return String(b.periodId) === String(activePeriodId);
+       }
+       // Fallback Fix (Date Bounds)
+       if (activePeriodObj?.startDate && b.startDate && activePeriodObj?.endDate && b.endDate) {
+         return activePeriodObj.startDate === b.startDate && activePeriodObj.endDate === b.endDate;
+       }
+       if (activePeriodObj?.startDate && b.startDate) {
+         return activePeriodObj.startDate === b.startDate;
+       }
+       return false;
+     });
+  }, [budgets, activePeriodId, activePeriodObj]);
 
   // 3. Compute real expenditures for this period
   const transactionsByPeriod = useMemo(() => {
@@ -92,13 +98,26 @@ export default function BudgetMonitor({
     if (!activePeriodId) return 0;
     
     // Find global budget for this period
-    const periodGlobal = globalBudgets.find((b: any) => String(b.periodId) === String(activePeriodId));
+    const periodGlobal = globalBudgets.find((b: any) => {
+      // Primary Fix: Match by periodId
+      if (b.periodId) {
+        return String(b.periodId) === String(activePeriodId);
+      }
+      // Fallback Fix (Date Bounds)
+      if (activePeriodObj?.startDate && b.startDate && activePeriodObj?.endDate && b.endDate) {
+        return activePeriodObj.startDate === b.startDate && activePeriodObj.endDate === b.endDate;
+      }
+      if (activePeriodObj?.startDate && b.startDate) {
+        return activePeriodObj.startDate === b.startDate;
+      }
+      return false;
+    });
     const targetGlobalRaw = periodGlobal ? Number((periodGlobal as any).totalTargetAmount) : 0;
     if (targetGlobalRaw > 0) return targetGlobalRaw;
     
     // Fallback: sum of all category budgets for this period
     return rawBudgets.reduce((sum: number, b: any) => sum + getEffectiveBudgetAmount(b, 0), 0);
-  }, [activePeriodId, globalBudgets, rawBudgets]);
+  }, [activePeriodId, globalBudgets, rawBudgets, activePeriodObj]);
 
   const remainingBudget = totalBudget - totalSpent;
   const isOverBudget = remainingBudget < 0;

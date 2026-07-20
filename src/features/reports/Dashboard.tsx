@@ -90,7 +90,6 @@ export default function Dashboard({
   const { t, i18n } = useTranslation();
   const [loading, setLoading] = useState(true);
   const [transactions, setTransactions] = useState<any[]>(initialTransactions);
-  const [localSummary, setLocalSummary] = useState<any>(null);
 
   const currentUserData = useMemo(() => {
     if (!user) return null;
@@ -110,49 +109,217 @@ export default function Dashboard({
   const selectedMonth = dashboardDate.getMonth() + 1;
   const selectedYear = dashboardDate.getFullYear();
 
-  const activePeriodId = useMemo(() => {
+  const [selectedPeriod, setSelectedPeriod] = useState<any>(null);
+
+  const activePeriods = useMemo(() => {
+    return periods.filter((p: any) => p.isActive !== false);
+  }, [periods]);
+
+  // Find a matching period on mount or when periods load
+  useEffect(() => {
+    if (activePeriods.length > 0 && !selectedPeriod) {
+      const now = new Date();
+      const targetMonthStr = now.getMonth() + 1 < 10 ? `0${now.getMonth() + 1}` : `${now.getMonth() + 1}`;
+      const targetPrefix = `${now.getFullYear()}-${targetMonthStr}`;
+      
+      const monthsEn = [
+        'January', 'February', 'March', 'April', 'May', 'June',
+        'July', 'August', 'September', 'October', 'November', 'December'
+      ];
+      const targetNameEn = `${monthsEn[now.getMonth()]} ${now.getFullYear()}`.toLowerCase();
+      
+      const matched = activePeriods.find((p: any) => {
+        if (p.startDate && p.startDate.startsWith(targetPrefix)) return true;
+        if (p.name && p.name.trim().toLowerCase() === targetNameEn) return true;
+        return false;
+      }) || activePeriods[0];
+
+      if (matched) {
+        setSelectedPeriod(matched);
+        if (matched.startDate) {
+          setDashboardDate(startOfMonth(new Date(matched.startDate)));
+        }
+      }
+    }
+  }, [activePeriods, selectedPeriod]);
+
+  const activePeriod = useMemo(() => {
+    if (selectedPeriod) return selectedPeriod;
+
+    const targetName = `${MONTHS[selectedMonth - 1]?.label} ${selectedYear}`;
+    const monthsEn = [
+      'January', 'February', 'March', 'April', 'May', 'June',
+      'July', 'August', 'September', 'October', 'November', 'December'
+    ];
+    const targetNameEn = `${monthsEn[selectedMonth - 1]} ${selectedYear}`.toLowerCase();
+
+    const match = periods.find((p: any) => {
+      const pName = (p.name || '').trim().toLowerCase();
+      return pName === targetName.trim().toLowerCase() || pName === targetNameEn;
+    });
+    if (match) return match;
+    
+    // Fallback matching logic
     const targetMonthStr = selectedMonth < 10 ? `0${selectedMonth}` : `${selectedMonth}`;
     const targetPrefix = `${selectedYear}-${targetMonthStr}`;
-    const matchingPeriod = periods.find((p: any) => {
+    return periods.find((p: any) => {
       if (p.startDate && p.startDate.startsWith(targetPrefix)) return true;
       if (p.name && (p.name || '').toLowerCase().includes(targetPrefix)) return true;
       return false;
-    });
-    return matchingPeriod?.id || periods[0]?.id || null;
-  }, [periods, selectedMonth, selectedYear]);
+    }) || null;
+  }, [periods, selectedMonth, selectedYear, selectedPeriod]);
+
+  const activePeriodId = useMemo(() => {
+    return activePeriod?.id || null;
+  }, [activePeriod, periods]);
+
+  const calculatedRange = useMemo(() => {
+    const D = dbUser?.financialStartDay !== undefined ? parseInt(dbUser.financialStartDay, 10) || 1 : 1;
+    let startDateStr = '';
+    let endDateStr = '';
+    
+    const formatDateToYYYYMMDD = (d: Date): string => {
+      const yyyy = d.getFullYear();
+      const mm = String(d.getMonth() + 1).padStart(2, '0');
+      const dd = String(d.getDate()).padStart(2, '0');
+      return `${yyyy}-${mm}-${dd}`;
+    };
+
+    if (D === 1) {
+      const start = new Date(selectedYear, selectedMonth - 1, 1);
+      const end = new Date(selectedYear, selectedMonth, 0);
+      startDateStr = formatDateToYYYYMMDD(start);
+      endDateStr = formatDateToYYYYMMDD(end);
+    } else {
+      const start = new Date(selectedYear, selectedMonth - 2, D);
+      const end = new Date(selectedYear, selectedMonth - 1, D - 1);
+      startDateStr = formatDateToYYYYMMDD(start);
+      endDateStr = formatDateToYYYYMMDD(end);
+    }
+    
+    return { startDate: startDateStr, endDate: endDateStr };
+  }, [dbUser?.financialStartDay, selectedMonth, selectedYear]);
+
+  const getPeriodMonthAndYear = (tx: any) => {
+    let periodObj: any = null;
+    if (tx.periodId) {
+      periodObj = periods.find((p: any) => String(p.id) === String(tx.periodId));
+    }
+    if (!periodObj && tx.date && periods.length > 0) {
+      const txDate = new Date(tx.date);
+      periodObj = periods.find((p: any) => {
+        const start = new Date(p.startDate);
+        const end = new Date(p.endDate);
+        return txDate >= start && txDate <= end;
+      });
+    }
+
+    if (periodObj && periodObj.name) {
+      const nameParts = periodObj.name.split(' ');
+      if (nameParts.length === 2) {
+        const monthName = nameParts[0];
+        const yearNum = parseInt(nameParts[1], 10);
+        const monthsListIndo = [
+          'Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni',
+          'Juli', 'Agustus', 'September', 'Oktober', 'November', 'Desember'
+        ];
+        const monthIdx = monthsListIndo.findIndex(m => m.toLowerCase() === monthName.toLowerCase());
+        if (monthIdx !== -1 && !isNaN(yearNum)) {
+          return { monthIndex: monthIdx, year: yearNum };
+        }
+      }
+    }
+
+    if (tx.date) {
+      const dateParts = tx.date.split('-');
+      const year = parseInt(dateParts[0], 10);
+      const monthIndex = parseInt(dateParts[1], 10) - 1;
+      const day = parseInt(dateParts[2], 10);
+      const txDate = new Date(year, monthIndex, day);
+
+      const D = dbUser?.financialStartDay !== undefined ? parseInt(dbUser.financialStartDay, 10) || 1 : 1;
+
+      let startDate: Date;
+      let endDate: Date;
+
+      if (txDate.getDate() >= D) {
+        startDate = new Date(txDate.getFullYear(), txDate.getMonth(), D);
+        endDate = new Date(txDate.getFullYear(), txDate.getMonth() + 1, D - 1);
+      } else {
+        startDate = new Date(txDate.getFullYear(), txDate.getMonth() - 1, D);
+        endDate = new Date(txDate.getFullYear(), txDate.getMonth(), D - 1);
+      }
+
+      const startYear = startDate.getFullYear();
+      const startMonth = startDate.getMonth();
+      const endYear = endDate.getFullYear();
+      const endMonth = endDate.getMonth();
+
+      const lastDayOfStartMonth = new Date(startYear, startMonth + 1, 0).getDate();
+      const daysInFirstMonth = lastDayOfStartMonth - startDate.getDate() + 1;
+      const daysInSecondMonth = endDate.getDate();
+
+      let primaryMonth = startMonth;
+      let primaryYear = startYear;
+      if (daysInSecondMonth > daysInFirstMonth) {
+        primaryMonth = endMonth;
+        primaryYear = endYear;
+      }
+
+      return { monthIndex: primaryMonth, year: primaryYear };
+    }
+
+    if (tx.date) {
+      const d = new Date(tx.date);
+      return { monthIndex: d.getMonth(), year: d.getFullYear() };
+    }
+
+    return null;
+  };
 
   useEffect(() => {
     if (!user?.uid) return;
 
     setLoading(true);
-    let unsubTransactions: any;
-    let unsubSummary: any;
 
-    unsubTransactions = subscribeToCollection(user.uid, 'transactions', (data) => {
+    let unsubTransactions: any;
+    
+    unsubTransactions = subscribeToCollection(user.uid, "transactions", (data) => {
       setTransactions(data);
       setLoading(false);
     });
 
-    if (activePeriodId) {
-      const summaryRef = doc(getActiveDb(), `users/${user.uid}/summaries/${activePeriodId}`);
-      unsubSummary = onSnapshot(summaryRef, (docSnap) => {
-        if (docSnap.exists()) {
-          setLocalSummary(docSnap.data());
-        } else {
-          setLocalSummary({ totalPemasukan: 0, totalPengeluaran: 0 });
-        }
-      }, (error) => {
-        console.error('Error fetching summary:', error);
-      });
-    } else {
-      setLocalSummary({ totalPemasukan: 0, totalPengeluaran: 0 });
-    }
-
     return () => {
       if (unsubTransactions) unsubTransactions();
-      if (unsubSummary) unsubSummary();
     };
-  }, [user?.uid, activePeriodId]);
+  }, [user?.uid]);
+
+  // Filtered transactions for the selected month/year
+  const monthlyTransactions = useMemo(() => {
+    return transactions.filter(t => {
+      if (!t.date) return false;
+      
+      if (activePeriodId && t.periodId) {
+        return String(t.periodId) === String(activePeriodId);
+      } else if (activePeriodId) {
+        if (activePeriod && activePeriod.startDate && activePeriod.endDate) {
+          return t.date >= activePeriod.startDate && t.date <= activePeriod.endDate;
+        }
+      }
+      
+      if (t.periodId && !activePeriodId) {
+        return false;
+      }
+      
+      if (calculatedRange) {
+        if (t.date >= calculatedRange.startDate && t.date <= calculatedRange.endDate) {
+          return true;
+        }
+      }
+      
+      return false;
+    });
+  }, [transactions, activePeriodId, activePeriod, calculatedRange]);
 
   // Calculate cashflow chart data locally
   const cashflowStatsData = useMemo(() => {
@@ -160,28 +327,29 @@ export default function Dashboard({
     const result = months.map(m => ({ month: m, income: 0, expense: 0 }));
     
     transactions.forEach(tx => {
-      if (!tx.date) return;
-      const date = new Date(tx.date);
-      if (date.getFullYear() === selectedYear) {
-        const monthIdx = date.getMonth();
-        if (String(tx.type) === 'Cr' || tx.type?.toLowerCase() === 'pemasukan') {
-          result[monthIdx].income += Number(tx.amount || 0);
-        } else if (String(tx.type) === 'Dr' || tx.type?.toLowerCase() === 'pengeluaran') {
-          result[monthIdx].expense += Number(tx.amount || 0);
+      const periodInfo = getPeriodMonthAndYear(tx);
+      if (!periodInfo) return;
+      
+      if (periodInfo.year === selectedYear) {
+        const monthIdx = periodInfo.monthIndex;
+        if (monthIdx >= 0 && monthIdx < 12) {
+          if (String(tx.type) === 'Cr' || tx.type?.toLowerCase() === 'pemasukan') {
+            result[monthIdx].income += Number(tx.amount || 0);
+          } else if (String(tx.type) === 'Dr' || tx.type?.toLowerCase() === 'pengeluaran') {
+            result[monthIdx].expense += Number(tx.amount || 0);
+          }
         }
       }
     });
     return result;
-  }, [transactions, selectedYear]);
+  }, [transactions, selectedYear, periods, dbUser?.financialStartDay]);
   
 
   
   // Calculate expense distribution locally for the selected month and year
   const rawExpenseDistribution = useMemo(() => {
-    const expTxs = transactions.filter(t => {
-      if (!t.date) return false;
-      const d = new Date(t.date);
-      return d.getMonth() + 1 === selectedMonth && d.getFullYear() === selectedYear && (String(t.type) === 'Dr' || t.type?.toLowerCase() === 'pengeluaran');
+    const expTxs = monthlyTransactions.filter(t => {
+      return (String(t.type) === 'Dr' || t.type?.toLowerCase() === 'pengeluaran');
     });
     
     const map: Record<string, number> = {};
@@ -196,14 +364,34 @@ export default function Dashboard({
     }));
     
     return distData.sort((a,b) => b.amount - a.amount);
-  }, [transactions, selectedMonth, selectedYear]);
+  }, [monthlyTransactions]);
   
 
   const handlePrevMonth = () => {
+    if (activePeriods.length > 0 && selectedPeriod) {
+      const idx = activePeriods.findIndex(p => String(p.id) === String(selectedPeriod.id));
+      if (idx > 0) {
+        setSelectedPeriod(activePeriods[idx - 1]);
+        if (activePeriods[idx - 1].startDate) {
+          setDashboardDate(startOfMonth(new Date(activePeriods[idx - 1].startDate)));
+        }
+        return;
+      }
+    }
     setDashboardDate(prev => subMonths(prev, 1));
   };
 
   const handleNextMonth = () => {
+    if (activePeriods.length > 0 && selectedPeriod) {
+      const idx = activePeriods.findIndex(p => String(p.id) === String(selectedPeriod.id));
+      if (idx !== -1 && idx < activePeriods.length - 1) {
+        setSelectedPeriod(activePeriods[idx + 1]);
+        if (activePeriods[idx + 1].startDate) {
+          setDashboardDate(startOfMonth(new Date(activePeriods[idx + 1].startDate)));
+        }
+        return;
+      }
+    }
     setDashboardDate(prev => addMonths(prev, 1));
   };
 
@@ -285,14 +473,6 @@ export default function Dashboard({
     return Array.from(years).sort((a, b) => b - a);
   }, [transactions]);
 
-  // Filtered transactions for the selected month/year
-  const monthlyTransactions = useMemo(() => {
-    return transactions.filter(t => {
-      const tDate = new Date(t.date);
-      return (tDate.getMonth() + 1) === selectedMonth && tDate.getFullYear() === selectedYear;
-    });
-  }, [transactions, selectedMonth, selectedYear]);
-
   const budgetAlerts = useMemo(() => {
     const alerts: { categoryName: string, spent: number, limit: number, percentage: number }[] = [];
     
@@ -301,7 +481,7 @@ export default function Dashboard({
       if (!category) return;
       
       const spent = monthlyTransactions
-        .filter(t => t.type === 'pengeluaran' && t.category === category.name)
+        .filter(t => (String(t.type) === 'Dr' || t.type?.toLowerCase() === 'pengeluaran') && t.category === category.name)
         .reduce((sum, t) => sum + t.amount, 0);
         
       const limit = alloc.calculatedAmount || 0;
@@ -323,27 +503,20 @@ export default function Dashboard({
 
   // Financial Metrics calculations
   const { totalIncome, totalExpense } = useMemo(() => {
-    if (localSummary) {
-      return {
-        totalIncome: localSummary.totalPemasukan || 0,
-        totalExpense: localSummary.totalPengeluaran || 0
-      };
-    }
-
     let income = 0;
     let expense = 0;
     monthlyTransactions.forEach(t => {
-      if (t.type === 'pemasukan') {
-        income += t.amount;
-      } else if (t.type === 'pengeluaran') {
-        expense += t.amount;
+      if (String(t.type) === 'Cr' || t.type?.toLowerCase() === 'pemasukan') {
+        income += Number(t.amount || 0);
+      } else if (String(t.type) === 'Dr' || t.type?.toLowerCase() === 'pengeluaran') {
+        expense += Number(t.amount || 0);
       }
     });
     return {
       totalIncome: income,
       totalExpense: expense
     };
-  }, [monthlyTransactions, localSummary]);
+  }, [monthlyTransactions]);
 
   const netSavingsAndBalance = useMemo(() => {
     // 1. Calculate Base Balance: Filter for active accounts with 'includeInNetWorth === true' and sum initial balances (Saldo Awal, saved as 'balance').
@@ -361,9 +534,9 @@ export default function Dashboard({
     transactions.forEach((t: any) => {
       const isLinkedToActiveAccount = t.accountId && activeAccountIds.has(String(t.accountId));
       if (isLinkedToActiveAccount) {
-        if (t.type === 'pemasukan') {
+        if (String(t.type) === 'Cr' || t.type?.toLowerCase() === 'pemasukan') {
           totalIncome += Number(t.amount || 0);
-        } else if (t.type === 'pengeluaran') {
+        } else if (String(t.type) === 'Dr' || t.type?.toLowerCase() === 'pengeluaran') {
           totalExpense += Number(t.amount || 0);
         }
       }
@@ -734,11 +907,33 @@ export default function Dashboard({
             <ChevronLeft size={16} />
           </button>
           
-          <div className="flex items-center gap-1.5 px-2">
+          <div className="flex items-center gap-1 px-2">
             <Calendar size={14} className="text-indigo-500 shrink-0" />
-            <span className="text-xs font-bold text-slate-850 whitespace-nowrap">
-              {MONTHS[selectedMonth - 1]?.label} {selectedYear}
-            </span>
+            {activePeriods.length > 0 ? (
+              <select
+                value={selectedPeriod?.id || ''}
+                onChange={(e) => {
+                  const found = activePeriods.find(p => String(p.id) === String(e.target.value));
+                  if (found) {
+                    setSelectedPeriod(found);
+                    if (found.startDate) {
+                      setDashboardDate(startOfMonth(new Date(found.startDate)));
+                    }
+                  }
+                }}
+                className="bg-transparent font-bold text-slate-850 outline-none cursor-pointer text-xs pr-1 border-none focus:outline-none focus:ring-0"
+              >
+                {activePeriods.map((p: any, idx: number) => (
+                  <option key={`${p.id}-${idx}`} value={p.id}>
+                    {p.name}
+                  </option>
+                ))}
+              </select>
+            ) : (
+              <span className="text-xs font-bold text-slate-850 whitespace-nowrap">
+                {MONTHS[selectedMonth - 1]?.label} {selectedYear}
+              </span>
+            )}
             {selectedMonth === currentDate.getMonth() + 1 && selectedYear === currentDate.getFullYear() && (
               <span className="text-[9px] bg-indigo-50 text-indigo-700 px-2 py-0.5 rounded-lg font-bold border border-indigo-100/30 shrink-0">
                 {t('dashboard.month_this')}
@@ -1116,7 +1311,7 @@ export default function Dashboard({
               
               <div className="flex flex-col gap-3 flex-1">
                 {topRecentTransactions.length > 0 ? (
-                  topRecentTransactions.map((t) => {
+                  topRecentTransactions.map((t, idx) => {
                     const isIncome = t.type === 'pemasukan';
                     const isTransfer = t.type === 'transfer';
                     const iconConfig = getCategoryIconAndColor(t.category);
@@ -1129,7 +1324,7 @@ export default function Dashboard({
                     const cleanName = isSplit ? t.category : (t.description || t.category);
                     
                     return (
-                      <div key={t.id} className="flex items-center justify-between pb-3 pt-1 border-b border-gray-50 last:border-0 last:pb-0">
+                      <div key={`${t.id}-${idx}`} className="flex items-center justify-between pb-3 pt-1 border-b border-gray-50 last:border-0 last:pb-0">
                         <div className="flex items-center gap-3">
                           <div className={`h-10 w-10 rounded-xl flex items-center justify-center shrink-0 ${colorClass}`}>
                             <Icon size={18} strokeWidth={2.5} />
@@ -1183,6 +1378,7 @@ export default function Dashboard({
               budgets={budgets}
               transactions={transactions}
               globalBudgets={globalBudgets}
+              selectedPeriod={activePeriod}
             />
           )}
         </div>

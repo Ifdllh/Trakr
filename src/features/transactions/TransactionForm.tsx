@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { api } from '@/lib/api';
 import { Category, Transaction, TransactionType, MasterAccount, MasterAsset, MasterContact, MasterTag } from '@/types';
 import { PlusCircle, Calendar, FileText, X, Check, ChevronDown, ChevronUp, Plus, Trash2 } from 'lucide-react';
@@ -110,19 +110,21 @@ export default function TransactionForm({
   const isCreating = false;
   const [matchedPeriod, setMatchedPeriod] = useState<any>(null);
 
+  const activePeriods = useMemo(() => (periods || []).filter(p => p.isActive !== false), [periods]);
+
   useEffect(() => {
-    if (!date || periods.length === 0) {
+    if (!date || activePeriods.length === 0) {
       setMatchedPeriod(null);
       return;
     }
     const txDate = new Date(date);
-    const matched = periods.find((p: any) => {
+    const matched = activePeriods.find((p: any) => {
       const start = new Date(p.startDate);
       const end = new Date(p.endDate);
       return txDate >= start && txDate <= end;
     });
     setMatchedPeriod(matched || null);
-  }, [date, periods]);
+  }, [date, activePeriods]);
   const { showToast } = useToast();
   const [isAdvancedOpen, setIsAdvancedOpen] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -971,7 +973,7 @@ export default function TransactionForm({
                 </p>
               ) : (
                 <p className="text-[10px] text-amber-600 font-bold mt-1.5 flex items-center gap-1">
-                  ⚠️ {t('form.period_not_created')}
+                  ⚠️ {t('form.period_not_matched')}
                 </p>
               )}
             </div>

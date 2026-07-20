@@ -358,8 +358,8 @@ export default function TransactionList({ user, categories, periods, accounts = 
             className="w-full px-3 py-2.5 border border-gray-200 rounded-xl text-sm bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500"
           >
             <option value="semua">{t('transactions.all_periods')}</option>
-            {periods.map((p) => (
-              <option key={p.id} value={p.id}>{formatPeriodName(p.name, i18n.language)}</option>
+            {periods.map((p, idx) => (
+              <option key={`${p.id}-${idx}`} value={p.id}>{formatPeriodName(p.name, i18n.language)}</option>
             ))}
           </select>
         </div>
@@ -468,7 +468,7 @@ export default function TransactionList({ user, categories, periods, accounts = 
 
                   {/* Transaction Items */}
                   <div className="divide-y divide-gray-100">
-                    {itemsToRender.map((item) => {
+                    {itemsToRender.map((item, idx) => {
                       if (item.isGroup) {
                         const children = item.children || [];
                         const firstChild = children[0];
@@ -660,7 +660,7 @@ export default function TransactionList({ user, categories, periods, accounts = 
                         const tx = item.transaction!;
                         return (
                           <div 
-                            key={tx.id}
+                            key={`${tx.id}-${idx}`}
                             className="p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-4 transition-all hover:bg-gray-50/50 group"
                           >
                             {/* Left block (Icon, Subcategory, Category, Notes) */}

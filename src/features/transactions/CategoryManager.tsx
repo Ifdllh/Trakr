@@ -657,8 +657,8 @@ export default function CategoryManager({
                     <td colSpan={5} className="p-4 text-center text-gray-400 italic">{t('master_data.empty_state_title') || 'Belum ada master data.'}</td>
                   </tr>
                 ) : (
-                  sortedPeriods.map(p => (
-                    <tr key={p.id} className="hover:bg-slate-50 transition-colors group">
+                  sortedPeriods.map((p, idx) => (
+                    <tr key={`${p.id}-${idx}`} className="hover:bg-slate-50 transition-colors group">
                       <td className="p-4 font-medium text-slate-800">
                         <div className="flex items-center gap-2">
                           <Calendar size={16} className="text-indigo-500" />
@@ -869,11 +869,11 @@ export default function CategoryManager({
               {t('master_data.search_no_results') || 'Tidak ada kategori yang cocok dengan pencarian Anda.'}
             </div>
           ) : (
-            displayedCategories.map((cat) => {
+            displayedCategories.map((cat, idx) => {
               const catColor = cat.colorHex || cat.color_hex;
               return (
                 <div 
-                  key={cat.id} 
+                  key={`${cat.id}-${idx}`} 
                   className="border border-gray-100 rounded-xl p-5 hover:shadow-md hover:shadow-gray-100/50 transition-all flex flex-col gap-3 relative group"
                 >
                   {/* Header: Icon & Category Name */}
