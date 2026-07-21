@@ -43,8 +43,42 @@ const getInitials = (name?: string | null, email?: string | null) => {
   return '?';
 };
 function IdleMonitor() {
-  useIdleTimeout();
-  return null;
+  const { isWarningPhase, timeLeft, keepLoggedIn, handleLogout } = useIdleTimeout(1620000, 180000);
+  const { t } = useTranslation();
+
+  if (!isWarningPhase) return null;
+
+  const minutes = Math.floor(timeLeft / 60000);
+  const seconds = Math.floor((timeLeft % 60000) / 1000);
+  const formattedTime = `${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
+
+  return (
+    <div className="fixed inset-0 z-[100] bg-slate-900/50 backdrop-blur-sm flex items-center justify-center p-4">
+      <div className="bg-white rounded-xl shadow-xl w-full max-w-sm p-6 text-center">
+        <h3 className="text-lg font-bold text-slate-800">{t('timeout.modal_title')}</h3>
+        <p className="text-sm text-slate-500 mt-2">
+          {t('timeout.modal_desc')} <strong className="text-indigo-600 ml-1">{formattedTime}</strong>
+        </p>
+        
+        <div className="flex gap-3 mt-6">
+          <button
+            type="button"
+            onClick={handleLogout}
+            className="flex-1 px-4 py-2 bg-slate-100 text-slate-700 font-medium rounded-lg hover:bg-slate-200 transition-colors"
+          >
+            {t('timeout.btn_logout')}
+          </button>
+          <button
+            type="button"
+            onClick={keepLoggedIn}
+            className="flex-1 px-4 py-2 bg-indigo-600 text-white font-medium rounded-lg hover:bg-indigo-700 transition-colors"
+          >
+            {t('timeout.btn_stay')}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
 }
 
 
@@ -54,7 +88,17 @@ export default function App() {
   const isGuest = user?.isAnonymous || user?.email?.includes('guest') || false;
 
   const [authChecked, setAuthChecked] = useState(false);
-  const [dbUser, setDbUser] = useState<any>(null);
+  const [dbUser, setDbUser] = useState<any>(() => {
+    try {
+      const localPrefsRaw = localStorage.getItem('app_preferences');
+      if (localPrefsRaw) {
+        const prefs = JSON.parse(localPrefsRaw);
+        if (prefs?.language) i18n.changeLanguage(prefs.language);
+        return prefs;
+      }
+    } catch (e) {}
+    return null;
+  });
 
   const currentUserData = useMemo(() => {
     if (!user) return null;
@@ -79,15 +123,27 @@ export default function App() {
       try {
         const response = await api.get('/user/profile');
         if (response.data) {
-          setDbUser(response.data);
+          let localPrefs = {};
+          try {
+            const raw = localStorage.getItem('app_preferences');
+            if (raw) localPrefs = JSON.parse(raw);
+          } catch(e) {}
+          setDbUser((prev: any) => ({ ...prev, ...response.data, ...localPrefs }));
         }
-      } catch (err) {
+      } catch (err: any) {
         if (!err?.message?.includes('Quota')) console.error('Failed to fetch Firestore user profile in App:', err);
       }
     };
     if (user) {
       fetchDbProfile();
     } else {
+      try {
+        const localPrefsRaw = localStorage.getItem('app_preferences');
+        if (localPrefsRaw) {
+          setDbUser(JSON.parse(localPrefsRaw));
+          return;
+        }
+      } catch (e) {}
       setDbUser(null);
     }
   }, [user]);

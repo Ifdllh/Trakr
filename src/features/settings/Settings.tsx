@@ -68,12 +68,9 @@ export default function Settings({ user, dbUser, onProfileUpdate, setActiveTab }
   const [photoURL, setPhotoURL] = useState(dbUser?.photoURL || user?.photoURL || '');
 
   const handleLanguageChange = async (selectedLang: 'id' | 'en') => {
-    // 1. Optimistic Update: Immediately change language in i18n instance
     i18n.changeLanguage(selectedLang);
-    
-    // 2. Perform Firestore update in background with error handling
     try {
-      await api.put('/user/profile', {
+      const prefsPayload = {
         financialStartDay: parseInt(financialStartDay.toString(), 10) || 1,
         firstDayOfWeek,
         autoCreatePeriods: !!autoCreatePeriods,
@@ -81,18 +78,15 @@ export default function Settings({ user, dbUser, onProfileUpdate, setActiveTab }
         privacyMode,
         defaultLandingPage,
         language: selectedLang
-      });
-      
+      };
+      await api.put('/user/profile', prefsPayload);
+      try {
+        localStorage.setItem('app_preferences', JSON.stringify(prefsPayload));
+      } catch (e) {
+        console.error('Failed to save preferences to localStorage', e);
+      }
       if (onProfileUpdate) {
-        onProfileUpdate({
-          financialStartDay: parseInt(financialStartDay.toString(), 10) || 1,
-          firstDayOfWeek,
-          autoCreatePeriods: !!autoCreatePeriods,
-          theme,
-          privacyMode,
-          defaultLandingPage,
-          language: selectedLang
-        });
+        onProfileUpdate(prefsPayload);
       }
     } catch (err) {
       console.error('Failed to save language preference to Firestore:', err);
@@ -299,7 +293,7 @@ export default function Settings({ user, dbUser, onProfileUpdate, setActiveTab }
     e.preventDefault();
     setIsSavingPreferences(true);
     try {
-      await api.put('/user/profile', {
+      const prefsPayload = {
         financialStartDay: parseInt(financialStartDay.toString(), 10) || 1,
         firstDayOfWeek,
         autoCreatePeriods: !!autoCreatePeriods,
@@ -307,21 +301,22 @@ export default function Settings({ user, dbUser, onProfileUpdate, setActiveTab }
         privacyMode,
         defaultLandingPage,
         language
-      });
+      };
+
+      await api.put('/user/profile', prefsPayload);
+
+      // Persist to local storage so it survives refresh
+      try {
+        localStorage.setItem('app_preferences', JSON.stringify(prefsPayload));
+      } catch (e) {
+        console.error('Failed to save preferences to localStorage', e);
+      }
 
       showToast(t('toast_success'), 'success');
       
       // Update parent state reactively
       if (onProfileUpdate) {
-        onProfileUpdate({
-          financialStartDay: parseInt(financialStartDay.toString(), 10) || 1,
-          firstDayOfWeek,
-          autoCreatePeriods: !!autoCreatePeriods,
-          theme,
-          privacyMode,
-          defaultLandingPage,
-          language
-        });
+        onProfileUpdate(prefsPayload);
       }
     } catch (err: any) {
       showToast(err?.message || t('toast_error'), 'error');

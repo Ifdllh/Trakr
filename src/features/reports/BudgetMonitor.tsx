@@ -123,6 +123,33 @@ export default function BudgetMonitor({
   const isOverBudget = remainingBudget < 0;
   const progressPercent = totalBudget > 0 ? Math.round((totalSpent / totalBudget) * 100) : 0;
 
+  const remainingDays = useMemo(() => {
+    if (!activePeriodObj?.endDate) return 1;
+    const end = new Date(activePeriodObj.endDate);
+    const now = new Date();
+    // Reset hours to compare purely dates
+    end.setHours(23, 59, 59, 999);
+    now.setHours(0, 0, 0, 0);
+
+    if (now > end) return 1; 
+    
+    const diffTime = end.getTime() - now.getTime();
+    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+    return diffDays > 0 ? diffDays : 1;
+  }, [activePeriodObj]);
+
+  const safeToSpendPerDay = remainingBudget > 0 ? remainingBudget / remainingDays : 0;
+
+  const insightText = useMemo(() => {
+    if (progressPercent < 50) {
+      return t('dashboard.budget_monitor_widget.insight_good', 'Kerja bagus! Pengeluaran Anda sangat terkendali.');
+    } else if (progressPercent <= 75) {
+      return t('dashboard.budget_monitor_widget.insight_warning', 'Anda telah menggunakan separuh anggaran. Terus pantau pengeluaran Anda.');
+    } else {
+      return t('dashboard.budget_monitor_widget.insight_danger', 'Peringatan: Anda mendekati batas anggaran. Tunda pengeluaran tidak penting.');
+    }
+  }, [progressPercent, t]);
+
   const isBudgetConfigured = totalBudget > 0 || rawBudgets.length > 0;
   const isLoading = false;
 
@@ -215,20 +242,20 @@ export default function BudgetMonitor({
               <div className="flex justify-between items-center text-xs">
                 <span className="text-slate-500 font-semibold">{t('dashboard.budget_monitor_widget.spending_progress', 'Progres Penggunaan')}</span>
                 <span className={`font-bold ${
-                  progressPercent < 75 
+                  progressPercent < 50 
                     ? 'text-emerald-600' 
-                    : progressPercent < 100 
-                    ? 'text-amber-600' 
+                    : progressPercent <= 75 
+                    ? 'text-orange-500' 
                     : 'text-rose-600'
                 }`}>{progressPercent}% {t('dashboard.budget_monitor_widget.used_suffix', 'Terpakai')}</span>
               </div>
               <div className="w-full h-2.5 bg-slate-100 rounded-full overflow-hidden">
                 <div 
                   className={`h-full rounded-full transition-all duration-500 ${
-                    progressPercent < 75 
+                    progressPercent < 50 
                       ? 'bg-emerald-500' 
-                      : progressPercent < 100 
-                      ? 'bg-amber-500' 
+                      : progressPercent <= 75 
+                      ? 'bg-orange-400' 
                       : 'bg-rose-500'
                   }`}
                   style={{ width: `${Math.min(100, progressPercent)}%` }}
@@ -238,6 +265,9 @@ export default function BudgetMonitor({
                 <span>{t('dashboard.budget_monitor_widget.used_prefix', 'Terpakai:')} <strong className="text-slate-700 font-bold tabular-nums">{formatIDR(totalSpent)}</strong></span>
                 <span>{t('dashboard.budget_monitor_widget.total_budget', 'Total Anggaran:')} <strong className="text-slate-700 font-bold tabular-nums">{formatIDR(totalBudget)}</strong></span>
               </div>
+              <div className="flex justify-between items-center text-[10px] text-slate-400 font-medium mt-1">
+                <span>{t('dashboard.budget_monitor_widget.safe_to_spend', 'Aman dibelanjakan:')} <strong className="text-emerald-600 font-bold tabular-nums">{formatIDR(safeToSpendPerDay)} / {t('dashboard.budget_monitor_widget.day', 'hari')}</strong></span>
+              </div>
             </div>
           </div>
         )}
@@ -246,7 +276,7 @@ export default function BudgetMonitor({
       <div className="mt-4 p-3 bg-indigo-50/50 border border-indigo-100/50 rounded-2xl flex gap-2 items-start text-[9px] text-indigo-900/90 font-medium leading-relaxed" id="budget-monitor-tip">
         <Info size={12} className="shrink-0 text-indigo-600 mt-0.5" id="budget-tip-icon" />
         <p id="budget-tip-text">
-          {t('dashboard.budget_monitor_widget.info_box', 'Alokasikan anggaran belanja secara bijak setiap bulan. Pengendalian realisasi anggaran di bawah 75% membantu Anda mengamankan pos tabungan masa depan.')}
+          {insightText}
         </p>
       </div>
     </div>

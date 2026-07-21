@@ -5,6 +5,12 @@ i18n.use(initReactI18next).init({
   resources: {
     id: {
       translation: {
+        timeout: {
+          modal_title: 'Sesi Segera Berakhir',
+          modal_desc: 'Anda tidak melakukan aktivitas selama beberapa saat. Demi keamanan, Anda akan otomatis dikeluarkan dalam',
+          btn_stay: 'Saya masih di sini',
+          btn_logout: 'Keluarkan saya'
+        },
         toast: {
           success: {
             create: "Data berhasil ditambahkan",
@@ -182,7 +188,12 @@ i18n.use(initReactI18next).init({
             total_budget: "Total Anggaran:",
             info_box: "Alokasikan anggaran belanja secara bijak setiap bulan. Pengendalian realisasi anggaran di bawah 75% membantu Anda mengamankan pos tabungan masa depan.",
             no_budget_this_month: "Belum ada anggaran untuk bulan ini.",
-            create_budget: "+ Buat Anggaran"
+            create_budget: "+ Buat Anggaran",
+            insight_good: "Kerja bagus! Pengeluaran Anda sangat terkendali.",
+            insight_warning: "Anda telah menggunakan separuh anggaran. Terus pantau pengeluaran Anda.",
+            insight_danger: "Peringatan: Anda mendekati batas anggaran. Tunda pengeluaran tidak penting.",
+            safe_to_spend: "Aman dibelanjakan:",
+            day: "hari"
           },
           customize_dashboard: "Kustomisasi Dasbor",
           search_placeholder: "Cari menu atau fitur...",
@@ -623,6 +634,12 @@ i18n.use(initReactI18next).init({
     },
     en: {
       translation: {
+        timeout: {
+          modal_title: 'Session Expiring Soon',
+          modal_desc: 'You have been inactive for a while. For your security, you will be automatically logged out in',
+          btn_stay: 'I am still here',
+          btn_logout: 'Log me out'
+        },
         toast: {
           success: {
             create: "Successfully added",
@@ -800,7 +817,12 @@ i18n.use(initReactI18next).init({
             total_budget: "Total Budget:",
             info_box: "Allocate your shopping budget wisely each month. Controlling your actual spending to stay below 75% helps you secure future savings allocations.",
             no_budget_this_month: "There is no budget for this month.",
-            create_budget: "+ Create Budget"
+            create_budget: "+ Create Budget",
+            insight_good: "Great job! Your spending is well under control.",
+            insight_warning: "You are halfway through your budget. Keep monitoring your expenses.",
+            insight_danger: "Warning: You are approaching your budget limit. Postpone non-essential spending.",
+            safe_to_spend: "Safe to spend:",
+            day: "day"
           },
           customize_dashboard: "Customize Dashboard",
           search_placeholder: "Search menus or features...",
