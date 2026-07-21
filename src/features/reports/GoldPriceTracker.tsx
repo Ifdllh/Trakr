@@ -196,7 +196,7 @@ export default function GoldPriceTracker() {
               </div>
             </div>
           ) : data ? (
-            <div className="flex flex-col gap-3 max-h-[385px] overflow-y-auto pr-1.5 scrollbar-thin scrollbar-thumb-gray-200 scrollbar-track-transparent">
+            <div data-lenis-prevent="true" className="flex flex-col gap-3 max-h-[385px] overflow-y-auto pr-1.5 scrollbar-thin scrollbar-thumb-gray-200 scrollbar-track-transparent">
               {Object.keys(data.vendors).map((key) => {
                 const vendor = data.vendors[key];
                 if (!vendor) return null;

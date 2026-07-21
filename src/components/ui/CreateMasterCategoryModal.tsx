@@ -195,7 +195,7 @@ export default function CreateMasterCategoryModal({
             <Plus size={20} className="rotate-45" />
           </button>
         </div>
-        <div className="p-6 overflow-y-auto">
+        <div data-lenis-prevent="true" className="p-6 overflow-y-auto">
           <form onSubmit={handleSubmit} className="space-y-4">
             <div>
               <label className="text-sm font-bold text-gray-700 mb-1 block">{t('master_data.master_data_type')}</label>

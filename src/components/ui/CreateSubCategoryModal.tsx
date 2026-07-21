@@ -88,7 +88,7 @@ export default function CreateSubCategoryModal({
         </div>
 
         {/* Body */}
-        <div className="p-6 overflow-y-auto space-y-4">
+        <div data-lenis-prevent="true" className="p-6 overflow-y-auto space-y-4">
 
           <form onSubmit={handleSubmit} className="space-y-4">
             {/* Visual Parent Lock */}

@@ -197,7 +197,7 @@ export default function CreateMasterPeriodModal({
             <Plus size={20} className="rotate-45" />
           </button>
         </div>
-        <div className="p-6 overflow-y-auto">
+        <div data-lenis-prevent="true" className="p-6 overflow-y-auto">
           <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
             <div>
               <label className="text-xs font-black text-slate-500 uppercase mb-1.5 block">{t('master_data.new_period_name')}</label>

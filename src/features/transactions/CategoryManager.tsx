@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { useLenis } from 'lenis/react';
 import { useTranslation } from 'react-i18next';
 import CreateMasterAccountModal from '@/components/ui/CreateMasterAccountModal';
 import CreateMasterCategoryModal from '@/components/ui/CreateMasterCategoryModal';
@@ -282,6 +283,22 @@ export default function CategoryManager({
 
   const [sortColumn, setSortColumn] = useState<'name' | 'startDate' | 'endDate'>('startDate');
   const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('desc');
+  const lenis = useLenis();
+
+  useEffect(() => {
+    const isAnyModalOpen = isFormOpen || deleteTarget !== null || renameTarget !== null || deleteConfirmPeriod !== null;
+    if (isAnyModalOpen) {
+      lenis?.stop();
+      document.body.style.overflow = 'hidden';
+    } else {
+      lenis?.start();
+      document.body.style.overflow = 'auto';
+    }
+    return () => {
+      lenis?.start();
+      document.body.style.overflow = 'auto';
+    };
+  }, [isFormOpen, deleteTarget, renameTarget, deleteConfirmPeriod, lenis]);
 
   const activePeriods = periods.filter(p => p.isActive !== false);
   const sortedPeriods = [...activePeriods].sort((a, b) => {
@@ -487,7 +504,7 @@ export default function CategoryManager({
           </div>
           <div className="h-10 w-32 bg-gray-100 rounded-xl"></div>
         </div>
-        <div className="flex gap-2 border-b border-gray-100 pb-2 overflow-x-auto">
+        <div data-lenis-prevent="true" className="flex gap-2 border-b border-gray-100 pb-2 overflow-x-auto">
           {[1,2,3,4,5,6].map(i => (
             <div key={i} className="h-10 w-28 bg-gray-100 rounded-lg shrink-0"></div>
           ))}
@@ -516,7 +533,7 @@ export default function CategoryManager({
       </div>
 
       {/* Tab Navigation Container */}
-      <div className="w-full overflow-x-auto no-scrollbar mb-4">
+      <div data-lenis-prevent="true" className="w-full overflow-x-auto no-scrollbar mb-4">
         <div className="flex bg-gray-50 p-1 rounded-xl gap-1 w-max">
           <button
             onClick={() => setActiveTab('pengeluaran')}
@@ -619,7 +636,7 @@ export default function CategoryManager({
 
       {activeTab === 'periode' ? (
         <div className="space-y-4">
-          <div className="overflow-x-auto border border-gray-100 rounded-xl bg-white shadow-sm">
+          <div data-lenis-prevent="true" className="overflow-x-auto border border-gray-100 rounded-xl bg-white shadow-sm">
             <table className="w-full text-left text-sm text-gray-700">
               <thead className="bg-gray-50 border-b border-gray-100 text-gray-900">
                 <tr>
@@ -1044,7 +1061,7 @@ export default function CategoryManager({
                 <Plus size={20} className="rotate-45" />
               </button>
             </div>
-            <div className="p-6 overflow-y-auto">
+            <div data-lenis-prevent="true" className="p-6 overflow-y-auto">
               <form onSubmit={async (e) => {
                 e.preventDefault();
                 setIsSubmitting(true);

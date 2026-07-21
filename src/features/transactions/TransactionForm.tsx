@@ -578,7 +578,7 @@ export default function TransactionForm({
 
         {/* Form Body (Scrollable) */}
         <form onSubmit={handleSubmit} className="flex flex-col overflow-hidden min-h-0 flex-1">
-          <div className="p-6 space-y-5 overflow-y-auto flex-1">
+          <div data-lenis-prevent="true" className="p-6 space-y-5 overflow-y-auto flex-1">
 
             {/* Amount Input */}
             <div>

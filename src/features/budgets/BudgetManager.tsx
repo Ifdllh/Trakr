@@ -21,9 +21,11 @@ import {
   HelpCircle,
   Loader2
 } from 'lucide-react';
-import { useForm, useFieldArray } from 'react-hook-form';
+import { useForm, useFieldArray, Controller } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
+import { EditSingleBudgetModal } from "./EditSingleBudgetModal";
+import { NumericFormat } from 'react-number-format';
 import { api } from '@/lib/api';
 import { Transaction, Category, BudgetAllocation, BudgetPeriod, GlobalBudget, MasterAccount, MasterAsset, MasterTag, MasterContact } from '@/types';
 import { useToast } from '@/context/ToastContext';
@@ -200,6 +202,17 @@ export default function BudgetManager({
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [budgetToDelete, setBudgetToDelete] = useState<string | null>(null);
   const [activeBudgetId, setActiveBudgetId] = useState<string | null>(null);
+  const [singleEditModalOpen, setSingleEditModalOpen] = useState(false);
+  const [singleEditBudget, setSingleEditBudget] = useState<BudgetAllocation | null>(null);
+
+  const handleSaveSingleBudget = async (id: string, amount: number) => {
+    try {
+      await onSaveBudget({ value: amount, type: 'amount', calculatedAmount: amount }, id);
+      showToast(t('budgets.toast_save_success', 'Anggaran berhasil diperbarui' ) || 'Anggaran berhasil diperbarui', 'success');
+    } catch (err: any) {
+      showToast(err.message || 'Gagal memperbarui anggaran', 'error');
+    }
+  };
 
 
   const formatIDR = (amount: number) => {
@@ -855,7 +868,8 @@ export default function BudgetManager({
                             type="button"
                             onClick={(e) => {
                               e.stopPropagation();
-                              handleOpenForm();
+                              setSingleEditBudget(budget);
+                              setSingleEditModalOpen(true);
                             }}
                             className="p-2 text-slate-400 hover:text-indigo-600 hover:bg-indigo-50/70 rounded-xl transition-all cursor-pointer"
                             title={t('budgets.edit_budget') || "Edit Anggaran"}
@@ -939,7 +953,7 @@ export default function BudgetManager({
               <form onSubmit={handleSubmit(onSubmitForm)} className="flex-1 flex flex-col overflow-hidden space-y-4">
                 
                 {/* Scrollable form body */}
-                <div className="flex-1 overflow-y-auto space-y-4 pr-1">
+                <div data-lenis-prevent="true" className="flex-1 overflow-y-auto space-y-4 pr-1">
                   
                   {/* Period Display */}
                   <div className="space-y-1">
@@ -973,12 +987,22 @@ export default function BudgetManager({
                       <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
                         <span className="text-slate-400 font-bold text-sm">Rp</span>
                       </div>
-                      <input
-                        type="number"
-                        min="0"
-                        {...register("globalBudget")}
-                        className="w-full pl-12 pr-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-indigo-500 font-bold text-base text-slate-800"
-                        placeholder="0"
+                      <Controller
+                        name="globalBudget"
+                        control={control}
+                        render={({ field: { onChange, value } }) => (
+                          <NumericFormat
+                            value={value as string | number}
+                            onValueChange={(values) => {
+                              onChange(values.value);
+                            }}
+                            thousandSeparator="."
+                            decimalSeparator=","
+                            allowNegative={false}
+                            className="w-full pl-12 pr-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-indigo-500 font-bold text-base text-slate-800"
+                            placeholder="0"
+                          />
+                        )}
                       />
                     </div>
                     {errors.globalBudget && (
@@ -993,7 +1017,7 @@ export default function BudgetManager({
                       <span className="text-[10px] text-slate-400 font-bold uppercase">{t('BUDGETS.COL_AMOUNT_PERCENTAGE')}</span>
                     </div>
 
-                    <div className="space-y-2.5 max-h-[220px] overflow-y-auto pr-1">
+                    <div data-lenis-prevent="true" className="space-y-2.5 max-h-[220px] overflow-y-auto pr-1">
                       {fields.length === 0 && (
                         <div className="text-center py-6 text-slate-400 text-xs font-medium bg-slate-50 rounded-xl border border-dashed border-slate-200">
                           {t('budgets.empty_allocated_categories') || 'Belum ada anggaran kategori. Silakan tambahkan kategori secara manual atau klik Auto-Generate.'}
@@ -1082,14 +1106,29 @@ export default function BudgetManager({
                                       {watchedCategories[index]?.type === 'percentage' ? '%' : 'Rp'}
                                     </span>
                                   </div>
-                                  <input
-                                    type="number"
-                                    min="0"
-                                    step="any"
-                                    max={watchedCategories[index]?.type === 'percentage' ? "100" : undefined}
-                                    {...register(`categories.${index}.amount` as const)}
-                                    className="w-full pl-6 pr-2 py-1 bg-white border border-slate-200 rounded-lg outline-none focus:ring-2 focus:ring-indigo-500 font-bold text-xs text-slate-800 text-right"
-                                    placeholder="0"
+                                  <Controller
+                                    name={`categories.${index}.amount` as const}
+                                    control={control}
+                                    render={({ field: { onChange, value } }) => (
+                                      <NumericFormat
+                                        value={value as string | number}
+                                        onValueChange={(values) => {
+                                          onChange(values.value);
+                                        }}
+                                        thousandSeparator={watchedCategories[index]?.type === 'percentage' ? false : "."}
+                                        decimalSeparator={watchedCategories[index]?.type === 'percentage' ? "." : ","}
+                                        allowNegative={false}
+                                        isAllowed={(values) => {
+                                          if (watchedCategories[index]?.type === 'percentage') {
+                                            const num = parseFloat(values.value);
+                                            if (!isNaN(num) && num > 100) return false;
+                                          }
+                                          return true;
+                                        }}
+                                        className="w-full pl-6 pr-2 py-1 bg-white border border-slate-200 rounded-lg outline-none focus:ring-2 focus:ring-indigo-500 font-bold text-xs text-slate-800 text-right"
+                                        placeholder="0"
+                                      />
+                                    )}
                                   />
                                 </div>
                               </div>
@@ -1188,6 +1227,16 @@ export default function BudgetManager({
           </div>
         )}
       </AnimatePresence>
+      <EditSingleBudgetModal
+        isOpen={singleEditModalOpen}
+        onClose={() => {
+          setSingleEditModalOpen(false);
+          setSingleEditBudget(null);
+        }}
+        budget={singleEditBudget}
+        category={categories.find(c => c.id === singleEditBudget?.categoryId)}
+        onSave={handleSaveSingleBudget}
+      />
 
       <AnimatePresence>
         {budgetToDelete && (
@@ -1224,6 +1273,16 @@ export default function BudgetManager({
           </div>
         )}
       </AnimatePresence>
+      <EditSingleBudgetModal
+        isOpen={singleEditModalOpen}
+        onClose={() => {
+          setSingleEditModalOpen(false);
+          setSingleEditBudget(null);
+        }}
+        budget={singleEditBudget}
+        category={categories.find(c => c.id === singleEditBudget?.categoryId)}
+        onSave={handleSaveSingleBudget}
+      />
 
       {/* Budget Drill-Down Detail Modal */}
       <AnimatePresence>
@@ -1298,7 +1357,7 @@ export default function BudgetManager({
               </div>
 
               {/* Section 3: Transaction Table */}
-              <div className="flex-1 overflow-y-auto max-h-[50vh] border border-slate-100 rounded-2xl">
+              <div data-lenis-prevent="true" className="flex-1 overflow-y-auto max-h-[50vh] border border-slate-100 rounded-2xl">
                 {isLoadingTransactions ? (
                   <div className="space-y-4 p-5 animate-pulse">
                     {[1, 2, 3, 4].map(i => (
@@ -1370,6 +1429,16 @@ export default function BudgetManager({
           </div>
         )}
       </AnimatePresence>
+      <EditSingleBudgetModal
+        isOpen={singleEditModalOpen}
+        onClose={() => {
+          setSingleEditModalOpen(false);
+          setSingleEditBudget(null);
+        }}
+        budget={singleEditBudget}
+        category={categories.find(c => c.id === singleEditBudget?.categoryId)}
+        onSave={handleSaveSingleBudget}
+      />
     </div>
   );
 }
