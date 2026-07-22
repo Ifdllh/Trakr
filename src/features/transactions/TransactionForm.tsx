@@ -8,6 +8,7 @@ import "react-datepicker/dist/react-datepicker.css";
 import CreateMasterAccountModal from "@/components/ui/CreateMasterAccountModal";
 import CreateMasterCategoryModal from "@/components/ui/CreateMasterCategoryModal";
 import CreateSubCategoryModal from "@/components/ui/CreateSubCategoryModal";
+import { Modal } from "@/components/ui/Modal";
 import { z } from 'zod';
 import { useToast } from '@/context/ToastContext';
 import { useTranslation } from 'react-i18next';
@@ -497,8 +498,7 @@ export default function TransactionForm({
   };
 
   return (
-    <div className="fixed inset-0 bg-gray-900/40 backdrop-blur-xs flex items-center justify-center p-4 z-50 animate-fade-in font-sans">
-      <div className="bg-white rounded-2xl w-full max-w-2xl shadow-2xl overflow-hidden border border-gray-100 flex flex-col max-h-[90vh]">
+    <Modal onClose={onClose} containerClassName="bg-white rounded-2xl w-full max-w-2xl shadow-2xl overflow-hidden border border-gray-100 flex flex-col max-h-[90vh]" zIndexClass="z-50">
         {/* Header & Tabs (Sticky) */}
         <div className="bg-gray-50/50 border-b border-gray-100 shrink-0">
           <div className="px-6 py-5 flex items-center justify-between">
@@ -1175,7 +1175,6 @@ export default function TransactionForm({
             </div>
           </div>
         )}
-      </div>
-    </div>
+    </Modal>
   );
 }

@@ -22,10 +22,13 @@ function ModalTracker() {
       
       if (hasOpenModal) {
         lenis.stop();
+        const scrollbarWidth = window.innerWidth - document.documentElement.clientWidth;
         document.body.style.overflow = 'hidden';
+        document.body.style.paddingRight = `${scrollbarWidth}px`;
       } else {
         lenis.start();
         document.body.style.overflow = '';
+        document.body.style.paddingRight = '0px';
       }
     };
 
@@ -45,6 +48,7 @@ function ModalTracker() {
     return () => {
       observer.disconnect();
       document.body.style.overflow = '';
+      document.body.style.paddingRight = '0px';
       lenis.start();
     };
   }, [lenis]);

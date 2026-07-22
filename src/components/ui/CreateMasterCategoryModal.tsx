@@ -4,6 +4,7 @@ import * as LucideIcons from 'lucide-react';
 import { Category } from '@/types';
 import { useToast } from '@/context/ToastContext';
 import { useTranslation } from 'react-i18next';
+import { Modal } from '@/components/ui/Modal';
 
 const COMMON_ICONS = [
   'Folder', 'ShoppingBag', 'Utensils', 'Car', 'Receipt', 
@@ -185,8 +186,7 @@ export default function CreateMasterCategoryModal({
   };
 
   return (
-    <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/50 backdrop-blur-sm p-4 animate-fade-in">
-      <div className="bg-white rounded-3xl w-full max-w-md overflow-hidden shadow-2xl flex flex-col max-h-[90vh]">
+    <Modal onClose={onClose} zIndexClass="z-[60]">
         <div className="p-6 border-b border-gray-100 flex justify-between items-center bg-gray-50">
           <h3 className="text-lg font-black text-gray-900">
             {categoryToEdit ? t('master_data.edit_master_category') : (formData.parentCategory ? t('master_data.add_master_subcategory') : t('master_data.add_master_category'))}
@@ -286,7 +286,6 @@ export default function CreateMasterCategoryModal({
             </div>
           </form>
         </div>
-      </div>
-    </div>
+    </Modal>
   );
 }

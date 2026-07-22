@@ -103,13 +103,15 @@ export const auth = new Proxy({} as Auth, {
 export const devDb = initializeFirestore(devApp, {
   localCache: persistentLocalCache({
     tabManager: persistentMultipleTabManager()
-  })
+  }),
+  experimentalAutoDetectLongPolling: true
 });
 
 export const prdDb = prdApp ? initializeFirestore(prdApp, {
   localCache: persistentLocalCache({
     tabManager: persistentMultipleTabManager()
-  })
+  }),
+  experimentalAutoDetectLongPolling: true
 }) : null;
 
 export function getActiveDb(): Firestore {

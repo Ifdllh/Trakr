@@ -3,6 +3,7 @@ import { HelpCircle, X } from 'lucide-react';
 import * as LucideIcons from 'lucide-react';
 import { useToast } from '@/context/ToastContext';
 import { useTranslation } from 'react-i18next';
+import { Modal } from '@/components/ui/Modal';
 
 const COMMON_ICONS = [
   'Folder', 'ShoppingBag', 'Utensils', 'Car', 'Receipt', 
@@ -69,8 +70,7 @@ export default function CreateSubCategoryModal({
   };
 
   return (
-    <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 animate-fade-in">
-      <div className="bg-white rounded-3xl w-full max-w-md overflow-hidden shadow-2xl flex flex-col max-h-[90vh] border border-gray-100 transform transition-all scale-100">
+    <Modal onClose={onClose} zIndexClass="z-[60]">
         {/* Header */}
         <div className="p-6 border-b border-gray-100 flex justify-between items-center bg-gray-50/50">
           <div>
@@ -188,7 +188,6 @@ export default function CreateSubCategoryModal({
             </div>
           </form>
         </div>
-      </div>
-    </div>
+    </Modal>
   );
 }

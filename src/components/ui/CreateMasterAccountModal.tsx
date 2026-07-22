@@ -4,6 +4,7 @@ import { NumericFormat } from 'react-number-format';
 import { useToast } from '@/context/ToastContext';
 import { api } from '@/lib/api';
 import { useTranslation } from 'react-i18next';
+import { Modal } from '@/components/ui/Modal';
 
 interface CreateMasterAccountModalProps {
   onClose: () => void;
@@ -89,8 +90,7 @@ export default function CreateMasterAccountModal({ onClose, onSave, onSuccess, a
   };
 
   return (
-    <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/50 backdrop-blur-sm p-4">
-      <div className="bg-white rounded-3xl w-full max-w-md overflow-hidden shadow-2xl flex flex-col max-h-[90vh]">
+    <Modal onClose={onClose} zIndexClass="z-[60]">
         <div className="p-6 border-b border-gray-100 flex justify-between items-center bg-gray-50">
           <h3 className="text-lg font-black text-gray-900">
             {accountToEdit ? t('master_data.edit_master_account') : t('master_data.add_master_account')}
@@ -197,7 +197,6 @@ export default function CreateMasterAccountModal({ onClose, onSave, onSuccess, a
             </div>
           </form>
         </div>
-      </div>
-    </div>
+    </Modal>
   );
 }

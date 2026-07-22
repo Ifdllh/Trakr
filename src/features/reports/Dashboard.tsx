@@ -20,6 +20,8 @@ import {
 } from 'lucide-react';
 import * as LucideIcons from 'lucide-react';
 import { motion } from 'motion/react';
+import { useGSAP } from '@gsap/react';
+import gsap from 'gsap';
 
 interface DashboardProps {
   user: any;
@@ -88,7 +90,21 @@ export default function Dashboard({
   onSaveGlobalBudget
 }: DashboardProps) {
   const { t, i18n } = useTranslation();
+  const containerRef = useRef<HTMLDivElement>(null);
+
   const [loading, setLoading] = useState(true);
+  useGSAP(() => {
+    if (loading || !containerRef.current) return;
+    const cards = containerRef.current.querySelectorAll(".widget-card");
+    if (!cards || cards.length === 0) return;
+    gsap.to(cards, {
+      y: 0,
+      opacity: 1,
+      stagger: 0.1,
+      ease: "power3.out",
+      duration: 0.8
+    });
+  }, { dependencies: [loading] });
   const [transactions, setTransactions] = useState<any[]>(initialTransactions);
 
   const currentUserData = useMemo(() => {
@@ -349,7 +365,7 @@ export default function Dashboard({
   // Calculate expense distribution locally for the selected month and year
   const rawExpenseDistribution = useMemo(() => {
     const expTxs = monthlyTransactions.filter(t => {
-      return (String(t.type) === 'Dr' || t.type?.toLowerCase() === 'pengeluaran');
+          return 0;
     });
     
     const map: Record<string, number> = {};
@@ -725,7 +741,7 @@ export default function Dashboard({
           return timeB - timeA;
         }
         
-        return (b.id || '').localeCompare(a.id || '');
+          return 0;
       })
       .slice(0, 5);
   }, [transactions]);
@@ -831,7 +847,6 @@ export default function Dashboard({
   const balanceParts = formatIDRWithSplit(netSavingsAndBalance);
   const monthlyIncomeParts = formatIDRWithSplit(finalDisplayIncome);
   const monthlyExpenseParts = formatIDRWithSplit(finalDisplayExpense);
-
   if (loading) {
     return (
       <div className="space-y-6 font-sans select-none pb-12 animate-pulse">
@@ -866,7 +881,8 @@ export default function Dashboard({
   }
 
   return (
-    <motion.div 
+    <motion.div ref={containerRef}
+
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
       transition={{ duration: 0.5 }}
@@ -954,7 +970,7 @@ export default function Dashboard({
                   {/* 1. Static Hero Section (Top): 3 Main Cards */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 items-stretch">
         {/* Card 1: Total Kekayaan Bersih (Net Worth) */}
-        <div className="bg-gradient-to-br from-indigo-600 to-purple-800 p-6 rounded-3xl border-none shadow-lg shadow-indigo-500/30 flex flex-col justify-between h-full min-h-[180px]">
+        <div className="widget-card opacity-0 translate-y-8 bg-gradient-to-br from-indigo-600 to-purple-800 p-6 rounded-3xl border-none shadow-lg shadow-indigo-500/30 flex flex-col justify-between h-full min-h-[180px]">
           <div className="flex justify-between items-start mb-4">
             <div className="space-y-1">
               <span className="text-[10px] uppercase font-bold text-indigo-200 tracking-wider">{t('dashboard.net_worth')}</span>
@@ -986,7 +1002,7 @@ export default function Dashboard({
         </div>
 
         {/* Card 2: Arus Kas (Income vs Expense) */}
-        <div className="bg-white p-6 border border-slate-100 shadow-sm rounded-xl flex flex-col justify-between h-full min-h-[180px]">
+        <div className="widget-card opacity-0 translate-y-8 bg-white p-6 border border-slate-100 shadow-sm rounded-xl flex flex-col justify-between h-full min-h-[180px]">
           <div className="flex justify-between items-start mb-4">
             <div className="w-full">
               <div className="flex items-center justify-between gap-2 mb-3">
@@ -1035,7 +1051,7 @@ export default function Dashboard({
         </div>
 
         {/* Card 3: Peringatan Anggaran (Budget Warning) / Pengeluaran Terbesar (Top Expense Fallback) */}
-        <div className="bg-white p-6 border border-slate-100 shadow-sm rounded-xl flex flex-col h-full min-h-[180px]">
+        <div className="widget-card opacity-0 translate-y-8 bg-white p-6 border border-slate-100 shadow-sm rounded-xl flex flex-col h-full min-h-[180px]">
           {budgetAlerts.length > 0 ? (
             <>
               <div className="flex justify-between items-center mb-4">
@@ -1051,7 +1067,7 @@ export default function Dashboard({
               <div className="flex-1 flex flex-col justify-center space-y-3">
                 {budgetAlerts.map((alert, idx) => {
                   const isBreached = alert.percentage >= 100;
-                  return (
+      return (
                     <div key={idx} className="space-y-1.5">
                       <div className="flex justify-between text-[10px] font-bold">
                         <span className="text-slate-700 truncate mr-2">{alert.categoryName}</span>
@@ -1152,7 +1168,7 @@ export default function Dashboard({
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
           {/* Widget: Cashflow Stats */}
           {visibleWidgets.cashflowStats && (
-            <div className="lg:col-span-8 bg-white p-6 border border-slate-100 shadow-sm rounded-xl flex flex-col justify-between">
+            <div className="widget-card opacity-0 translate-y-8 lg:col-span-8 bg-white p-6 border border-slate-100 shadow-sm rounded-xl flex flex-col justify-between">
               <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-6">
                 <div>
                   <h3 className="text-base font-extrabold text-slate-900 tracking-tight flex items-center gap-1.5">
@@ -1218,7 +1234,7 @@ export default function Dashboard({
 
           {/* Widget: Expense Distribution */}
           {visibleWidgets.expenseDistribution && (
-            <div className="lg:col-span-4 bg-white p-6 border border-slate-100 shadow-sm rounded-xl flex flex-col justify-between">
+            <div className="widget-card opacity-0 translate-y-8 lg:col-span-4 bg-white p-6 border border-slate-100 shadow-sm rounded-xl flex flex-col justify-between">
               <div>
                 <h3 className="text-base font-extrabold text-slate-900 tracking-tight">
                   {i18n.language === 'en' ? 'All Expenses' : 'Semua Pengeluaran'}
@@ -1248,7 +1264,7 @@ export default function Dashboard({
                         const strokeWidth = 8;
                         const circumference = 2 * Math.PI * radius;
                         const strokeDashoffset = circumference - (Math.min(item.percentage, 100) / 100) * circumference;
-                        return (
+      return (
                           <g key={idx}>
                             <circle cx="80" cy="80" r={radius} stroke="#f1f5f9" strokeWidth={strokeWidth} fill="transparent" />
                             <circle cx="80" cy="80" r={radius} stroke={item.color} strokeWidth={strokeWidth} fill="transparent" strokeDasharray={circumference} strokeDashoffset={strokeDashoffset} strokeLinecap="round" className="transition-all duration-1000 ease-out" />
@@ -1292,7 +1308,7 @@ export default function Dashboard({
 
           {/* Widget: Recent Transactions */}
           {visibleWidgets.recentTransactions && (
-            <div className="lg:col-span-6 bg-white p-6 border border-slate-100 shadow-sm rounded-xl flex flex-col min-h-[280px]">
+            <div className="widget-card opacity-0 translate-y-8 lg:col-span-6 bg-white p-6 border border-slate-100 shadow-sm rounded-xl flex flex-col min-h-[280px]">
               <div className="flex justify-between items-start mb-6">
                 <div>
                   <div className="flex items-center gap-2 mb-1">
@@ -1323,7 +1339,7 @@ export default function Dashboard({
                     const isSplit = t.description?.startsWith('Bagi Transaksi -');
                     const cleanName = isSplit ? t.category : (t.description || t.category);
                     
-                    return (
+      return (
                       <div key={`${t.id}-${idx}`} className="flex items-center justify-between pb-3 pt-1 border-b border-gray-50 last:border-0 last:pb-0">
                         <div className="flex items-center gap-3">
                           <div className={`h-10 w-10 rounded-xl flex items-center justify-center shrink-0 ${colorClass}`}>

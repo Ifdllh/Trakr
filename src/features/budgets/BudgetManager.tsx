@@ -1,8 +1,12 @@
-import React, { useState, useMemo, useEffect } from 'react';
+import React, { useState, useMemo, useEffect, useRef } from 'react';
 import { useTranslation } from 'react-i18next';
 import { motion, AnimatePresence } from 'motion/react';
 import { useQueryClient } from '@tanstack/react-query';
+import { gsap } from 'gsap';
+import { useGSAP } from '@gsap/react';
+import { Modal } from '@/components/ui/Modal';
 import * as LucideIcons from 'lucide-react';
+import { AnimatedCurrency } from '@/components/ui/AnimatedCurrency';
 import { BudgetSkeleton } from '@/components/SkeletonLoader';
 import { 
   Target, 
@@ -448,6 +452,17 @@ export default function BudgetManager({
   }, 0);
   const sisaUntukDialokasikan = watchedGlobalBudget - currentAllocatedTotal;
 
+  const remainingToAllocateRef = useRef<HTMLSpanElement>(null);
+
+  useGSAP(() => {
+    if (!remainingToAllocateRef.current) return;
+    gsap.fromTo(
+      remainingToAllocateRef.current,
+      { scale: 1 },
+      { scale: 1.05, duration: 0.15, yoyo: true, repeat: 1, ease: "power1.inOut" }
+    );
+  }, { scope: remainingToAllocateRef, dependencies: [sisaUntukDialokasikan] });
+
   // Handler for category dropdown selection in manual rows
   const handleCategoryChange = (index: number, categoryId: string | number) => {
     const cat = expenseCategories.find(c => String(c.id) === String(categoryId));
@@ -716,7 +731,7 @@ export default function BudgetManager({
                   {t('budgets.status_allocation') || 'Status Alokasi'}
                 </span>
                 <span>
-                  {formatIDR(totalAllocatedAmount)} / {formatIDR(activeGlobalBudget.totalTargetAmount)} ({Math.min(100, Math.round((totalAllocatedAmount / activeGlobalBudget.totalTargetAmount) * 100))}% {t('budgets.allocated') || 'Allocated'})
+                  <AnimatedCurrency value={totalAllocatedAmount} /> / <AnimatedCurrency value={activeGlobalBudget.totalTargetAmount} /> ({Math.min(100, Math.round((totalAllocatedAmount / activeGlobalBudget.totalTargetAmount) * 100))}% {t('budgets.allocated') || 'Allocated'})
                 </span>
               </div>
               <div className="w-full bg-slate-100 h-3 rounded-full overflow-hidden flex">
@@ -1031,7 +1046,7 @@ export default function BudgetManager({
                         const isGenerated = watchedCategories[index]?.isGenerated;
                         
                         return (
-                          <div key={field.id} className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 sm:gap-4 p-3 sm:p-2 bg-slate-50/50 hover:bg-slate-50 border border-slate-100 rounded-xl transition-all">
+                          <div key={field.id} className="budget-category-row flex flex-col sm:flex-row sm:items-center justify-between gap-3 sm:gap-4 p-3 sm:p-2 bg-slate-50/50 hover:bg-slate-50 border border-slate-100 rounded-xl transition-all">
                             <div className="flex items-center gap-2.5 min-w-0 w-full sm:w-auto sm:flex-1">
                               <div className={`w-8 h-8 rounded-lg flex items-center justify-center shrink-0 ${currentColorClass}`}>
                                 {renderCategoryIcon(currentIconName)}
@@ -1143,7 +1158,44 @@ export default function BudgetManager({
 
                             <button
                               type="button"
-                              onClick={() => remove(index)}
+                              onClick={(e) => {
+                                const targetBtn = e.currentTarget as HTMLElement;
+                                const rowEl = targetBtn.closest('.budget-category-row') as HTMLElement;
+                                if (rowEl) {
+                                  const currentHeight = rowEl.offsetHeight;
+                                  gsap.set(rowEl, {
+                                    overflow: 'hidden',
+                                    height: currentHeight,
+                                    boxSizing: 'border-box',
+                                    transformOrigin: 'left center'
+                                  });
+                                  const tl = gsap.timeline({
+                                    onComplete: () => {
+                                      remove(index);
+                                    }
+                                  });
+                                  tl.to(rowEl, {
+                                    x: -36,
+                                    opacity: 0,
+                                    scaleY: 0.9,
+                                    duration: 0.22,
+                                    ease: 'power2.inOut'
+                                  })
+                                  .to(rowEl, {
+                                    height: 0,
+                                    paddingTop: 0,
+                                    paddingBottom: 0,
+                                    marginTop: 0,
+                                    marginBottom: 0,
+                                    borderTopWidth: 0,
+                                    borderBottomWidth: 0,
+                                    duration: 0.25,
+                                    ease: 'power3.inOut'
+                                  }, "-=0.12");
+                                } else {
+                                  remove(index);
+                                }
+                              }}
                               className="p-2 sm:p-1.5 text-slate-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors cursor-pointer shrink-0 mt-0.5 sm:mt-0"
                               title={t('budgets.delete_row_tooltip') || "Hapus Baris"}
                             >
@@ -1178,12 +1230,12 @@ export default function BudgetManager({
                   <div className="bg-slate-50 p-3 rounded-2xl flex justify-between items-center text-[11px] font-bold">
                     <div>
                       <span className="text-slate-400 block uppercase text-[9px] tracking-wider">{t('budgets.kpi_allocated') || 'Total Teralokasi'}</span>
-                      <span className="text-slate-700 text-xs font-black">{formatIDR(currentAllocatedTotal)}</span>
+                      <span className="text-slate-700 text-xs font-black"><AnimatedCurrency value={currentAllocatedTotal} /></span>
                     </div>
                     <div className="text-right">
                       <span className="text-slate-400 block uppercase text-[9px] tracking-wider">{t('BUDGETS.COL_REMAINING_TO_ALLOCATE')}</span>
-                      <span className={`text-xs font-black ${sisaUntukDialokasikan < 0 ? 'text-red-500' : 'text-emerald-600'}`}>
-                        {formatIDR(sisaUntukDialokasikan)}
+                      <span ref={remainingToAllocateRef} className={`inline-block text-xs font-black ${sisaUntukDialokasikan < 0 ? 'text-red-500' : 'text-emerald-600'}`}>
+                        <AnimatedCurrency value={sisaUntukDialokasikan} />
                       </span>
                     </div>
                   </div>
@@ -1227,16 +1279,6 @@ export default function BudgetManager({
           </div>
         )}
       </AnimatePresence>
-      <EditSingleBudgetModal
-        isOpen={singleEditModalOpen}
-        onClose={() => {
-          setSingleEditModalOpen(false);
-          setSingleEditBudget(null);
-        }}
-        budget={singleEditBudget}
-        category={categories.find(c => c.id === singleEditBudget?.categoryId)}
-        onSave={handleSaveSingleBudget}
-      />
 
       <AnimatePresence>
         {budgetToDelete && (
@@ -1273,16 +1315,6 @@ export default function BudgetManager({
           </div>
         )}
       </AnimatePresence>
-      <EditSingleBudgetModal
-        isOpen={singleEditModalOpen}
-        onClose={() => {
-          setSingleEditModalOpen(false);
-          setSingleEditBudget(null);
-        }}
-        budget={singleEditBudget}
-        category={categories.find(c => c.id === singleEditBudget?.categoryId)}
-        onSave={handleSaveSingleBudget}
-      />
 
       {/* Budget Drill-Down Detail Modal */}
       <AnimatePresence>

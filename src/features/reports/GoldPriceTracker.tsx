@@ -1,6 +1,8 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useTranslation } from 'react-i18next';
 import { api } from '@/lib/api';
+import { gsap } from 'gsap';
+import { useGSAP } from '@gsap/react';
 import { 
   TrendingUp, 
   Award, 
@@ -142,6 +144,18 @@ export default function GoldPriceTracker() {
   const estimatedValue = goldGrams * currentSell;
   const spreadValue = goldGrams * (currentBuy - currentSell);
 
+  const estValueRef = useRef<HTMLParagraphElement>(null);
+  const spreadValueRef = useRef<HTMLParagraphElement>(null);
+
+  useGSAP(() => {
+    if (estValueRef.current) {
+      gsap.fromTo(estValueRef.current, { scale: 1 }, { scale: 1.05, duration: 0.15, yoyo: true, repeat: 1, ease: "power1.inOut" });
+    }
+    if (spreadValueRef.current) {
+      gsap.fromTo(spreadValueRef.current, { scale: 1 }, { scale: 1.05, duration: 0.15, yoyo: true, repeat: 1, ease: "power1.inOut" });
+    }
+  }, { dependencies: [estimatedValue, spreadValue] });
+
   const displayBuyValue = isFocusBuy 
     ? (customBuyPrice !== '' ? customBuyPrice : String(activeVendor?.buyPrice || 1400000))
     : formatIDR(Number(customBuyPrice !== '' ? customBuyPrice : (activeVendor?.buyPrice || 1400000)));
@@ -153,7 +167,7 @@ export default function GoldPriceTracker() {
   return (
     <div className="lg:col-span-12 grid grid-cols-1 md:grid-cols-12 gap-6" id="gold-price-tracker-section">
       {/* Col 1: Live Prices Card */}
-      <div className="md:col-span-6 bg-white p-6 border border-slate-100 shadow-sm rounded-xl flex flex-col justify-between min-h-[350px]">
+      <div className="widget-card opacity-0 translate-y-8 md:col-span-6 bg-white p-6 border border-slate-100 shadow-sm rounded-xl flex flex-col justify-between min-h-[350px]">
         <div>
           <div className="flex justify-between items-start mb-5">
             <div>
@@ -276,7 +290,7 @@ export default function GoldPriceTracker() {
       </div>
 
       {/* Col 2: Spread & Asset Simulator */}
-      <div className="md:col-span-6 bg-white p-6 border border-slate-100 shadow-sm rounded-xl flex flex-col justify-start min-h-[350px]">
+      <div className="widget-card opacity-0 translate-y-8 md:col-span-6 bg-white p-6 border border-slate-100 shadow-sm rounded-xl flex flex-col justify-start min-h-[350px]">
         <div>
           <div className="flex justify-between items-start mb-4">
             <div>
@@ -359,7 +373,7 @@ export default function GoldPriceTracker() {
                 <span className="text-[9px] uppercase font-extrabold text-gray-400 tracking-wider flex items-center gap-1">
                   {t('dashboard.gold_tracker.est_sell_value', 'ESTIMASI NILAI JUAL (BUYBACK)')}
                 </span>
-                <p className="text-lg font-black text-slate-900 tabular-nums tracking-tight">
+                <p ref={estValueRef} className="inline-block text-lg font-black text-slate-900 tabular-nums tracking-tight">
                   {formatIDR(estimatedValue)}
                 </p>
               </div>
@@ -371,7 +385,7 @@ export default function GoldPriceTracker() {
             <div className="border-t border-gray-100 pt-3 flex items-center justify-between">
               <div className="space-y-0.5">
                 <span className="text-[9px] uppercase font-extrabold text-gray-400 tracking-wider block">{t('dashboard.gold_tracker.spread_cost', 'SPREAD (SELISIH BIAYA)')}</span>
-                <p className="text-sm font-bold text-rose-600 tabular-nums">
+                <p ref={spreadValueRef} className="inline-block text-sm font-bold text-rose-600 tabular-nums">
                   -{formatIDR(spreadValue)}
                 </p>
               </div>

@@ -1,4 +1,4 @@
-import { useState, useMemo, useEffect } from 'react';
+import { useState, useMemo, useEffect, useRef } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Transaction, Category, BudgetPeriod, MasterAccount } from '@/types';
 import { subscribeToCollection } from '@/services/dbServices';
@@ -11,6 +11,11 @@ import * as LucideIcons from 'lucide-react';
 import * as XLSX from 'xlsx';
 import { motion, AnimatePresence } from 'motion/react';
 import { TransactionSkeleton } from '@/components/SkeletonLoader';
+import { gsap } from 'gsap';
+import { ScrollTrigger } from 'gsap/ScrollTrigger';
+import { useGSAP } from '@gsap/react';
+
+gsap.registerPlugin(ScrollTrigger);
 
 interface TransactionListProps {
   user?: any;
@@ -48,6 +53,40 @@ const formatPeriodName = (name: string, lang: string) => {
 
 export default function TransactionList({ user, categories, periods, accounts = [], onEdit, onDelete, transactions: allTransactions = [] }: TransactionListProps) {
   const { t, i18n } = useTranslation();
+
+  const animateAndDelete = (
+    targetBtn: HTMLElement,
+    isLastInGroup: boolean,
+    executeDelete: () => void | Promise<void>
+  ) => {
+    const groupContainer = targetBtn.closest('.date-group-container') as HTMLElement;
+    const rowEl = targetBtn.closest('.transaction-row') as HTMLElement;
+    const target = (isLastInGroup && groupContainer) ? groupContainer : (rowEl || groupContainer);
+
+    if (target) {
+      gsap.set(target, { overflow: 'hidden' });
+      gsap.to(target, {
+        opacity: 0,
+        x: -30,
+        duration: 0.15,
+        ease: 'power2.in',
+        onComplete: () => {
+          gsap.to(target, {
+            height: 0,
+            padding: 0,
+            margin: 0,
+            duration: 0.10,
+            ease: 'power2.out',
+            onComplete: async () => {
+              await executeDelete();
+            }
+          });
+        }
+      });
+    } else {
+      executeDelete();
+    }
+  };
   const [searchTerm, setSearchTerm] = useState('');
   const [typeFilter, setTypeFilter] = useState<'semua' | 'pemasukan' | 'pengeluaran' | 'transfer'>('semua');
   const [selectedAttachmentUrl, setSelectedAttachmentUrl] = useState<string | null>(null);
@@ -195,6 +234,43 @@ export default function TransactionList({ user, categories, periods, accounts = 
   const sortedDates = useMemo(() => {
     return Object.keys(groupedTransactions).sort((a, b) => new Date(b).getTime() - new Date(a).getTime());
   }, [groupedTransactions]);
+
+  const listRef = useRef<HTMLDivElement>(null);
+
+  useGSAP(() => {
+    if (!listRef.current) return;
+
+    const rows = listRef.current.querySelectorAll('.transaction-row');
+    if (rows.length === 0) return;
+
+    const batchTriggers = ScrollTrigger.batch(rows, {
+      start: 'top 95%',
+      onEnter: (batch) => {
+        gsap.fromTo(
+          batch,
+          { opacity: 0, y: 12 },
+          {
+            opacity: 1,
+            y: 0,
+            duration: 0.25,
+            stagger: { amount: 0.3 },
+            ease: 'power2.out',
+            overwrite: 'auto'
+          }
+        );
+      },
+      once: true
+    });
+
+    ScrollTrigger.refresh();
+
+    return () => {
+      if (Array.isArray(batchTriggers)) {
+        batchTriggers.forEach(t => t.kill());
+      }
+      ScrollTrigger.getAll().forEach(t => t.kill());
+    };
+  }, { scope: listRef, dependencies: [sortedDates, groupedTransactions, loading] });
 
   const formatDateHeader = (dateString: string) => {
     const locale = i18n.language === 'en' ? 'en-US' : 'id-ID';
@@ -415,7 +491,7 @@ export default function TransactionList({ user, categories, periods, accounts = 
             </p>
           </div>
         ) : (
-          <div className="space-y-6 pb-32 md:pb-6">
+          <div ref={listRef} className="space-y-6 pb-32 md:pb-6">
             {sortedDates.map((date) => {
               const dayTransactions = groupedTransactions[date];
               const totalIncome = dayTransactions.filter(t => t.type === 'pemasukan').reduce((sum, t) => sum + t.amount, 0);
@@ -454,7 +530,7 @@ export default function TransactionList({ user, categories, periods, accounts = 
               });
 
               return (
-                <div key={date} className="border border-gray-200 rounded-xl overflow-hidden bg-white shadow-xs">
+                <div key={date} className="date-group-container border border-gray-200 rounded-xl overflow-hidden bg-white shadow-xs">
                   {/* Date Header */}
                   <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-slate-50 px-5 py-3.5 border-b border-gray-200 sticky top-0 z-10 w-full">
                     <span className="font-extrabold text-sm text-slate-800 flex items-center gap-2">
@@ -549,7 +625,7 @@ export default function TransactionList({ user, categories, periods, accounts = 
                                     {children.map((child) => (
                                       <div 
                                         key={child.id}
-                                        className="py-3 flex flex-col sm:flex-row sm:items-center justify-between gap-4 group/child"
+                                        className="transaction-row py-3 flex flex-col sm:flex-row sm:items-center justify-between gap-4 group/child"
                                       >
                                         <div className="flex items-start gap-3 flex-1">
                                           <div className="h-8 w-8 rounded-lg flex items-center justify-center shrink-0 border bg-white border-gray-100">
@@ -603,10 +679,14 @@ export default function TransactionList({ user, categories, periods, accounts = 
                                               <div className="flex items-center gap-1 bg-red-50 p-0.5 rounded border border-red-100">
                                                 <span className="text-[9px] font-bold text-red-600 px-1">{t('transactions.delete_confirm')}</span>
                                                 <button
-                                                  onClick={(e) => {
+                                                  onClick={async (e) => {
                                                     e.stopPropagation();
-                                                    onDelete(child.id);
-                                                    setConfirmDeleteId(null);
+                                                    const targetBtn = e.currentTarget as HTMLElement;
+                                                    const isLastInGroup = dayTransactions.length === 1;
+                                                    animateAndDelete(targetBtn, isLastInGroup, async () => {
+                                                      await onDelete(child.id);
+                                                      setConfirmDeleteId(null);
+                                                    });
                                                   }}
                                                   className="px-1.5 py-0.5 bg-red-600 text-white rounded text-[9px] font-extrabold hover:bg-red-700 transition-colors cursor-pointer"
                                                 >
@@ -661,7 +741,7 @@ export default function TransactionList({ user, categories, periods, accounts = 
                         return (
                           <div 
                             key={`${tx.id}-${idx}`}
-                            className="p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-4 transition-all hover:bg-gray-50/50 group"
+                            className="transaction-row p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-4 transition-all hover:bg-gray-50/50 group"
                           >
                             {/* Left block (Icon, Subcategory, Category, Notes) */}
                             <div className="flex items-start gap-4 flex-1">
@@ -738,9 +818,13 @@ export default function TransactionList({ user, categories, periods, accounts = 
                                   <div className="flex items-center gap-1 animate-fade-in bg-red-50 p-1 rounded-lg border border-red-100">
                                     <span className="text-[10px] font-bold text-red-600 px-1">{t('transactions.delete_confirm')}</span>
                                     <button
-                                      onClick={async () => {
-                                        await onDelete(tx.id);
-                                        setConfirmDeleteId(null);
+                                      onClick={async (e) => {
+                                        const targetBtn = e.currentTarget as HTMLElement;
+                                        const isLastInGroup = dayTransactions.length === 1;
+                                        animateAndDelete(targetBtn, isLastInGroup, async () => {
+                                          await onDelete(tx.id);
+                                          setConfirmDeleteId(null);
+                                        });
                                       }}
                                       className="px-2 py-1 bg-red-600 text-white rounded text-[10px] font-extrabold hover:bg-red-700 transition-colors cursor-pointer"
                                     >

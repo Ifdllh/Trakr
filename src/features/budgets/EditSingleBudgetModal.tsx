@@ -1,10 +1,11 @@
 import React, { useState, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
-import { motion, AnimatePresence } from 'motion/react';
 import * as LucideIcons from 'lucide-react';
 import { X, Loader2, HelpCircle } from 'lucide-react';
 import { NumericFormat } from 'react-number-format';
+import { useLenis } from 'lenis/react';
 import { BudgetAllocation, Category } from '@/types';
+import { Modal } from '@/components/ui/Modal';
 
 interface EditSingleBudgetModalProps {
   isOpen: boolean;
@@ -18,6 +19,26 @@ export function EditSingleBudgetModal({ isOpen, onClose, budget, category, onSav
   const { t } = useTranslation();
   const [amount, setAmount] = useState<string>('');
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const lenis = useLenis();
+
+  useEffect(() => {
+    if (isOpen) {
+      lenis?.stop();
+      const scrollbarWidth = window.innerWidth - document.documentElement.clientWidth;
+      document.body.style.overflow = 'hidden';
+      document.body.style.paddingRight = `${scrollbarWidth}px`;
+    } else {
+      lenis?.start();
+      document.body.style.overflow = '';
+      document.body.style.paddingRight = '0px';
+    }
+
+    return () => {
+      lenis?.start();
+      document.body.style.overflow = '';
+      document.body.style.paddingRight = '0px';
+    };
+  }, [isOpen, lenis]);
 
   useEffect(() => {
     if (isOpen && budget) {
@@ -44,24 +65,8 @@ export function EditSingleBudgetModal({ isOpen, onClose, budget, category, onSav
   };
 
   return (
-    <AnimatePresence>
-      {isOpen && (
-        <>
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            className="fixed inset-0 bg-slate-900/50 backdrop-blur-sm z-50"
-            onClick={onClose}
-          />
-          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 pointer-events-none">
-            <motion.div
-              initial={{ opacity: 0, scale: 0.95, y: 20 }}
-              animate={{ opacity: 1, scale: 1, y: 0 }}
-              exit={{ opacity: 0, scale: 0.95, y: 20 }}
-              className="bg-white rounded-3xl shadow-xl w-full max-w-md overflow-hidden pointer-events-auto flex flex-col max-h-[90vh]"
-            >
-              <div className="p-6 border-b border-slate-100 flex items-center justify-between bg-white sticky top-0 z-10 shrink-0">
+    <Modal isOpen={isOpen} onClose={onClose} zIndexClass="z-50">
+      <div className="p-6 border-b border-slate-100 flex items-center justify-between bg-white sticky top-0 z-10 shrink-0">
                 <div className="flex items-center gap-3">
                   <div className="w-10 h-10 rounded-2xl bg-indigo-50 text-indigo-600 flex items-center justify-center">
                     {(() => { const IconComponent = (LucideIcons as any)[category?.iconName || 'HelpCircle'] || LucideIcons.HelpCircle; return <IconComponent size={20} />; })()}
@@ -118,10 +123,6 @@ export function EditSingleBudgetModal({ isOpen, onClose, budget, category, onSav
                   {isSubmitting ? <Loader2 className="animate-spin" size={18} /> : 'Save Changes'}
                 </button>
               </div>
-            </motion.div>
-          </div>
-        </>
-      )}
-    </AnimatePresence>
+    </Modal>
   );
 }

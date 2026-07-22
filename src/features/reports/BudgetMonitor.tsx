@@ -1,7 +1,44 @@
-import { useMemo } from 'react';
+import { useMemo, useRef } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Settings, Info, HelpCircle, Wallet, TrendingUp, AlertTriangle, ShieldCheck } from 'lucide-react';
 import * as LucideIcons from 'lucide-react';
+import { AnimatedCurrency } from '@/components/ui/AnimatedCurrency';
+import { gsap } from 'gsap';
+import { useGSAP } from '@gsap/react';
+
+function BudgetProgressBar({ progressPercent }: { progressPercent: number }) {
+  const barRef = useRef<HTMLDivElement>(null);
+  const targetWidth = Math.min(100, Math.max(0, progressPercent));
+
+  useGSAP(() => {
+    if (!barRef.current) return;
+    gsap.fromTo(
+      barRef.current,
+      { width: '0%' },
+      {
+        width: `${targetWidth}%`,
+        duration: 1.2,
+        ease: 'power3.out',
+      }
+    );
+  }, [targetWidth]);
+
+  return (
+    <div className="w-full h-2.5 bg-slate-100 rounded-full overflow-hidden">
+      <div 
+        ref={barRef}
+        className={`h-full rounded-full ${
+          progressPercent < 50 
+            ? 'bg-emerald-500' 
+            : progressPercent <= 75 
+            ? 'bg-orange-400' 
+            : 'bg-rose-500'
+        }`}
+        style={{ width: '0%' }}
+      />
+    </div>
+  );
+}
 
 interface BudgetMonitorProps {
   globalDashboardDate: Date;
@@ -164,7 +201,7 @@ export default function BudgetMonitor({
   };
 
   return (
-    <div className="lg:col-span-6 bg-white p-6 border border-slate-100 shadow-sm rounded-xl flex flex-col justify-between min-h-[280px]" id="budget-monitor-widget">
+    <div className="widget-card opacity-0 translate-y-8 lg:col-span-6 bg-white p-6 border border-slate-100 shadow-sm rounded-xl flex flex-col justify-between min-h-[280px]" id="budget-monitor-widget">
       <div>
         <div className="flex justify-between items-center mb-5" id="budget-monitor-header">
           <div className="flex items-center gap-2">
@@ -232,7 +269,7 @@ export default function BudgetMonitor({
                 <h3 className={`text-xl font-black tracking-tight mt-0.5 tabular-nums ${
                   isOverBudget ? 'text-rose-600' : 'text-emerald-600'
                 }`}>
-                  {formatIDR(remainingBudget)}
+                  <AnimatedCurrency value={remainingBudget} />
                 </h3>
               </div>
             </div>
@@ -249,21 +286,10 @@ export default function BudgetMonitor({
                     : 'text-rose-600'
                 }`}>{progressPercent}% {t('dashboard.budget_monitor_widget.used_suffix', 'Terpakai')}</span>
               </div>
-              <div className="w-full h-2.5 bg-slate-100 rounded-full overflow-hidden">
-                <div 
-                  className={`h-full rounded-full transition-all duration-500 ${
-                    progressPercent < 50 
-                      ? 'bg-emerald-500' 
-                      : progressPercent <= 75 
-                      ? 'bg-orange-400' 
-                      : 'bg-rose-500'
-                  }`}
-                  style={{ width: `${Math.min(100, progressPercent)}%` }}
-                />
-              </div>
+              <BudgetProgressBar progressPercent={progressPercent} />
               <div className="flex justify-between items-center text-[10px] text-slate-400 font-medium">
-                <span>{t('dashboard.budget_monitor_widget.used_prefix', 'Terpakai:')} <strong className="text-slate-700 font-bold tabular-nums">{formatIDR(totalSpent)}</strong></span>
-                <span>{t('dashboard.budget_monitor_widget.total_budget', 'Total Anggaran:')} <strong className="text-slate-700 font-bold tabular-nums">{formatIDR(totalBudget)}</strong></span>
+                <span>{t('dashboard.budget_monitor_widget.used_prefix', 'Terpakai:')} <strong className="text-slate-700 font-bold tabular-nums"><AnimatedCurrency value={totalSpent} /></strong></span>
+                <span>{t('dashboard.budget_monitor_widget.total_budget', 'Total Anggaran:')} <strong className="text-slate-700 font-bold tabular-nums"><AnimatedCurrency value={totalBudget} /></strong></span>
               </div>
               <div className="flex justify-between items-center text-[10px] text-slate-400 font-medium mt-1">
                 <span>{t('dashboard.budget_monitor_widget.safe_to_spend', 'Aman dibelanjakan:')} <strong className="text-emerald-600 font-bold tabular-nums">{formatIDR(safeToSpendPerDay)} / {t('dashboard.budget_monitor_widget.day', 'hari')}</strong></span>
