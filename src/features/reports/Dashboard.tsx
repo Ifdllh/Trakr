@@ -365,7 +365,7 @@ export default function Dashboard({
   // Calculate expense distribution locally for the selected month and year
   const rawExpenseDistribution = useMemo(() => {
     const expTxs = monthlyTransactions.filter(t => {
-          return 0;
+      return String(t.type) === 'Dr' || t.type?.toLowerCase() === 'pengeluaran';
     });
     
     const map: Record<string, number> = {};
