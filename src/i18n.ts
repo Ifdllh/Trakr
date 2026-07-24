@@ -304,6 +304,8 @@ i18n.use(initReactI18next).init({
           cancel: "Batal",
           edit_transaction: "Ubah Transaksi",
           delete_transaction: "Hapus Transaksi",
+          delete_modal_desc: "Apakah Anda yakin ingin menghapus transaksi ini? Tindakan ini tidak dapat dibatalkan.",
+          yes_delete: "Ya, Hapus",
           receipt_proof: "🧾 Bukti Fisik Struk Transaksi",
           open_new_tab: "Buka di Tab Baru",
           close: "Tutup"
@@ -933,6 +935,8 @@ i18n.use(initReactI18next).init({
           cancel: "Cancel",
           edit_transaction: "Edit Transaction",
           delete_transaction: "Delete Transaction",
+          delete_modal_desc: "Are you sure you want to delete this transaction? This action cannot be undone.",
+          yes_delete: "Yes, Delete",
           receipt_proof: "🧾 Receipt Physical Proof",
           open_new_tab: "Open in New Tab",
           close: "Close"

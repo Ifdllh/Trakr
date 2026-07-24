@@ -5,7 +5,7 @@ import { subscribeToCollection } from '@/services/dbServices';
 import { 
   Trash2, Download, Edit2, Search, Filter, 
   ArrowLeftRight, BookOpen,
-  ChevronDown, ChevronUp, Paperclip, Receipt, X
+  ChevronDown, ChevronUp, Paperclip, Receipt, X, AlertTriangle
 } from 'lucide-react';
 import * as LucideIcons from 'lucide-react';
 import * as XLSX from 'xlsx';
@@ -92,7 +92,7 @@ export default function TransactionList({ user, categories, periods, accounts = 
   const [selectedAttachmentUrl, setSelectedAttachmentUrl] = useState<string | null>(null);
   const [categoryFilter, setCategoryFilter] = useState('semua');
   const [periodFilter, setPeriodFilter] = useState('semua');
-  const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
+  const [transactionToDelete, setTransactionToDelete] = useState<{ id: string, targetBtn: HTMLElement, isLastInGroup: boolean } | null>(null);
   const [expandedGroups, setExpandedGroups] = useState<Set<string>>(new Set());
 
   const [loading, setLoading] = useState(true);
@@ -303,7 +303,7 @@ export default function TransactionList({ user, categories, periods, accounts = 
   };
 
   // Dynamically map category names to Lucide icons
-  const renderCategoryIcon = (categoryName: string) => {
+  const renderCategoryIcon = (categoryName: string, iconSize: number = 16) => {
     let iconName = 'HelpCircle';
     let color: string | undefined = undefined;
     const predefined = categories.find(c => c.name === categoryName || c.id === (categoryName || '').toLowerCase());
@@ -318,7 +318,7 @@ export default function TransactionList({ user, categories, periods, accounts = 
     }
     
     const IconComponent = (LucideIcons as any)[iconName] || LucideIcons.HelpCircle;
-    return <IconComponent size={16} style={color ? { color } : undefined} />;
+    return <IconComponent size={iconSize} style={color ? { color } : undefined} />;
   };
 
   // Get color styles for the category badge
@@ -628,9 +628,18 @@ export default function TransactionList({ user, categories, periods, accounts = 
                                         className="transaction-row py-3 flex flex-col sm:flex-row sm:items-center justify-between gap-4 group/child"
                                       >
                                         <div className="flex items-start gap-3 flex-1">
-                                          <div className="h-8 w-8 rounded-lg flex items-center justify-center shrink-0 border bg-white border-gray-100">
-                                            {renderCategoryIcon(child.category)}
-                                          </div>
+                                          {(() => {
+                                            const colStyleOrClass = getCategoryColor(child.category);
+                                            const isStyleObj = typeof colStyleOrClass === 'object';
+                                            return (
+                                              <div 
+                                                className={`h-8 w-8 rounded-lg flex items-center justify-center shrink-0 border ${isStyleObj ? '' : colStyleOrClass}`}
+                                                style={isStyleObj ? colStyleOrClass : undefined}
+                                              >
+                                                {renderCategoryIcon(child.category)}
+                                              </div>
+                                            );
+                                          })()}
                                           
                                           <div className="space-y-1 flex-1">
                                             <div className="flex flex-wrap items-center gap-2">
@@ -675,57 +684,28 @@ export default function TransactionList({ user, categories, periods, accounts = 
                                           
                                           {/* Actions */}
                                           <div className="flex items-center gap-1.5">
-                                            {confirmDeleteId === child.id ? (
-                                              <div className="flex items-center gap-1 bg-red-50 p-0.5 rounded border border-red-100">
-                                                <span className="text-[9px] font-bold text-red-600 px-1">{t('transactions.delete_confirm')}</span>
-                                                <button
-                                                  onClick={async (e) => {
-                                                    e.stopPropagation();
-                                                    const targetBtn = e.currentTarget as HTMLElement;
-                                                    const isLastInGroup = dayTransactions.length === 1;
-                                                    animateAndDelete(targetBtn, isLastInGroup, async () => {
-                                                      await onDelete(child.id);
-                                                      setConfirmDeleteId(null);
-                                                    });
-                                                  }}
-                                                  className="px-1.5 py-0.5 bg-red-600 text-white rounded text-[9px] font-extrabold hover:bg-red-700 transition-colors cursor-pointer"
-                                                >
-                                                  {t('transactions.yes')}
-                                                </button>
-                                                <button
-                                                  onClick={(e) => {
-                                                    e.stopPropagation();
-                                                    setConfirmDeleteId(null);
-                                                  }}
-                                                  className="px-1.5 py-0.5 bg-white text-gray-700 rounded text-[9px] font-semibold hover:bg-gray-100 transition-colors border border-gray-200 cursor-pointer"
-                                                >
-                                                  {t('transactions.cancel')}
-                                                </button>
-                                              </div>
-                                            ) : (
-                                              <>
-                                                <button
-                                                  onClick={(e) => {
-                                                    e.stopPropagation();
-                                                    onEdit(child);
-                                                  }}
-                                                  className="p-2 rounded text-slate-300 hover:text-indigo-600 hover:bg-indigo-50 transition-colors cursor-pointer"
-                                                  title={t('transactions.edit_transaction')}
-                                                >
-                                                  <Edit2 size={15} />
-                                                </button>
-                                                <button
-                                                  onClick={(e) => {
-                                                    e.stopPropagation();
-                                                    setConfirmDeleteId(child.id);
-                                                  }}
-                                                  className="p-2 rounded text-slate-300 hover:text-red-500 hover:bg-red-50 transition-colors cursor-pointer"
-                                                  title={t('transactions.delete_transaction')}
-                                                >
-                                                  <Trash2 size={15} />
-                                                </button>
-                                              </>
-                                            )}
+                                            <button
+                                              onClick={(e) => {
+                                                e.stopPropagation();
+                                                onEdit(child);
+                                              }}
+                                              className="p-2 rounded text-slate-300 hover:text-indigo-600 hover:bg-indigo-50 transition-colors cursor-pointer"
+                                              title={t('transactions.edit_transaction')}
+                                            >
+                                              <Edit2 size={15} />
+                                            </button>
+                                            <button
+                                              onClick={(e) => {
+                                                e.stopPropagation();
+                                                const targetBtn = e.currentTarget as HTMLElement;
+                                                const isLastInGroup = dayTransactions.length === 1;
+                                                setTransactionToDelete({ id: child.id, targetBtn, isLastInGroup });
+                                              }}
+                                              className="p-2 rounded text-slate-300 hover:text-red-500 hover:bg-red-50 transition-colors cursor-pointer"
+                                              title={t('transactions.delete_transaction')}
+                                            >
+                                              <Trash2 size={15} />
+                                            </button>
                                           </div>
                                         </div>
                                       </div>
@@ -745,15 +725,25 @@ export default function TransactionList({ user, categories, periods, accounts = 
                           >
                             {/* Left block (Icon, Subcategory, Category, Notes) */}
                             <div className="flex items-start gap-4 flex-1">
-                              <div className={`h-11 w-11 rounded-xl flex items-center justify-center shrink-0 border ${
-                                tx.type === 'pemasukan' 
-                                  ? 'bg-emerald-50 text-emerald-600 border-emerald-100' 
-                                  : tx.type === 'transfer'
-                                  ? 'bg-blue-50 text-blue-600 border-blue-100'
-                                  : 'bg-red-50 text-red-600 border-red-100'
-                              }`}>
-                                {tx.type === 'transfer' ? <ArrowLeftRight size={20} /> : renderCategoryIcon(tx.category)}
-                              </div>
+                              {(() => {
+                                if (tx.type === 'transfer') {
+                                  return (
+                                    <div className="h-11 w-11 rounded-xl flex items-center justify-center shrink-0 border bg-blue-50 text-blue-600 border-blue-100">
+                                      <ArrowLeftRight size={20} />
+                                    </div>
+                                  );
+                                }
+                                const colStyleOrClass = getCategoryColor(tx.category);
+                                const isStyleObj = typeof colStyleOrClass === 'object';
+                                return (
+                                  <div 
+                                    className={`h-11 w-11 rounded-xl flex items-center justify-center shrink-0 border ${isStyleObj ? '' : colStyleOrClass}`}
+                                    style={isStyleObj ? colStyleOrClass : undefined}
+                                  >
+                                    {renderCategoryIcon(tx.category, 20)}
+                                  </div>
+                                );
+                              })()}
                               
                               <div className="space-y-1.5 flex-1">
                                 <div className="flex flex-wrap items-center gap-2">
@@ -814,47 +804,25 @@ export default function TransactionList({ user, categories, periods, accounts = 
                               
                               {/* Actions */}
                               <div className="flex items-center gap-1.5">
-                                {confirmDeleteId === tx.id ? (
-                                  <div className="flex items-center gap-1 animate-fade-in bg-red-50 p-1 rounded-lg border border-red-100">
-                                    <span className="text-[10px] font-bold text-red-600 px-1">{t('transactions.delete_confirm')}</span>
-                                    <button
-                                      onClick={async (e) => {
-                                        const targetBtn = e.currentTarget as HTMLElement;
-                                        const isLastInGroup = dayTransactions.length === 1;
-                                        animateAndDelete(targetBtn, isLastInGroup, async () => {
-                                          await onDelete(tx.id);
-                                          setConfirmDeleteId(null);
-                                        });
-                                      }}
-                                      className="px-2 py-1 bg-red-600 text-white rounded text-[10px] font-extrabold hover:bg-red-700 transition-colors cursor-pointer"
-                                    >
-                                      {t('transactions.yes')}
-                                    </button>
-                                    <button
-                                      onClick={() => setConfirmDeleteId(null)}
-                                      className="px-2 py-1 bg-white text-gray-700 rounded text-[10px] font-semibold hover:bg-gray-100 transition-colors border border-gray-200 cursor-pointer"
-                                    >
-                                      {t('transactions.cancel')}
-                                    </button>
-                                  </div>
-                                ) : (
-                                  <>
-                                    <button
-                                      onClick={() => onEdit(tx)}
-                                      className="p-2 rounded-lg text-slate-300 hover:text-indigo-600 hover:bg-indigo-50 transition-colors cursor-pointer"
-                                      title={t('transactions.edit_transaction')}
-                                    >
-                                      <Edit2 size={16} />
-                                    </button>
-                                    <button
-                                      onClick={() => setConfirmDeleteId(tx.id)}
-                                      className="p-2 rounded-lg text-slate-300 hover:text-red-500 hover:bg-red-50 transition-colors cursor-pointer"
-                                      title={t('transactions.delete_transaction')}
-                                    >
-                                      <Trash2 size={16} />
-                                    </button>
-                                  </>
-                                )}
+                                <button
+                                  onClick={() => onEdit(tx)}
+                                  className="p-2 rounded-lg text-slate-300 hover:text-indigo-600 hover:bg-indigo-50 transition-colors cursor-pointer"
+                                  title={t('transactions.edit_transaction')}
+                                >
+                                  <Edit2 size={16} />
+                                </button>
+                                <button
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    const targetBtn = e.currentTarget as HTMLElement;
+                                    const isLastInGroup = dayTransactions.length === 1;
+                                    setTransactionToDelete({ id: tx.id, targetBtn, isLastInGroup });
+                                  }}
+                                  className="p-2 rounded-lg text-slate-300 hover:text-red-500 hover:bg-red-50 transition-colors cursor-pointer"
+                                  title={t('transactions.delete_transaction')}
+                                >
+                                  <Trash2 size={16} />
+                                </button>
                               </div>
                             </div>
                           </div>
@@ -923,6 +891,48 @@ export default function TransactionList({ user, categories, periods, accounts = 
               </div>
             </motion.div>
           </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* Transaction Delete Modal */}
+      <AnimatePresence>
+        {transactionToDelete && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 px-4">
+            <motion.div 
+              initial={{ opacity: 0, scale: 0.95 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.95 }}
+              className="bg-white rounded-3xl p-6 w-full max-w-sm shadow-2xl"
+            >
+              <div className="flex items-center gap-3 mb-4 text-red-600">
+                <AlertTriangle size={24} />
+                <h3 className="font-bold text-lg text-slate-900">{t('confirm.delete.title')}</h3>
+              </div>
+              <p className="text-slate-600 text-sm mb-6">
+                {t('transactions.delete_modal_desc')}
+              </p>
+              <div className="flex justify-end gap-3">
+                <button 
+                  onClick={() => setTransactionToDelete(null)}
+                  className="px-4 py-2 font-bold text-slate-600 hover:bg-slate-100 rounded-xl transition-colors cursor-pointer"
+                >
+                  {t('transactions.cancel')}
+                </button>
+                <button 
+                  onClick={() => {
+                    const { targetBtn, isLastInGroup, id } = transactionToDelete;
+                    setTransactionToDelete(null);
+                    animateAndDelete(targetBtn, isLastInGroup, async () => {
+                      await onDelete(id);
+                    });
+                  }}
+                  className="px-4 py-2 bg-red-600 text-white font-bold rounded-xl hover:bg-red-700 transition-colors flex items-center justify-center cursor-pointer"
+                >
+                  {t('transactions.yes_delete')}
+                </button>
+              </div>
+            </motion.div>
+          </div>
         )}
       </AnimatePresence>
     </div>

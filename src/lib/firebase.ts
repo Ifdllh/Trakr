@@ -1,14 +1,15 @@
 import { initializeApp, getApps } from 'firebase/app';
 import { getAuth, GoogleAuthProvider, setPersistence, browserSessionPersistence, Auth } from 'firebase/auth';
 import { initializeFirestore, persistentLocalCache, persistentMultipleTabManager, Firestore } from 'firebase/firestore';
+import firebaseAppletConfig from '../../firebase-applet-config.json';
 
 const devFirebaseConfig = {
-  projectId: import.meta.env.VITE_FIREBASE_PROJECT_ID || "zippy-solution-c7c1c",
-  appId: import.meta.env.VITE_FIREBASE_APP_ID || "1:743855898049:web:ca50c3ef0413162c7ac340",
-  apiKey: import.meta.env.VITE_FIREBASE_API_KEY || "AIzaSyD2M1YY1BXpB7V7_RPDHuTaSLvxK3jsFQI",
-  authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN || "zippy-solution-c7c1c.firebaseapp.com",
-  storageBucket: import.meta.env.VITE_FIREBASE_STORAGE_BUCKET || "zippy-solution-c7c1c.firebasestorage.app",
-  messagingSenderId: import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID || "743855898049"
+  projectId: import.meta.env.VITE_FIREBASE_PROJECT_ID || firebaseAppletConfig.projectId || "zippy-solution-c7c1c",
+  appId: import.meta.env.VITE_FIREBASE_APP_ID || firebaseAppletConfig.appId || "1:743855898049:web:ca50c3ef0413162c7ac340",
+  apiKey: import.meta.env.VITE_FIREBASE_API_KEY || firebaseAppletConfig.apiKey || "AIzaSyD2M1YY1BXpB7V7_RPDHuTaSLvxK3jsFQI",
+  authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN || firebaseAppletConfig.authDomain || "zippy-solution-c7c1c.firebaseapp.com",
+  storageBucket: import.meta.env.VITE_FIREBASE_STORAGE_BUCKET || firebaseAppletConfig.storageBucket || "zippy-solution-c7c1c.firebasestorage.app",
+  messagingSenderId: import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID || firebaseAppletConfig.messagingSenderId || "743855898049"
 };
 
 const prdFirebaseConfig = {
@@ -105,7 +106,7 @@ export const devDb = initializeFirestore(devApp, {
     tabManager: persistentMultipleTabManager()
   }),
   experimentalAutoDetectLongPolling: true
-});
+}, firebaseAppletConfig.firestoreDatabaseId || "(default)");
 
 export const prdDb = prdApp ? initializeFirestore(prdApp, {
   localCache: persistentLocalCache({
