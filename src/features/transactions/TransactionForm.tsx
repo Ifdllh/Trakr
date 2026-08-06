@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { api } from '@/lib/api';
-import { Category, Transaction, TransactionType, MasterAccount, MasterAsset, MasterContact, MasterTag } from '@/types';
-import { PlusCircle, Calendar, FileText, X, Check, ChevronDown, ChevronUp, Plus, Trash2 } from 'lucide-react';
+import { Category, Transaction, TransactionType, MasterAccount, MasterAsset, MasterContact, MasterTag, SavingsGoal } from '@/types';
+import { PlusCircle, Calendar, FileText, X, Check, ChevronDown, ChevronUp, Plus, Trash2, PiggyBank } from 'lucide-react';
 import { NumericFormat } from 'react-number-format';
 import DatePicker from 'react-datepicker';
 import "react-datepicker/dist/react-datepicker.css";
@@ -12,6 +12,9 @@ import { Modal } from "@/components/ui/Modal";
 import { z } from 'zod';
 import { useToast } from '@/context/ToastContext';
 import { useTranslation } from 'react-i18next';
+import { savingsService } from '@/services/savingsService';
+import { subscribeToCollection } from '@/services/dbServices';
+import { useSavingsData } from '@/hooks/useSavingsData';
 
 export const recurringTransactionSchema = z.object({
   isRecurring: z.boolean().default(false),
@@ -32,6 +35,8 @@ interface TransactionFormProps {
   onSaveMasterData?: (collectionName: string, data: any, id?: string) => Promise<string | void>;
   periods?: any[];
   dbUser?: any;
+  user?: any;
+  savingsGoals?: SavingsGoal[];
 }
 
 const formatPeriodName = (name: string, lang: string) => {
@@ -60,13 +65,16 @@ const formatPeriodName = (name: string, lang: string) => {
 
 export default function TransactionForm({ 
   categories, onSave, onClose, transactionToEdit, initialType,
-  accounts = [], assets = [], tags = [], contacts = [], onSaveMasterData, periods = [], dbUser
+  accounts = [], assets = [], tags = [], contacts = [], onSaveMasterData, periods = [], dbUser, user,
+  savingsGoals = []
 }: TransactionFormProps) {
   const { t, i18n } = useTranslation();
   const [type, setType] = useState<TransactionType>(initialType || 'pengeluaran');
   const [amount, setAmount] = useState<string>('');
   const [category, setCategory] = useState<string>('');
   const [subcategory, setSubcategory] = useState<string>('');
+  const [savingsGoalId, setSavingsGoalId] = useState<string>('');
+  const [fetchedSavingsGoals, setFetchedSavingsGoals] = useState<SavingsGoal[]>([]);
   const [date, setDate] = useState<string>(new Date().toISOString().split('T')[0]);
   const [description, setDescription] = useState<string>('');
   const [accountId, setAccountId] = useState<string>('');
@@ -145,18 +153,60 @@ export default function TransactionForm({
     setIsSubCategoryModalOpen(true);
   };
 
+  // Fetch savings goals using useSavingsData hook
+  const effectiveUser = useMemo(() => {
+    if (user && user.uid) return user;
+    const userId = dbUser?.uid || dbUser?.id;
+    if (!userId) return null;
+    return { uid: userId, ...dbUser } as any;
+  }, [user, dbUser]);
+
+  const { goals: hookGoals, allGoals: hookAllGoals, isLoading: isSavingsLoading } = useSavingsData(effectiveUser);
+
+  // Fallback direct subscription to savings goals if hook returns empty or prop provided
+  useEffect(() => {
+    const userId = effectiveUser?.uid;
+    if (!userId) return;
+    const unsub = subscribeToCollection(userId, 'savingsGoals', (data: any) => {
+      setFetchedSavingsGoals(data as SavingsGoal[]);
+    });
+    return () => unsub();
+  }, [effectiveUser]);
+
+  const activeSavingsGoals = useMemo(() => {
+    const rawList = (hookAllGoals && hookAllGoals.length > 0)
+      ? hookAllGoals
+      : ((fetchedSavingsGoals && fetchedSavingsGoals.length > 0) 
+          ? fetchedSavingsGoals 
+          : (savingsGoals || []));
+    
+    const attachedGoalId = String(savingsGoalId || transactionToEdit?.savingsGoalId || '');
+
+    return (rawList || []).filter(g => {
+      const isAttached = attachedGoalId && String(g.id) === attachedGoalId;
+      const isArchivedOrDeleted = g.status === 'archived' || g.status === 'cancelled' || !!g.isDeleted;
+      if (isAttached) return true;
+      if (isArchivedOrDeleted) return false;
+      return g.status !== 'completed';
+    });
+  }, [savingsGoals, hookAllGoals, fetchedSavingsGoals, savingsGoalId, transactionToEdit]);
+
   // Filter categories based on transaction type
   const availableCategories = categories.filter(cat => cat.type === type);
   // Get current subcategories based on chosen category
   const selectedCategoryObj = categories.find(cat => cat.name === category && cat.type === type);
   const availableSubcategories = selectedCategoryObj ? selectedCategoryObj.subcategories : [];
+  const isSavingsCategory = !!selectedCategoryObj?.isSavings || category === 'Tabungan & Impian' || category === 'Pencairan Tabungan';
 
-  // Reset subcategory when category changes
+  // Reset subcategory and savingsGoalId when category or type changes
   useEffect(() => {
     if (!transactionToEdit || (transactionToEdit && transactionToEdit.category !== category)) {
       setSubcategory('');
     }
-  }, [category, transactionToEdit]);
+    if (!isSavingsCategory || type === 'transfer') {
+      setSavingsGoalId('');
+    }
+  }, [category, type, transactionToEdit, isSavingsCategory]);
 
   // Load data if editing
   useEffect(() => {
@@ -165,6 +215,7 @@ export default function TransactionForm({
       setAmount(transactionToEdit.amount.toString());
       setCategory(transactionToEdit.category);
       setSubcategory(transactionToEdit.subcategory);
+      setSavingsGoalId(transactionToEdit.savingsGoalId || '');
       setDate(transactionToEdit.date);
       setDescription(transactionToEdit.description || '');
       setAccountId(transactionToEdit.accountId || '');
@@ -411,22 +462,28 @@ export default function TransactionForm({
         return;
       }
 
-      if (!subcategory && type !== 'transfer') {
+      if (!subcategory && type !== 'transfer' && !isSavingsCategory) {
         showToast(t('form.toast_select_subcategory'), 'error');
         return;
       }
+
+      const genericSavingsSub = type === 'pemasukan' ? 'Pencairan Tabungan' : 'Alokasi Tabungan';
+      const finalSubcategory = type === 'transfer' 
+        ? 'Transfer' 
+        : (isSavingsCategory ? (subcategory || genericSavingsSub) : (subcategory || (i18n.language === 'id' ? 'Lainnya' : 'Others')));
 
       const payload: any = {
         type,
         amount: parsedAmount,
         category: type === 'transfer' ? 'Transfer' : category,
-        subcategory: type === 'transfer' ? 'Transfer' : (subcategory || (i18n.language === 'id' ? 'Lainnya' : 'Others')),
+        subcategory: finalSubcategory,
         date,
         accountId: String(accountId),
       };
 
       if (description) payload.description = description;
       if (destinationAccountId) payload.destinationAccountId = String(destinationAccountId);
+      if (isSavingsCategory && savingsGoalId) payload.savingsGoalId = String(savingsGoalId);
       if (assetId) payload.assetId = String(assetId);
       if (tagId) payload.tagId = String(tagId);
       if (contactId) payload.contactId = String(contactId);
@@ -434,14 +491,39 @@ export default function TransactionForm({
       if (attachmentUrl) payload.attachmentUrl = attachmentUrl;
       if (recurringConfig) payload.recurringConfig = recurringConfig;
 
+      const syncSavingsGoal = async () => {
+        if (isSavingsCategory && savingsGoalId) {
+          const userId = effectiveUser?.uid || user?.uid || dbUser?.uid || dbUser?.id;
+          const selectedGoal = activeSavingsGoals.find(g => String(g.id) === String(savingsGoalId));
+          if (userId && selectedGoal) {
+            try {
+              const topupType = type === 'pemasukan' ? 'withdraw' : 'topup';
+              await savingsService.addSavingsTransaction(
+                userId,
+                savingsGoalId,
+                selectedGoal.title,
+                topupType,
+                parsedAmount,
+                accountId,
+                description || `${category} - ${finalSubcategory}`,
+                true
+              );
+            } catch (syncErr) {
+              console.error('Savings goal sync error:', syncErr);
+            }
+          }
+        }
+      };
+
       if (transactionToEdit) {
         setIsSubmitting(true);
         try {
           await onSave(payload, transactionToEdit.id);
+          await syncSavingsGoal();
           showToast(t('form.toast_update_success'), 'success');
           onClose();
         } catch (err: any) {
-          showToast(err.message || t('form.toast_save_fail'), 'error');
+          showToast(err.message || t('common.toast_error'), 'error');
         } finally {
           setIsSubmitting(false);
         }
@@ -449,7 +531,8 @@ export default function TransactionForm({
         setIsSubmitting(true);
         try {
           await onSave(payload);
-          showToast(t('form.toast_save_success'), 'success');
+          await syncSavingsGoal();
+          showToast(t('transactions.toast_add_success'), 'success');
           setAmount('');
           setCategory('');
           setSubcategory('');
@@ -460,7 +543,7 @@ export default function TransactionForm({
           setRecurringEndDate(null);
           onClose();
         } catch (err: any) {
-          showToast(err.message || t('form.toast_save_fail'), 'error');
+          showToast(err.message || t('common.toast_error'), 'error');
         } finally {
           setIsSubmitting(false);
         }
@@ -783,7 +866,7 @@ export default function TransactionForm({
                 </div>
               </div>
             ) : (
-              <div className="grid grid-cols-2 gap-4">
+              <div className={isSavingsCategory ? "grid grid-cols-1 gap-4" : "grid grid-cols-2 gap-4"}>
                 <div>
                   <div className="flex items-center justify-between mb-1.5">
                     <label className="block text-xs font-semibold text-gray-700 uppercase tracking-wider">
@@ -814,46 +897,93 @@ export default function TransactionForm({
                   </select>
                 </div>
 
-                <div>
-                  <div className="flex items-center justify-between mb-1.5">
-                    <label className="block text-xs font-semibold text-gray-700 uppercase tracking-wider">
-                      {t('form.category_sub')}
-                    </label>
-                    {onSaveMasterData && (
-                      <button 
-                        type="button" 
-                        onClick={handleSubCategoryQuickAddClick} 
-                        className={`text-[10px] font-bold flex items-center cursor-pointer transition-all ${
-                          category 
-                            ? 'text-indigo-600 hover:underline' 
-                            : 'text-gray-400 opacity-60 hover:text-gray-500'
-                        }`}
-                      >
-                        <Plus size={10} className="mr-0.5" /> {t('form.add_btn')}
-                      </button>
-                    )}
+                {!isSavingsCategory && (
+                  <div>
+                    <div className="flex items-center justify-between mb-1.5">
+                      <label className="block text-xs font-semibold text-gray-700 uppercase tracking-wider">
+                        {t('form.category_sub')}
+                      </label>
+                      {onSaveMasterData && (
+                        <button 
+                          type="button" 
+                          onClick={handleSubCategoryQuickAddClick} 
+                          className={`text-[10px] font-bold flex items-center cursor-pointer transition-all ${
+                            category 
+                              ? 'text-indigo-600 hover:underline' 
+                              : 'text-gray-400 opacity-60 hover:text-gray-500'
+                          }`}
+                        >
+                          <Plus size={10} className="mr-0.5" /> {t('form.add_btn')}
+                        </button>
+                      )}
+                    </div>
+                    <select
+                      value={subcategory}
+                      onChange={(e) => setSubcategory(e.target.value)}
+                      className="block w-full px-3 py-2.5 border border-gray-200 bg-white rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+                    >
+                      <option value="" disabled>{t('form.choose_subcategory')}</option>
+                      {availableSubcategories.length === 0 && <option value="">{t('form.empty_subcategory')}</option>}
+                      {availableSubcategories.map((sub, idx) => (
+                        <option key={idx} value={sub}>
+                          {sub}
+                        </option>
+                      ))}
+                      {subcategory && !availableSubcategories.includes(subcategory) && (
+                        <option value={subcategory}>
+                          {subcategory}
+                        </option>
+                      )}
+                    </select>
                   </div>
-                  <select
-                    value={subcategory}
-                    onChange={(e) => setSubcategory(e.target.value)}
-                    className="block w-full px-3 py-2.5 border border-gray-200 bg-white rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
-                  >
-                    <option value="" disabled>{t('form.choose_subcategory')}</option>
-                    {availableSubcategories.length === 0 && <option value="">{t('form.empty_subcategory')}</option>}
-                    {availableSubcategories.map((sub, idx) => (
-                      <option key={idx} value={sub}>
-                        {sub}
-                      </option>
-                    ))}
-                    {subcategory && !availableSubcategories.includes(subcategory) && (
-                      <option value={subcategory}>
-                        {subcategory}
-                      </option>
-                    )}
-                  </select>
-                </div>
+                )}
               </div>
-              )
+            )
+          )}
+
+            {/* Dynamic Savings Goal Dropdown for Savings Categories */}
+            {isSavingsCategory && type !== 'transfer' && (
+              <div className="p-3.5 bg-emerald-50/80 border border-emerald-200 rounded-2xl space-y-2 animate-fade-in">
+                <div className="flex items-center justify-between">
+                  <label className="text-xs font-bold text-emerald-950 flex items-center gap-1.5">
+                    <PiggyBank size={15} className="text-emerald-600" />
+                    {t('transactions.select_savings_goal_label')}
+                  </label>
+                  <span className="text-[10px] font-bold text-emerald-700 uppercase tracking-wider bg-emerald-100 px-2 py-0.5 rounded-full">
+                    {t('transactions.savings_category_tag')}
+                  </span>
+                </div>
+                <select
+                  value={savingsGoalId}
+                  onChange={(e) => setSavingsGoalId(e.target.value)}
+                  disabled={isSavingsLoading && activeSavingsGoals.length === 0}
+                  className="block w-full px-3 py-2.5 bg-white border border-emerald-200 rounded-xl text-xs font-semibold text-gray-800 focus:outline-none focus:ring-2 focus:ring-emerald-500 cursor-pointer disabled:bg-gray-50 disabled:opacity-75"
+                >
+                  <option value="">
+                    {isSavingsLoading && activeSavingsGoals.length === 0 
+                      ? '...' 
+                      : t('transactions.select_savings_goal_placeholder')}
+                  </option>
+                  {activeSavingsGoals.map((goal) => {
+                    const isArchived = goal.status === 'archived' || goal.status === 'cancelled' || !!goal.isDeleted;
+                    const statusText = isArchived ? ' (Archived)' : (goal.status === 'completed' ? ' (Selesai)' : '');
+                    return (
+                      <option key={goal.id} value={goal.id}>
+                        {goal.title}{statusText} ({formatIDR(goal.currentAmount || 0)} / {formatIDR(goal.targetAmount || 0)})
+                      </option>
+                    );
+                  })}
+                </select>
+                {activeSavingsGoals.length === 0 ? (
+                  <p className="text-[10px] text-emerald-700 font-medium pt-0.5">
+                    {t('transactions.no_active_savings_goals')}
+                  </p>
+                ) : (
+                  <p className="text-[10px] text-emerald-700/80 font-medium">
+                    {t('transactions.savings_sync_note')}
+                  </p>
+                )}
+              </div>
             )}
 
             {/* Account/Source of Funds */}

@@ -8,7 +8,8 @@ function ModalTracker() {
     if (!lenis) return;
     
     const checkModals = () => {
-      const modals = document.querySelectorAll('.fixed.inset-0');
+      // Only target actual modal dialog containers, not backdrop overlays or menus
+      const modals = document.querySelectorAll('[role="dialog"], .modal-dialog, [data-modal="true"]');
       
       let hasOpenModal = false;
       for (let i = 0; i < modals.length; i++) {
@@ -22,9 +23,6 @@ function ModalTracker() {
       
       if (hasOpenModal) {
         lenis.stop();
-        const scrollbarWidth = window.innerWidth - document.documentElement.clientWidth;
-        document.body.style.overflow = 'hidden';
-        document.body.style.paddingRight = `${scrollbarWidth}px`;
       } else {
         lenis.start();
         document.body.style.overflow = '';

@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { useLenis } from 'lenis/react';
 import { useTranslation } from 'react-i18next';
 import CreateMasterAccountModal from '@/components/ui/CreateMasterAccountModal';
@@ -7,6 +7,7 @@ import CreateMasterPeriodModal from '@/components/ui/CreateMasterPeriodModal';
 import { masterDataService, subscribeToCollection } from '@/services/dbServices';
 import { useToast } from '@/context/ToastContext';
 import { api } from '@/lib/api';
+import { calculateAccountsWithBalance } from '@/lib/accountUtils';
 import { 
   Category, BudgetPeriod,
   MasterAccount, MasterAsset, MasterTag, MasterContact,
@@ -15,7 +16,7 @@ import {
 import { 
   HelpCircle, Calendar, Plus, Trash2, 
   Wallet, TrendingUp, Tags, Users, ChevronDown, Edit2, Search, MoreVertical, 
-  Pencil, X 
+  Pencil, X, PiggyBank 
 } from 'lucide-react';
 import * as LucideIcons from 'lucide-react';
 
@@ -256,6 +257,16 @@ export default function CategoryManager({
   useEffect(() => {
     setCategories(initialCategories);
   }, [initialCategories]);
+
+  useEffect(() => {
+    if (initialAccounts && initialAccounts.length > 0) {
+      setAccounts(initialAccounts);
+    }
+  }, [initialAccounts]);
+
+  const displayAccounts = useMemo(() => {
+    return calculateAccountsWithBalance(accounts, transactions);
+  }, [accounts, transactions]);
 
   useEffect(() => {
     if (globalAddTrigger && globalAddTrigger > 0) {
@@ -745,7 +756,7 @@ export default function CategoryManager({
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
             {activeTab === 'rekening' && (
               <div className="col-span-full space-y-6">
-                {accounts.length === 0 ? (
+                {displayAccounts.length === 0 ? (
                   <div className="flex flex-col items-center justify-center p-12 text-center border-2 border-dashed border-gray-200 rounded-3xl bg-gray-50/50">
                     <svg className="w-24 h-24 mb-6 text-gray-300" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z" />
@@ -767,7 +778,7 @@ export default function CategoryManager({
                   </div>
                 ) : (
                   Object.entries(
-                  accounts.reduce((groups, account) => {
+                  displayAccounts.reduce((groups, account) => {
                     const group = account.accountType || 'Lainnya';
                     if (!groups[group]) groups[group] = [];
                     groups[group].push(account);
@@ -906,7 +917,14 @@ export default function CategoryManager({
                       {renderCategoryIcon(cat.iconName, catColor)}
                     </div>
                     <div>
-                      <h4 className="font-extrabold text-sm text-gray-800">{cat.name}</h4>
+                      <div className="flex items-center gap-1.5 flex-wrap">
+                        <h4 className="font-extrabold text-sm text-gray-800">{cat.name}</h4>
+                        {cat.isSavings && (
+                          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[9px] font-black bg-indigo-50 text-indigo-700 border border-indigo-200">
+                            <PiggyBank size={10} /> {t('master_data.savings_badge')}
+                          </span>
+                        )}
+                      </div>
                       <p className="text-[10px] text-gray-400 font-bold uppercase tracking-wider">{cat.subcategories.length} {t('master_data.subcategories_label', 'Sub-kategori')}</p>
                     </div>
                   </div>
@@ -915,7 +933,7 @@ export default function CategoryManager({
                   <div className="absolute top-4 right-4 z-10">
                     <button
                       onClick={() => setActiveKebabId(activeKebabId === cat.id ? null : cat.id)}
-                      className="p-1 text-gray-400 hover:text-gray-600 hover:bg-gray-50 rounded-full transition-colors cursor-pointer"
+                      className="w-8 h-8 flex items-center justify-center text-gray-400 hover:text-gray-600 hover:bg-gray-50 rounded-full transition-colors cursor-pointer"
                     >
                       <MoreVertical size={16} />
                     </button>
@@ -950,13 +968,13 @@ export default function CategoryManager({
                   </div>
 
                   {/* List of Sub-categories with Hover Action Chips */}
-                  <div className="flex flex-wrap gap-1.5 mt-2">
+                  <div className="flex flex-wrap gap-2 mt-2 max-w-full">
                     {cat.subcategories.map((sub, idx) => {
                       const parentColor = cat.colorHex || cat.color_hex;
                       return (
                         <div 
                           key={idx}
-                          className={`group/chip relative inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-semibold border transition-all cursor-default ${
+                          className={`group/chip relative inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-semibold border transition-all cursor-default max-w-full ${
                             parentColor ? '' : 'text-gray-600 bg-gray-50 border-gray-100 hover:bg-gray-100/70'
                           }`}
                           style={parentColor ? {
@@ -965,28 +983,28 @@ export default function CategoryManager({
                             borderColor: `${parentColor}25`
                           } : undefined}
                         >
-                          <LucideIcons.Folder size={12} style={parentColor ? { color: parentColor } : undefined} />
-                          <span className={parentColor ? 'text-gray-700' : ''}>{sub}</span>
-                          <div className="flex items-center gap-1.5 ml-2">
+                          <LucideIcons.Folder size={12} className="shrink-0" style={parentColor ? { color: parentColor } : undefined} />
+                          <span className={`truncate max-w-[140px] sm:max-w-none ${parentColor ? 'text-gray-700' : ''}`}>{sub}</span>
+                          <div className="flex items-center gap-1 ml-1 shrink-0">
                             <button 
                               onClick={(e) => {
                                 e.stopPropagation();
                                 setRenameTarget({ category: cat, oldName: sub });
                               }}
-                              className="p-0.5 text-slate-400 hover:text-blue-600 hover:bg-white rounded transition-colors cursor-pointer"
+                              className="w-6 h-6 flex items-center justify-center p-0.5 text-slate-400 hover:text-blue-600 hover:bg-white rounded transition-colors cursor-pointer"
                               title={t('master_data.rename_subcategory_title') || 'Ubah Nama'}
                             >
-                              <Pencil size={10} />
+                              <Pencil size={11} />
                             </button>
                             <button 
                               onClick={(e) => {
                                 e.stopPropagation();
                                 setDeleteTarget({ type: 'subcategory', category: cat, subName: sub });
                               }}
-                              className="p-0.5 text-slate-400 hover:text-red-500 hover:bg-white rounded transition-colors cursor-pointer"
+                              className="w-6 h-6 flex items-center justify-center p-0.5 text-slate-400 hover:text-red-500 hover:bg-white rounded transition-colors cursor-pointer"
                               title={t('delete') || 'Hapus'}
                             >
-                              <X size={10} />
+                              <X size={11} />
                             </button>
                           </div>
                         </div>

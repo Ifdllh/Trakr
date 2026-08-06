@@ -18,12 +18,15 @@ import TransactionList from '@/features/transactions/TransactionList';
 import CategoryManager from '@/features/transactions/CategoryManager';
 import BudgetManager from '@/features/budgets/BudgetManager';
 import Settings from '@/features/settings/Settings';
+import { SavingsPage } from '@/features/savings/SavingsPage';
 import FloatingActionButtons from '@/components/ui/FloatingActionButtons';
 import BrandLogo from '@/components/ui/BrandLogo';
+import { Sidebar } from '@/components/Sidebar';
+import { PageTransition } from '@/components/PageTransition';
 import { motion, AnimatePresence } from 'motion/react';
 import { 
   LogOut, LayoutDashboard, History, BookOpen, 
-  Loader2, RefreshCw, Target, Settings as SettingsIcon
+  Loader2, RefreshCw, Target, Settings as SettingsIcon, PiggyBank, Menu
 } from 'lucide-react';
 import { useAppData } from '@/hooks/useAppData';
 import { useTranslation } from 'react-i18next';
@@ -198,9 +201,9 @@ export default function App() {
   const location = useLocation();
 
   // UI Tabs & Modals
-  const [activeTab, _setActiveTab] = useState<'dashboard' | 'transactions' | 'categories' | 'budgets' | 'settings'>('dashboard');
+  const [activeTab, _setActiveTab] = useState<'dashboard' | 'transactions' | 'categories' | 'budgets' | 'savings' | 'settings'>('dashboard');
   
-  const setActiveTab = (tab: 'dashboard' | 'transactions' | 'categories' | 'budgets' | 'settings') => {
+  const setActiveTab = (tab: 'dashboard' | 'transactions' | 'categories' | 'budgets' | 'savings' | 'settings') => {
     _setActiveTab(tab);
     navigate('/' + tab);
   };
@@ -215,7 +218,7 @@ export default function App() {
         _setActiveTab(defaultPage);
       } else {
         const tab = path.replace('/', '');
-        if (['dashboard', 'transactions', 'categories', 'budgets', 'settings'].includes(tab)) {
+        if (['dashboard', 'transactions', 'categories', 'budgets', 'savings', 'settings'].includes(tab)) {
           if (activeTab !== tab) {
             _setActiveTab(tab as any);
           }
@@ -238,6 +241,26 @@ export default function App() {
   const [formInitialType, setFormInitialType] = useState<'pemasukan' | 'pengeluaran'>('pengeluaran');
   const [isLogoutModalOpen, setLogoutModalOpen] = useState(false);
   const [isProfileDropdownOpen, setIsProfileDropdownOpen] = useState(false);
+  const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState(false);
+
+  const getPageTitle = (tab: string) => {
+    switch (tab) {
+      case 'dashboard':
+        return t('nav_dashboard', 'Dashboard');
+      case 'transactions':
+        return t('nav_transactions', 'Transactions');
+      case 'categories':
+        return t('nav_master_data', 'Master Data');
+      case 'budgets':
+        return t('nav_budgets', 'Budgets');
+      case 'savings':
+        return t('savings.title', 'Savings Goals');
+      case 'settings':
+        return t('nav_settings', 'Settings');
+      default:
+        return 'TRAKR';
+    }
+  };
 
   const openFormWithType = (type: 'pemasukan' | 'pengeluaran') => {
     setEditingTransaction(null);
@@ -326,234 +349,205 @@ export default function App() {
         user ? (
           <>
             <IdleMonitor />
-          <div className="min-h-screen bg-slate-50/50 text-slate-800 font-sans flex flex-col">
-      
-      {isGuest && (
-        <div className="bg-indigo-600 text-white text-center py-2 px-4 text-xs font-semibold tracking-wide flex items-center justify-center gap-2 shadow-inner shrink-0" id="guest-mode-warning-banner">
-          <span>💡</span>
-          <span>{t('guest_mode_warning')}</span>
-        </div>
-      )}
+          <div className="flex h-screen overflow-hidden bg-slate-50/50 text-slate-800 font-sans">
+            {/* Fixed Left Sidebar */}
+            <Sidebar 
+              activeTab={activeTab} 
+              setActiveTab={setActiveTab} 
+              isMobileOpen={isMobileSidebarOpen}
+              onCloseMobile={() => setIsMobileSidebarOpen(false)}
+            />
 
-      {/* Top Professional Navigation Bar */}
-      <header className="bg-white border-b border-slate-200 sticky top-0 z-40 shadow-xs">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex justify-between items-center h-16">
-            
-            {/* Logo and Name */}
-            <div className="flex items-center gap-2.5">
-              <BrandLogo />
-            </div>
+            {/* Main Content Area Wrapper */}
+            <div className="flex-1 flex flex-col h-screen min-w-0 overflow-hidden">
+              
+              {isGuest && (
+                <div className="bg-indigo-600 text-white text-center py-2 px-4 text-xs font-semibold tracking-wide flex items-center justify-center gap-2 shadow-inner shrink-0" id="guest-mode-warning-banner">
+                  <span>💡</span>
+                  <span>{t('guest_mode_warning')}</span>
+                </div>
+              )}
 
-            {/* Middle Nav Links */}
-            <nav className="hidden md:flex p-1 bg-slate-100 rounded-2xl relative">
-              {[
-                { id: 'dashboard', label: t('nav_dashboard'), icon: LayoutDashboard },
-                { id: 'transactions', label: t('nav_transactions'), icon: History },
-                { id: 'categories', label: t('nav_master_data'), icon: BookOpen },
-                { id: 'budgets', label: t('nav_budgets'), icon: Target }
-              ].map((tab) => {
-                const isActive = activeTab === tab.id;
-                const Icon = tab.icon;
-                return (
+              {/* Minimal Contextual Top Header */}
+              <header className="h-16 px-4 md:px-8 bg-white border-b border-slate-200/80 flex items-center justify-between shrink-0 z-20">
+                <div className="flex items-center gap-3">
+                  <h1 className="text-lg md:text-xl font-bold text-slate-900 tracking-tight">
+                    {getPageTitle(activeTab)}
+                  </h1>
+                </div>
+
+                {/* Right Profile Info & Actions */}
+                <div className="flex items-center relative" id="profile-container">
                   <button
-                    key={tab.id}
-                    onClick={() => setActiveTab(tab.id as 'dashboard' | 'transactions' | 'categories' | 'budgets')}
-                    className={`relative flex items-center gap-2 px-5 py-2 rounded-xl text-xs font-bold transition-colors z-10 ${
-                      isActive ? 'text-indigo-700' : 'text-slate-500 hover:text-slate-900'
-                    }`}
+                    onClick={() => setIsProfileDropdownOpen(!isProfileDropdownOpen)}
+                    className="flex items-center gap-2.5 cursor-pointer hover:bg-slate-100/80 active:scale-98 transition-colors duration-200 focus:outline-none py-1.5 px-2.5 rounded-lg border border-transparent hover:border-slate-200/50"
+                    id="profile-dropdown-trigger"
+                    title="Menu Akun"
                   >
-                    {isActive && (
-                      <motion.div
-                        layoutId="desktop-nav-indicator"
-                        className="absolute inset-0 bg-white rounded-xl shadow-sm border border-slate-200/50"
-                        transition={{ type: "spring", stiffness: 400, damping: 30 }}
+                    <span className="hidden sm:inline text-xs md:text-sm font-semibold text-slate-700 max-w-[120px] md:max-w-[180px] truncate" id="profile-display-name">
+                      {currentUserData?.displayName || (user?.isAnonymous ? t('user_guest') : t('user_regular'))}
+                    </span>
+                    <div className="w-8 h-8 md:w-9 md:h-9 rounded-full border border-slate-200 bg-indigo-50 text-indigo-700 flex items-center justify-center text-xs font-bold overflow-hidden shrink-0" id="profile-avatar">
+                      {currentUserData?.photoURL ? (
+                        <img 
+                          src={currentUserData.photoURL} 
+                          alt={currentUserData.displayName || 'Avatar'} 
+                          className="w-full h-full object-cover" 
+                          referrerPolicy="no-referrer" 
+                        />
+                      ) : (
+                        <span>{getInitials(currentUserData?.displayName, user?.email)}</span>
+                      )}
+                    </div>
+                  </button>
+
+                  {/* Profile Dropdown Menu */}
+                  <AnimatePresence>
+                    {isProfileDropdownOpen && (
+                      <>
+                        <div 
+                          className="fixed inset-0 z-40" 
+                          onClick={() => setIsProfileDropdownOpen(false)}
+                          id="profile-dropdown-backdrop"
+                        />
+                        <motion.div
+                          initial={{ opacity: 0, y: 8, scale: 0.95 }}
+                          animate={{ opacity: 1, y: 0, scale: 1 }}
+                          exit={{ opacity: 0, y: 8, scale: 0.95 }}
+                          transition={{ duration: 0.15 }}
+                          className="absolute right-0 top-full mt-2 w-56 bg-white border border-slate-200/80 shadow-lg rounded-xl py-1.5 z-50 text-left origin-top-right"
+                          id="profile-dropdown-menu"
+                        >
+                          <div className="px-3.5 py-2.5 border-b border-slate-100 mb-1" id="profile-dropdown-header">
+                            <p className="text-xs font-bold text-slate-800 truncate">{currentUserData?.displayName || (user?.isAnonymous ? t('user_guest') : t('user_regular'))}</p>
+                            <p className="text-[10px] text-slate-400 font-mono truncate">{user.email || t('mode_guest')}</p>
+                          </div>
+
+                          <button
+                            onClick={() => {
+                              setActiveTab('settings');
+                              setIsProfileDropdownOpen(false);
+                            }}
+                            className="w-full text-left px-3.5 py-2 text-xs font-semibold text-slate-700 hover:bg-indigo-50/50 hover:text-indigo-700 transition-colors flex items-center gap-2.5"
+                            id="profile-menu-settings"
+                          >
+                            <SettingsIcon size={14} className="text-slate-400" />
+                            {t('nav_settings')}
+                          </button>
+
+                          <button
+                            onClick={() => {
+                              setLogoutModalOpen(true);
+                              setIsProfileDropdownOpen(false);
+                            }}
+                            className="w-full text-left px-3.5 py-2 text-xs font-semibold text-rose-600 hover:bg-rose-50/50 transition-colors flex items-center gap-2.5 border-t border-slate-100 mt-1"
+                            id="profile-menu-logout"
+                          >
+                            <LogOut size={14} className="text-rose-500" />
+                            {t('nav_logout')}
+                          </button>
+                        </motion.div>
+                      </>
+                    )}
+                  </AnimatePresence>
+                </div>
+              </header>
+
+              {/* Main Content Area */}
+              <main className="flex-1 overflow-y-auto p-4 md:p-8 pb-24 md:pb-8 scroll-smooth" id="main-content-area" data-lenis-prevent="true">
+                <div className="max-w-[1440px] mx-auto w-full">
+                  <PageTransition pageKey={activeTab}>
+                    {activeTab === 'dashboard' && (
+                      <Dashboard 
+                        user={user}
+                        dbUser={dbUser}
+                        categories={mergedCategories}
+                        onOpenForm={openFormWithType}
+                        setActiveTab={setActiveTab}
+                        transactions={transactions}
+                        budgets={budgets}
+                        periods={periods}
+                        globalBudgets={globalBudgets}
+                        accounts={accounts}
+                        onSaveGlobalBudget={handleSaveGlobalBudget}
                       />
                     )}
-                    <span className="relative z-10 flex items-center gap-2">
-                      <Icon size={16} />
-                      {tab.label}
-                    </span>
-                  </button>
-                );
-              })}
-            </nav>
 
-            {/* Right Profile Info & Logout */}
-            <div className="flex items-center relative" id="profile-container">
-              {/* User indicator Button */}
-              <button
-                onClick={() => setIsProfileDropdownOpen(!isProfileDropdownOpen)}
-                className="flex items-center gap-3 cursor-pointer hover:bg-slate-100/80 active:scale-98 transition-colors duration-200 focus:outline-none py-1.5 px-3 -mr-3 rounded-lg border border-transparent hover:border-slate-200/50"
-                id="profile-dropdown-trigger"
-                title="Menu Akun"
-              >
-                <span className="text-sm font-semibold text-gray-700 max-w-[150px] truncate" id="profile-display-name">
-                  {currentUserData?.displayName || (user?.isAnonymous ? t('user_guest') : t('user_regular'))}
-                </span>
-                <div className="w-9 h-9 rounded-full border border-slate-200 bg-indigo-50 text-indigo-700 flex items-center justify-center text-xs font-bold overflow-hidden shrink-0" id="profile-avatar">
-                  {currentUserData?.photoURL ? (
-                    <img 
-                      src={currentUserData.photoURL} 
-                      alt={currentUserData.displayName || 'Avatar'} 
-                      className="w-full h-full object-cover" 
-                      referrerPolicy="no-referrer" 
-                    />
-                  ) : (
-                    <span>{getInitials(currentUserData?.displayName, user?.email)}</span>
-                  )}
+                    {activeTab === 'transactions' && (
+                      <TransactionList 
+                        user={user}
+                        periods={periods} 
+                        categories={mergedCategories}
+                        accounts={accounts}
+                        onEdit={handleEditRequest}
+                        onDelete={handleDeleteTransaction}
+                        transactions={transactions}
+                      />
+                    )}
+
+                    {activeTab === 'categories' && (
+                      <CategoryManager 
+                        user={user}
+                        categories={mergedCategories}
+                        customCategories={customCategories}
+                        periods={periods}
+                        accounts={accounts}
+                        assets={assets}
+                        tags={tags}
+                        contacts={contacts}
+                        transactions={transactions}
+                        budgets={budgets}
+                        dbUser={dbUser}
+                        onSavePeriod={handleSavePeriod}
+                        onDeletePeriod={handleDeletePeriod}
+                        onSaveMasterData={handleSaveMasterData}
+                        onDeleteMasterData={handleDeleteMasterData}
+                        onRefreshData={refreshData}
+                        globalAddTrigger={triggerAddMasterData}
+                      />
+                    )}
+
+                    {activeTab === 'budgets' && (
+                      <BudgetManager 
+                        user={user}
+                        categories={mergedCategories}
+                        transactions={transactions}
+                        monthlyBudget={monthlyBudget}
+                        budgets={budgets}
+                        periods={periods}
+                        globalBudgets={globalBudgets}
+                        accounts={accounts}
+                        assets={assets}
+                        tags={tags}
+                        contacts={contacts}
+                        onSaveBudget={handleSaveBudgetAllocation}
+                        onDeleteBudget={handleDeleteBudgetAllocation}
+                        onSaveGlobalBudget={handleSaveGlobalBudget}
+                      />
+                    )}
+
+                    {activeTab === 'savings' && (
+                      <SavingsPage 
+                        user={user}
+                        accounts={accounts}
+                        categories={mergedCategories}
+                        customCategories={customCategories}
+                        onSaveTransaction={handleSaveTransaction}
+                        onSaveMasterData={handleSaveMasterData}
+                      />
+                    )}
+
+                    {activeTab === 'settings' && (
+                      <Settings 
+                        user={user}
+                        dbUser={dbUser}
+                        onProfileUpdate={handleProfileUpdate}
+                        setActiveTab={setActiveTab}
+                      />
+                    )}
+                  </PageTransition>
                 </div>
-              </button>
-
-              {/* Profile Dropdown Menu */}
-              <AnimatePresence>
-                {isProfileDropdownOpen && (
-                  <>
-                    {/* Transparent Clickable Backdrop to close dropdown */}
-                    <div 
-                      className="fixed inset-0 z-40" 
-                      onClick={() => setIsProfileDropdownOpen(false)}
-                      id="profile-dropdown-backdrop"
-                    />
-                    <motion.div
-                      initial={{ opacity: 0, y: 8, scale: 0.95 }}
-                      animate={{ opacity: 1, y: 0, scale: 1 }}
-                      exit={{ opacity: 0, y: 8, scale: 0.95 }}
-                      transition={{ duration: 0.15 }}
-                      className="absolute right-0 top-full mt-2 w-56 bg-white border border-slate-200/80 shadow-lg rounded-xl py-1.5 z-50 text-left origin-top-right"
-                      id="profile-dropdown-menu"
-                    >
-                      <div className="px-3.5 py-2.5 border-b border-slate-100 mb-1" id="profile-dropdown-header">
-                        <p className="text-xs font-bold text-slate-800 truncate">{currentUserData?.displayName || (user?.isAnonymous ? t('user_guest') : t('user_regular'))}</p>
-                        <p className="text-[10px] text-slate-400 font-mono truncate">{user.email || t('mode_guest')}</p>
-                      </div>
-
-                      <button
-                        onClick={() => {
-                          setActiveTab('settings');
-                          setIsProfileDropdownOpen(false);
-                        }}
-                        className="w-full text-left px-3.5 py-2 text-xs font-semibold text-slate-700 hover:bg-indigo-50/50 hover:text-indigo-700 transition-colors flex items-center gap-2.5"
-                        id="profile-menu-settings"
-                      >
-                        <SettingsIcon size={14} className="text-slate-400" />
-                        {t('nav_settings')}
-                      </button>
-
-                      <button
-                        onClick={() => {
-                          setLogoutModalOpen(true);
-                          setIsProfileDropdownOpen(false);
-                        }}
-                        className="w-full text-left px-3.5 py-2 text-xs font-semibold text-rose-600 hover:bg-rose-50/50 transition-colors flex items-center gap-2.5 border-t border-slate-100 mt-1"
-                        id="profile-menu-logout"
-                      >
-                        <LogOut size={14} className="text-rose-500" />
-                        {t('nav_logout')}
-                      </button>
-                    </motion.div>
-                  </>
-                )}
-              </AnimatePresence>
-            </div>
-
-          </div>
-        </div>
-      </header>
-
-      {/* Main Content Arena */}
-      <main className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        
-        {/* Tab Viewport with smooth entry transitions */}
-        <AnimatePresence mode="wait">
-          <motion.div
-            key={activeTab}
-            initial={{ opacity: 0, y: 10 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: -10 }}
-            transition={{ duration: 0.15 }}
-          >
-            {activeTab === 'dashboard' && (
-              <Dashboard 
-                user={user}
-                dbUser={dbUser}
-                categories={mergedCategories}
-                onOpenForm={openFormWithType}
-                setActiveTab={setActiveTab}
-                transactions={transactions}
-                budgets={budgets}
-                periods={periods}
-                globalBudgets={globalBudgets}
-                accounts={accounts}
-                onSaveGlobalBudget={handleSaveGlobalBudget}
-              />
-            )}
-
-            {activeTab === 'transactions' && (
-              <TransactionList 
-                user={user}
-                periods={periods} 
-                categories={mergedCategories}
-                accounts={accounts}
-                onEdit={handleEditRequest}
-                onDelete={handleDeleteTransaction}
-                transactions={transactions}
-              />
-            )}
-
-            {activeTab === 'categories' && (
-              <CategoryManager 
-                user={user}
-                categories={mergedCategories}
-                customCategories={customCategories}
-                periods={periods}
-                accounts={accounts}
-                assets={assets}
-                tags={tags}
-                contacts={contacts}
-                transactions={transactions}
-                budgets={budgets}
-                dbUser={dbUser}
-                onSavePeriod={handleSavePeriod}
-                onDeletePeriod={handleDeletePeriod}
-                onSaveMasterData={handleSaveMasterData}
-                onDeleteMasterData={handleDeleteMasterData}
-                onRefreshData={refreshData}
-                globalAddTrigger={triggerAddMasterData}
-              />
-            )}
-
-            {activeTab === 'budgets' && (
-              <BudgetManager 
-                user={user}
-                categories={mergedCategories}
-                transactions={transactions}
-                monthlyBudget={monthlyBudget}
-                budgets={budgets}
-                periods={periods}
-                globalBudgets={globalBudgets}
-                accounts={accounts}
-                assets={assets}
-                tags={tags}
-                contacts={contacts}
-                onSaveBudget={handleSaveBudgetAllocation}
-                onDeleteBudget={handleDeleteBudgetAllocation}
-                onSaveGlobalBudget={handleSaveGlobalBudget}
-              />
-            )}
-
-            {activeTab === 'settings' && (
-              <Settings 
-                user={user}
-                dbUser={dbUser}
-                onProfileUpdate={handleProfileUpdate}
-                setActiveTab={setActiveTab}
-              />
-            )}
-          </motion.div>
-        </AnimatePresence>
-
-      </main>
+              </main>
 
       {/* Global Floating Action Buttons */}
       <FloatingActionButtons 
@@ -564,56 +558,35 @@ export default function App() {
       />
 
       {/* Bottom Nav Bar for Mobile Devices */}
-      <footer className="md:hidden bg-white border-t border-slate-200 sticky bottom-0 z-40 py-2 shadow-[0_-2px_10px_rgba(0,0,0,0.03)] pb-safe">
-        <div className="grid grid-cols-5 text-center">
-          <button
-            onClick={() => setActiveTab('dashboard')}
-            className={`flex flex-col items-center justify-center gap-1 py-1.5 transition-all ${
-              activeTab === 'dashboard' ? 'text-indigo-600 font-bold' : 'text-slate-400'
-            }`}
-          >
-            <LayoutDashboard size={20} />
-            <span className="text-[10px]">{t('nav_dashboard')}</span>
-          </button>
-          
-          <button
-            onClick={() => setActiveTab('transactions')}
-            className={`flex flex-col items-center justify-center gap-1 py-1.5 transition-all ${
-              activeTab === 'transactions' ? 'text-indigo-600 font-bold' : 'text-slate-400'
-            }`}
-          >
-            <History size={20} />
-            <span className="text-[10px]">{t('nav_transactions')}</span>
-          </button>
-
-          <button
-            onClick={() => setActiveTab('budgets')}
-            className={`flex flex-col items-center justify-center gap-1 py-1.5 transition-all ${
-              activeTab === 'budgets' ? 'text-indigo-600 font-bold' : 'text-slate-400'
-            }`}
-          >
-            <Target size={20} />
-            <span className="text-[10px]">{t('nav_budgets')}</span>
-          </button>
-
-          <button
-            onClick={() => setActiveTab('categories')}
-            className={`flex flex-col items-center justify-center gap-1 py-1.5 transition-all ${
-              activeTab === 'categories' ? 'text-indigo-600 font-bold' : 'text-slate-400'
-            }`}
-          >
-            <BookOpen size={20} />
-            <span className="text-[10px]">{t('nav_master_data')}</span>
-          </button>
-          
-          <button
-            onClick={() => setLogoutModalOpen(true)}
-            className="flex flex-col items-center justify-center gap-1 py-1.5 text-slate-400 hover:text-red-500 transition-all"
-          >
-            <LogOut size={20} />
-            <span className="text-[10px]">{t('logout')}</span>
-          </button>
-        </div>
+      <footer className="md:hidden fixed bottom-0 left-0 right-0 z-30 bg-white/80 backdrop-blur-lg border-t border-slate-200/60 py-2 px-2 shadow-[0_-4px_20px_rgba(0,0,0,0.03)] pb-safe">
+        <nav className="grid grid-cols-5 items-center max-w-md mx-auto text-center">
+          {[
+            { id: 'dashboard', label: t('nav_dashboard'), icon: LayoutDashboard },
+            { id: 'transactions', label: t('nav_transactions'), icon: History },
+            { id: 'budgets', label: t('nav_budgets'), icon: Target },
+            { id: 'savings', label: 'Savings', icon: PiggyBank },
+            { id: 'categories', label: t('nav_master_data'), icon: BookOpen },
+          ].map((tab) => {
+            const isActive = activeTab === tab.id;
+            const Icon = tab.icon;
+            return (
+              <button
+                key={tab.id}
+                onClick={() => setActiveTab(tab.id as any)}
+                className={`flex flex-col items-center justify-center gap-1 py-1 px-1 transition-colors cursor-pointer ${
+                  isActive ? 'text-indigo-600 font-semibold' : 'text-slate-400 hover:text-slate-600'
+                }`}
+              >
+                <div className={`relative p-1 rounded-xl transition-all ${isActive ? 'bg-indigo-50/80 text-indigo-600' : ''}`}>
+                  <Icon size={20} />
+                </div>
+                <span className="text-[10px] leading-none tracking-tight truncate max-w-full">
+                  {tab.label}
+                </span>
+              </button>
+            );
+          })}
+        </nav>
       </footer>
 
       {/* Transaction Logging Modal */}
@@ -635,6 +608,7 @@ export default function App() {
             onSaveMasterData={handleSaveMasterData}
             periods={periods}
             dbUser={dbUser}
+            user={user}
           />
         )}
       </AnimatePresence>
@@ -691,7 +665,8 @@ export default function App() {
           </motion.div>
         )}
       </AnimatePresence>
-    </div>
+            </div>
+          </div>
           </>
         ) : (
           <Navigate to="/login" replace />

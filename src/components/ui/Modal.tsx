@@ -78,6 +78,9 @@ export function Modal({
   return (
     <div
       ref={backdropRef}
+      role="dialog"
+      aria-modal="true"
+      data-modal="true"
       className={`fixed inset-0 ${zIndexClass} flex items-center justify-center p-4 ${backdropClassName}`}
       onClick={(e) => {
         if (e.target === backdropRef.current) {

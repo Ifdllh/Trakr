@@ -5,6 +5,9 @@ i18n.use(initReactI18next).init({
   resources: {
     id: {
       translation: {
+        common: {
+          toast_error: "Gagal memproses data. Silakan coba lagi."
+        },
         timeout: {
           modal_title: 'Sesi Segera Berakhir',
           modal_desc: 'Anda tidak melakukan aktivitas selama beberapa saat. Demi keamanan, Anda akan otomatis dikeluarkan dalam',
@@ -269,6 +272,8 @@ i18n.use(initReactI18next).init({
 
         // Transactions Module
         transactions: {
+          toast_add_success: "Transaksi berhasil ditambahkan.",
+          toast_delete_success: "Transaksi berhasil dihapus.",
           title: "📑 Semua Transaksi",
           subtitle: "Kelola dan telusuri semua catatan pengeluaran & pemasukan Anda",
           showing_count: "Menampilkan {{filtered_count}} dari {{total_count}} transaksi",
@@ -308,7 +313,12 @@ i18n.use(initReactI18next).init({
           yes_delete: "Ya, Hapus",
           receipt_proof: "🧾 Bukti Fisik Struk Transaksi",
           open_new_tab: "Buka di Tab Baru",
-          close: "Tutup"
+          close: "Tutup",
+          select_savings_goal_label: "Pilih Target Tabungan",
+          savings_category_tag: "KATEGORI TABUNGAN",
+          select_savings_goal_placeholder: "Pilih target...",
+          no_active_savings_goals: "Tidak ada target tabungan aktif.",
+          savings_sync_note: "Dana transaksi ini akan otomatis memperbarui saldo Target Tabungan terpilih."
         },
 
         // Transaction Form / Modal
@@ -505,7 +515,10 @@ i18n.use(initReactI18next).init({
           validation_period_name_required: "Nama periode wajib diisi",
           validation_start_date_required: "Tanggal mulai wajib diisi",
           validation_end_date_required: "Tanggal berakhir wajib diisi",
-          validation_end_date_before_start: "Tanggal Berakhir tidak boleh lebih awal dari Tanggal Mulai"
+          validation_end_date_before_start: "Tanggal Berakhir tidak boleh lebih awal dari Tanggal Mulai",
+          is_savings_label: 'Jadikan Kategori Tabungan',
+          is_savings_help: 'Transaksi dengan kategori ini dapat dihubungkan ke target tabungan Anda.',
+          savings_badge: 'Tabungan'
         },
 
         // Budgets Module
@@ -631,11 +644,49 @@ i18n.use(initReactI18next).init({
           COL_PERIOD: "PERIODE",
           COL_AMOUNT_PERCENTAGE: "JUMLAH / PERSENTASE",
           COL_REMAINING_TO_ALLOCATE: "SISA UNTUK DIALOKASIKAN"
+        },
+        savings: {
+          title: "Target Tabungan",
+          new_goal: "Target Baru",
+          empty_title: "Belum ada target tabungan",
+          empty_desc: "Tentukan target liburan impian, gadget baru, atau dana darurat Anda.",
+          create_first: "Buat target pertama Anda",
+          target: "Target",
+          completed: "Selesai",
+          edit: "Ubah",
+          current: "Terkumpul",
+          days_left: "hari lagi",
+          weeks_left: "minggu lagi",
+          months_left: "bulan lagi",
+          no_deadline: "Tanpa tenggat",
+          requires: "Butuh",
+          month: "bulan",
+          week: "minggu",
+          day: "hari",
+          topup: "Top-up",
+          achieve_goal: "🎉 Selesaikan Target",
+          cancel_goal: "Batalkan & Tarik Dana",
+          cancel_modal_title: "Batalkan Target Tabungan",
+          cancel_modal_warning: "Apakah Anda yakin? Sisa dana ({{amount}}) akan dikembalikan ke saldo utama Anda sebagai Pemasukan.",
+          cancel_modal_warning_empty: "Apakah Anda yakin ingin membatalkan target tabungan ini?",
+          select_account_deposit: "Pilih Rekening Penerima Dana",
+          btn_cancel_withdraw: "Batalkan & Cairkan Dana",
+          confirm_cancel: "Ya, Batalkan Target",
+          transaction_date: "Tanggal Transaksi",
+          insufficient_account_funds: "Saldo rekening tidak mencukupi.",
+          insufficient_savings_funds: "Jumlah penarikan melebihi saldo tabungan.",
+          toast_add_success: "Target tabungan baru berhasil dibuat!",
+          toast_delete_success: "Target tabungan berhasil dihapus.",
+          toast_topup_success: "Top-up tabungan berhasil!",
+          toast_withdraw_success: "Pencairan dana berhasil!"
         }
       }
     },
     en: {
       translation: {
+        common: {
+          toast_error: "Failed to process data. Please try again."
+        },
         timeout: {
           modal_title: 'Session Expiring Soon',
           modal_desc: 'You have been inactive for a while. For your security, you will be automatically logged out in',
@@ -900,6 +951,8 @@ i18n.use(initReactI18next).init({
 
         // Transactions Module
         transactions: {
+          toast_add_success: "Transaction successfully added.",
+          toast_delete_success: "Transaction deleted.",
           title: "📑 All Transactions",
           subtitle: "Manage and browse all your expense & income records",
           showing_count: "Showing {{filtered_count}} of {{total_count}} transactions",
@@ -939,7 +992,12 @@ i18n.use(initReactI18next).init({
           yes_delete: "Yes, Delete",
           receipt_proof: "🧾 Receipt Physical Proof",
           open_new_tab: "Open in New Tab",
-          close: "Close"
+          close: "Close",
+          select_savings_goal_label: "Select Savings Goal",
+          savings_category_tag: "SAVINGS CATEGORY",
+          select_savings_goal_placeholder: "Choose a goal...",
+          no_active_savings_goals: "No active savings goals found.",
+          savings_sync_note: "Transaction funds will automatically update the selected Savings Goal balance."
         },
 
         // Transaction Form / Modal
@@ -1136,7 +1194,10 @@ i18n.use(initReactI18next).init({
           validation_period_name_required: "Period name is required",
           validation_start_date_required: "Start date is required",
           validation_end_date_required: "End date is required",
-          validation_end_date_before_start: "End Date cannot be earlier than Start Date"
+          validation_end_date_before_start: "End Date cannot be earlier than Start Date",
+          is_savings_label: 'Set as Savings Category',
+          is_savings_help: 'Transactions using this category can be linked to your savings goals.',
+          savings_badge: 'Savings'
         },
 
         // Budgets Module
@@ -1262,6 +1323,41 @@ i18n.use(initReactI18next).init({
           COL_PERIOD: "PERIOD",
           COL_AMOUNT_PERCENTAGE: "AMOUNT / PERCENTAGE",
           COL_REMAINING_TO_ALLOCATE: "REMAINING TO ALLOCATE"
+        },
+        savings: {
+          title: "Savings Goals",
+          new_goal: "New Goal",
+          empty_title: "No savings goals yet",
+          empty_desc: "Set a target for your dream vacation, a new gadget, or emergency fund.",
+          create_first: "Create your first goal",
+          target: "Target",
+          completed: "Completed",
+          edit: "Edit",
+          current: "Current",
+          days_left: "days left",
+          weeks_left: "weeks left",
+          months_left: "months left",
+          no_deadline: "No deadline",
+          requires: "Requires",
+          month: "month",
+          week: "week",
+          day: "day",
+          topup: "Top-up",
+          achieve_goal: "🎉 Achieve Goal",
+          cancel_goal: "Cancel Goal & Withdraw",
+          cancel_modal_title: "Cancel Savings Goal",
+          cancel_modal_warning: "Are you sure? Remaining funds ({{amount}}) will be returned to your main balance as Income.",
+          cancel_modal_warning_empty: "Are you sure you want to cancel this savings goal?",
+          select_account_deposit: "Select Account for Funds Deposit",
+          btn_cancel_withdraw: "Cancel & Liquidate Funds",
+          confirm_cancel: "Yes, Cancel Goal",
+          transaction_date: "Transaction Date",
+          insufficient_account_funds: "Insufficient funds in selected account.",
+          insufficient_savings_funds: "Amount exceeds savings goal balance.",
+          toast_add_success: "New savings goal created!",
+          toast_delete_success: "Savings goal archived/deleted.",
+          toast_topup_success: "Top-up successful!",
+          toast_withdraw_success: "Withdrawal successful!"
         }
       }
     }

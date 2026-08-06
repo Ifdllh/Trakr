@@ -10,6 +10,8 @@ import {
 import { User as FirebaseUser } from 'firebase/auth';
 import { useToast } from '@/context/ToastContext';
 
+import { calculateAccountsWithBalance } from '@/lib/accountUtils';
+
 export function useAppData(user: FirebaseUser | null, isGuest: boolean) {
   const { showToast } = useToast();
   
@@ -69,6 +71,7 @@ export function useAppData(user: FirebaseUser | null, isGuest: boolean) {
             iconName: customCat.iconName || base[existingIdx].iconName,
             colorClass: customCat.colorClass || base[existingIdx].colorClass,
             colorHex: customCat.colorHex || customCat.color_hex || base[existingIdx].colorHex,
+            isSavings: customCat.isSavings !== undefined ? customCat.isSavings : base[existingIdx].isSavings,
             subcategories: activeSubs.length > 0 ? activeSubs : base[existingIdx].subcategories
           };
         } else {
@@ -79,6 +82,7 @@ export function useAppData(user: FirebaseUser | null, isGuest: boolean) {
             iconName: customCat.iconName || 'Folder',
             colorClass: customCat.colorClass || 'text-indigo-600 bg-indigo-50 border-indigo-200',
             colorHex: customCat.colorHex || customCat.color_hex,
+            isSavings: !!customCat.isSavings,
             subcategories: activeSubs,
           });
         }
@@ -227,14 +231,13 @@ export function useAppData(user: FirebaseUser | null, isGuest: boolean) {
     const rollbackData = transactions;
     if (id) {
       setTransactions(prev => prev.map(p => String(p.id) === id ? { ...p, ...transactionData } : p));
-      (async () => {
-        try {
-          await transactionService.save(transactionData, id);
-        } catch (error: any) {
-          setTransactions(rollbackData);
-          showToast(error.message || i18n.t('toast.error.general') || 'Terjadi kesalahan', 'error');
-        }
-      })();
+      try {
+        await transactionService.save(transactionData, id);
+      } catch (error: any) {
+        setTransactions(rollbackData);
+        showToast(error.message || i18n.t('toast.error.general') || 'Gagal menyimpan data. Silakan coba lagi.', 'error');
+        throw error;
+      }
     } else {
       const isArray = Array.isArray(transactionData);
       const tempIds = isArray ? transactionData.map(() => Math.random().toString(36).substring(2, 15)) : [Math.random().toString(36).substring(2, 15)];
@@ -245,28 +248,26 @@ export function useAppData(user: FirebaseUser | null, isGuest: boolean) {
         
       setTransactions(prev => [...prev, ...optimisticData]);
 
-      (async () => {
-        try {
-          const res = await transactionService.save(transactionData);
-          // Replace temp IDs with real IDs if needed, though invalidateQueries handles full refresh
-          setTransactions(prev => {
-            let next = [...prev];
-            if (Array.isArray(res)) {
-               res.forEach((r, i) => {
-                 const idx = next.findIndex(t => String(t.id) === tempIds[i]);
-                 if (idx !== -1) next[idx] = { ...next[idx], ...r };
-               });
-            } else {
-               const idx = next.findIndex(t => String(t.id) === tempIds[0]);
-               if (idx !== -1) next[idx] = { ...next[idx], ...res };
-            }
-            return next;
-          });
-        } catch (error: any) {
-          setTransactions(rollbackData);
-          showToast(error.message || i18n.t('toast.error.general') || 'Terjadi kesalahan', 'error');
-        }
-      })();
+      try {
+        const res = await transactionService.save(transactionData);
+        setTransactions(prev => {
+          let next = [...prev];
+          if (Array.isArray(res)) {
+             res.forEach((r, i) => {
+               const idx = next.findIndex(t => String(t.id) === tempIds[i]);
+               if (idx !== -1) next[idx] = { ...next[idx], ...r };
+             });
+          } else {
+             const idx = next.findIndex(t => String(t.id) === tempIds[0]);
+             if (idx !== -1) next[idx] = { ...next[idx], ...res };
+          }
+          return next;
+        });
+      } catch (error: any) {
+        setTransactions(rollbackData);
+        showToast(error.message || i18n.t('toast.error.general') || 'Gagal menyimpan data. Silakan coba lagi.', 'error');
+        throw error;
+      }
     }
   };
 
@@ -280,14 +281,13 @@ export function useAppData(user: FirebaseUser | null, isGuest: boolean) {
     const rollbackData = transactions;
     setTransactions(prev => prev.filter(p => String(p.id) !== id));
     
-    (async () => {
-      try {
-        await transactionService.delete(id);
-      } catch (error: any) {
-        setTransactions(rollbackData);
-        showToast(error.message || i18n.t('toast.error.general') || 'Terjadi kesalahan', 'error');
-      }
-    })();
+    try {
+      await transactionService.delete(id);
+      showToast(i18n.t('transactions.toast_delete_success') || 'Transaction deleted.', 'success');
+    } catch (error: any) {
+      setTransactions(rollbackData);
+      showToast(error.message || i18n.t('toast.error.general') || 'Gagal menghapus data. Silakan coba lagi.', 'error');
+    }
   };
 
   const handleSaveMasterData = async (collectionName: string, data: any, id?: string): Promise<string | void> => {
@@ -529,12 +529,16 @@ export function useAppData(user: FirebaseUser | null, isGuest: boolean) {
     })();
   };
 
+  const calculatedAccounts = useMemo(() => {
+    return calculateAccountsWithBalance(accounts, transactions);
+  }, [accounts, transactions]);
+
   return {
     transactions,
     budgets,
     globalBudgets,
     periods,
-    accounts,
+    accounts: calculatedAccounts,
     assets,
     tags,
     contacts,

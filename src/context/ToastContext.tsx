@@ -85,7 +85,7 @@ export const ToastProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     if (toast) {
       const timer = setTimeout(() => {
         setToast(null);
-      }, 5000); // 5 seconds duration
+      }, 3500); // 3.5 seconds duration
       return () => clearTimeout(timer);
     }
   }, [toast]);

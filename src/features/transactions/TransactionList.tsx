@@ -64,25 +64,27 @@ export default function TransactionList({ user, categories, periods, accounts = 
     const target = (isLastInGroup && groupContainer) ? groupContainer : (rowEl || groupContainer);
 
     if (target) {
-      gsap.set(target, { overflow: 'hidden' });
-      gsap.to(target, {
+      const currentHeight = target.offsetHeight;
+      gsap.set(target, { overflow: 'hidden', height: currentHeight, boxSizing: 'border-box' });
+      const tl = gsap.timeline({
+        onComplete: async () => {
+          await executeDelete();
+        }
+      });
+      tl.to(target, {
         opacity: 0,
         x: -30,
         duration: 0.15,
-        ease: 'power2.in',
-        onComplete: () => {
-          gsap.to(target, {
-            height: 0,
-            padding: 0,
-            margin: 0,
-            duration: 0.10,
-            ease: 'power2.out',
-            onComplete: async () => {
-              await executeDelete();
-            }
-          });
-        }
-      });
+        ease: 'power2.in'
+      }).to(target, {
+        height: 0,
+        paddingTop: 0,
+        paddingBottom: 0,
+        marginTop: 0,
+        marginBottom: 0,
+        duration: 0.12,
+        ease: 'power2.out'
+      }, '-=0.03');
     } else {
       executeDelete();
     }
@@ -100,6 +102,7 @@ export default function TransactionList({ user, categories, periods, accounts = 
 
   useEffect(() => {
     if (!user?.uid) {
+      setLocalTransactions(allTransactions);
       setLoading(false);
       return;
     }
@@ -110,6 +113,12 @@ export default function TransactionList({ user, categories, periods, accounts = 
     });
     return () => unsubscribe();
   }, [user?.uid]);
+
+  useEffect(() => {
+    if (!user || !user.uid) {
+      setLocalTransactions(allTransactions);
+    }
+  }, [allTransactions, user]);
 
   const toggleGroup = (groupId: string) => {
     setExpandedGroups(prev => {
@@ -152,7 +161,7 @@ export default function TransactionList({ user, categories, periods, accounts = 
     }
     
     return filtered;
-  }, [allTransactions, typeFilter, categoryFilter, periodFilter, searchTerm]);
+  }, [localTransactions, typeFilter, categoryFilter, periodFilter, searchTerm]);
 
   // Extract unique categories currently used in transactions to populate filter dropdown
   const uniqueCategoriesUsed = useMemo(() => {
@@ -225,14 +234,26 @@ export default function TransactionList({ user, categories, periods, accounts = 
     const groups: Record<string, Transaction[]> = {};
     filteredTransactions.forEach(t => {
       const dateStr = t.date;
-      if (!groups[dateStr]) groups[dateStr] = [];
-      groups[dateStr].push(t);
+      if (dateStr) {
+        if (!groups[dateStr]) groups[dateStr] = [];
+        groups[dateStr].push(t);
+      }
     });
-    return groups;
+
+    // Actively filter out any date groups that have zero transactions
+    const activeGroups: Record<string, Transaction[]> = {};
+    Object.keys(groups).forEach(date => {
+      if (groups[date] && groups[date].length > 0) {
+        activeGroups[date] = groups[date];
+      }
+    });
+    return activeGroups;
   }, [filteredTransactions]);
 
   const sortedDates = useMemo(() => {
-    return Object.keys(groupedTransactions).sort((a, b) => new Date(b).getTime() - new Date(a).getTime());
+    return Object.keys(groupedTransactions)
+      .filter(date => Array.isArray(groupedTransactions[date]) && groupedTransactions[date].length > 0)
+      .sort((a, b) => new Date(b).getTime() - new Date(a).getTime());
   }, [groupedTransactions]);
 
   const listRef = useRef<HTMLDivElement>(null);
@@ -268,7 +289,6 @@ export default function TransactionList({ user, categories, periods, accounts = 
       if (Array.isArray(batchTriggers)) {
         batchTriggers.forEach(t => t.kill());
       }
-      ScrollTrigger.getAll().forEach(t => t.kill());
     };
   }, { scope: listRef, dependencies: [sortedDates, groupedTransactions, loading] });
 
@@ -493,9 +513,15 @@ export default function TransactionList({ user, categories, periods, accounts = 
         ) : (
           <div ref={listRef} className="space-y-6 pb-32 md:pb-6">
             {sortedDates.map((date) => {
-              const dayTransactions = groupedTransactions[date];
-              const totalIncome = dayTransactions.filter(t => t.type === 'pemasukan').reduce((sum, t) => sum + t.amount, 0);
-              const totalExpense = dayTransactions.filter(t => t.type === 'pengeluaran').reduce((sum, t) => sum + t.amount, 0);
+              const dayTransactions = groupedTransactions[date] || [];
+              if (!dayTransactions || dayTransactions.length === 0) return null;
+
+              const totalIncome = dayTransactions
+                .filter(t => t.type === 'pemasukan' || String(t.type) === 'Cr')
+                .reduce((sum, t) => sum + (Number(t.amount) || 0), 0);
+              const totalExpense = dayTransactions
+                .filter(t => t.type === 'pengeluaran' || String(t.type) === 'Dr')
+                .reduce((sum, t) => sum + (Number(t.amount) || 0), 0);
 
               // Group day transactions by splitGroupId
               const itemsToRender: {
@@ -561,35 +587,35 @@ export default function TransactionList({ user, categories, periods, accounts = 
                             {/* Parent Row */}
                             <div 
                               onClick={() => toggleGroup(item.splitGroupId!)}
-                              className="p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-4 transition-all hover:bg-slate-50/80 cursor-pointer group select-none"
+                              className="p-3.5 sm:p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3 sm:gap-4 transition-all hover:bg-slate-50/80 cursor-pointer group select-none"
                             >
                               {/* Left block (Split Icon, Title, Parts count, Account) */}
-                              <div className="flex items-start gap-4 flex-1">
-                                <div className="h-11 w-11 rounded-xl flex items-center justify-center shrink-0 border bg-indigo-600 text-white border-indigo-700 shadow-sm">
+                              <div className="flex items-start gap-3 sm:gap-4 flex-1 min-w-0">
+                                <div className="h-10 w-10 sm:h-11 sm:w-11 rounded-xl flex items-center justify-center shrink-0 border bg-indigo-600 text-white border-indigo-700 shadow-sm">
                                   <Receipt size={18} />
                                 </div>
                                 
-                                <div className="space-y-1.5 flex-1">
-                                  <div className="flex flex-wrap items-center gap-2">
-                                    <span className="font-bold text-sm text-gray-800">{t('transactions.multi_category_receipt')}</span>
-                                    <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold border bg-indigo-50 text-indigo-700 border-indigo-200">
+                                <div className="space-y-1 sm:space-y-1.5 flex-1 min-w-0">
+                                  <div className="flex flex-wrap items-center gap-1.5 sm:gap-2">
+                                    <span className="font-bold text-sm text-gray-800 truncate">{t('transactions.multi_category_receipt')}</span>
+                                    <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold border bg-indigo-50 text-indigo-700 border-indigo-200 shrink-0">
                                       {t('transactions.split_categories', { count: children.length })}
                                     </span>
                                   </div>
                                   
-                                  <div className="flex flex-wrap items-center gap-2.5 text-xs">
+                                  <div className="flex flex-wrap items-center gap-2 sm:gap-2.5 text-xs">
                                     {firstChild.accountId && (
-                                      <span className="font-semibold text-indigo-600 bg-indigo-50 px-2 py-0.5 rounded-md border border-indigo-100 flex items-center gap-1">
+                                      <span className="font-semibold text-indigo-600 bg-indigo-50 px-2 py-0.5 rounded-md border border-indigo-100 flex items-center gap-1 truncate max-w-[150px] sm:max-w-none">
                                         🏦 {getAccountName(firstChild.accountId)}
                                       </span>
                                     )}
-                                    <span className="text-gray-400 font-medium">{t('transactions.click_for_details')}</span>
+                                    <span className="text-gray-400 font-medium truncate">{t('transactions.click_for_details')}</span>
                                   </div>
                                 </div>
                               </div>
 
                               {/* Right block (Grand Total, Paperclip, and Chevron) */}
-                              <div className="flex items-center justify-between sm:justify-end gap-4">
+                              <div className="flex items-center justify-between sm:justify-end gap-3 sm:gap-4 pt-1 sm:pt-0 border-t sm:border-t-0 border-gray-100/60">
                                 {hasAttachment && attachmentUrl && (
                                   <button
                                     onClick={(e) => {
@@ -602,10 +628,10 @@ export default function TransactionList({ user, categories, periods, accounts = 
                                     <Paperclip size={16} />
                                   </button>
                                 )}
-                                <span className={`text-sm font-black tabular-nums ${type === 'pemasukan' ? 'text-emerald-700' : 'text-red-600'}`}>
+                                <span className={`text-sm font-black tabular-nums ml-auto sm:ml-0 ${type === 'pemasukan' ? 'text-emerald-700' : 'text-red-600'}`}>
                                   {type === 'pemasukan' ? '+' : '-'} {formatIDR(grandTotal)}
                                 </span>
-                                <div className="text-gray-400 group-hover:text-gray-600 transition-colors">
+                                <div className="text-gray-400 group-hover:text-gray-600 transition-colors shrink-0">
                                   {isExpanded ? <ChevronUp size={18} /> : <ChevronDown size={18} />}
                                 </div>
                               </div>
@@ -721,15 +747,15 @@ export default function TransactionList({ user, categories, periods, accounts = 
                         return (
                           <div 
                             key={`${tx.id}-${idx}`}
-                            className="transaction-row p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-4 transition-all hover:bg-gray-50/50 group"
+                            className="transaction-row p-3.5 sm:p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3 sm:gap-4 transition-all hover:bg-gray-50/50 group"
                           >
                             {/* Left block (Icon, Subcategory, Category, Notes) */}
-                            <div className="flex items-start gap-4 flex-1">
+                            <div className="flex items-start gap-3 sm:gap-4 flex-1 min-w-0">
                               {(() => {
                                 if (tx.type === 'transfer') {
                                   return (
-                                    <div className="h-11 w-11 rounded-xl flex items-center justify-center shrink-0 border bg-blue-50 text-blue-600 border-blue-100">
-                                      <ArrowLeftRight size={20} />
+                                    <div className="h-10 w-10 sm:h-11 sm:w-11 rounded-xl flex items-center justify-center shrink-0 border bg-blue-50 text-blue-600 border-blue-100">
+                                      <ArrowLeftRight size={18} className="sm:w-5 sm:h-5" />
                                     </div>
                                   );
                                 }
@@ -737,23 +763,23 @@ export default function TransactionList({ user, categories, periods, accounts = 
                                 const isStyleObj = typeof colStyleOrClass === 'object';
                                 return (
                                   <div 
-                                    className={`h-11 w-11 rounded-xl flex items-center justify-center shrink-0 border ${isStyleObj ? '' : colStyleOrClass}`}
+                                    className={`h-10 w-10 sm:h-11 sm:w-11 rounded-xl flex items-center justify-center shrink-0 border ${isStyleObj ? '' : colStyleOrClass}`}
                                     style={isStyleObj ? colStyleOrClass : undefined}
                                   >
-                                    {renderCategoryIcon(tx.category, 20)}
+                                    {renderCategoryIcon(tx.category, 18)}
                                   </div>
                                 );
                               })()}
                               
-                              <div className="space-y-1.5 flex-1">
-                                <div className="flex flex-wrap items-center gap-2">
-                                  <span className="font-bold text-sm text-gray-800">{tx.subcategory}</span>
+                              <div className="space-y-1 sm:space-y-1.5 flex-1 min-w-0">
+                                <div className="flex flex-wrap items-center gap-1.5 sm:gap-2">
+                                  <span className="font-bold text-sm text-gray-800 truncate max-w-[160px] sm:max-w-none">{tx.subcategory}</span>
                                   {(() => {
                                     const colStyleOrClass = getCategoryColor(tx.category);
                                     const isStyleObj = typeof colStyleOrClass === 'object';
                                     return (
                                       <span 
-                                        className={`inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[10px] font-bold border ${isStyleObj ? '' : colStyleOrClass}`}
+                                        className={`inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[10px] font-bold border truncate max-w-[120px] sm:max-w-none ${isStyleObj ? '' : colStyleOrClass}`}
                                         style={isStyleObj ? colStyleOrClass : undefined}
                                       >
                                         {tx.category}
@@ -762,32 +788,32 @@ export default function TransactionList({ user, categories, periods, accounts = 
                                   })()}
                                 </div>
                                 
-                                <div className="flex flex-wrap items-center gap-2.5 text-xs">
+                                <div className="flex flex-wrap items-center gap-2 sm:gap-2.5 text-xs">
                                   {tx.accountId && tx.type !== 'transfer' && (
-                                    <span className="font-semibold text-indigo-600 bg-indigo-50 px-2 py-0.5 rounded-md border border-indigo-100 flex items-center gap-1">
+                                    <span className="font-semibold text-indigo-600 bg-indigo-50 px-2 py-0.5 rounded-md border border-indigo-100 flex items-center gap-1 truncate max-w-[140px] sm:max-w-none">
                                       🏦 {getAccountName(tx.accountId)}
                                     </span>
                                   )}
                                   {tx.type === 'transfer' && tx.accountId && tx.destinationAccountId && (
-                                    <span className="font-semibold text-blue-600 bg-blue-50 px-2 py-0.5 rounded-md border border-blue-100 flex items-center gap-1">
+                                    <span className="font-semibold text-blue-600 bg-blue-50 px-2 py-0.5 rounded-md border border-blue-100 flex items-center gap-1 truncate max-w-[200px] sm:max-w-none">
                                       🏦 {getAccountName(tx.accountId)} <ArrowLeftRight size={12} /> {getAccountName(tx.destinationAccountId)}
                                     </span>
                                   )}
                                   {tx.isRecurring && (
-                                    <span className="font-bold text-violet-700 bg-violet-50 px-2 py-0.5 rounded-md border border-violet-100 flex items-center gap-1">
+                                    <span className="font-bold text-violet-700 bg-violet-50 px-2 py-0.5 rounded-md border border-violet-100 flex items-center gap-1 shrink-0">
                                       🔄 {t('transactions.recurring')} ({tx.recurringFrequency === 'DAILY' ? t('transactions.daily') : tx.recurringFrequency === 'WEEKLY' ? t('transactions.weekly') : tx.recurringFrequency === 'MONTHLY' ? t('transactions.monthly') : tx.recurringFrequency === 'YEARLY' ? t('transactions.yearly') : t('transactions.recurring_other')}{tx.recurringEndDate ? `, ${t('transactions.until')} ${new Date(tx.recurringEndDate).toLocaleDateString(i18n.language === 'en' ? 'en-US' : 'id-ID')}` : ''})
                                     </span>
                                   )}
                                   {tx.description && (
-                                    <span className="text-gray-500 font-medium">💬 {tx.description}</span>
+                                    <span className="text-gray-500 font-medium truncate max-w-[180px] sm:max-w-xs">💬 {tx.description}</span>
                                   )}
                                 </div>
                               </div>
                             </div>
 
                             {/* Right block (Amount and Actions) */}
-                            <div className="flex sm:flex-col items-center sm:items-end justify-between sm:justify-center gap-3">
-                              <div className="flex items-center gap-2">
+                            <div className="flex items-center justify-between sm:justify-end gap-3 sm:flex-col sm:items-end pt-1 sm:pt-0 border-t sm:border-t-0 border-gray-100/60">
+                              <div className="flex items-center gap-2 ml-auto sm:ml-0">
                                 {tx.attachmentUrl && (
                                   <button
                                     onClick={() => setSelectedAttachmentUrl(tx.attachmentUrl!)}
@@ -797,13 +823,13 @@ export default function TransactionList({ user, categories, periods, accounts = 
                                     <Paperclip size={16} />
                                   </button>
                                 )}
-                                <span className={`text-sm font-black tabular-nums ${tx.type === 'pemasukan' ? 'text-emerald-700' : tx.type === 'transfer' ? 'text-blue-600' : 'text-red-600'}`}>
+                                <span className={`text-sm font-black tabular-nums text-right ${tx.type === 'pemasukan' ? 'text-emerald-700' : tx.type === 'transfer' ? 'text-blue-600' : 'text-red-600'}`}>
                                   {tx.type === 'pemasukan' ? '+' : tx.type === 'transfer' ? '⇄' : '-'} {formatIDR(tx.amount)}
                                 </span>
                               </div>
                               
                               {/* Actions */}
-                              <div className="flex items-center gap-1.5">
+                              <div className="flex items-center gap-1 shrink-0">
                                 <button
                                   onClick={() => onEdit(tx)}
                                   className="p-2 rounded-lg text-slate-300 hover:text-indigo-600 hover:bg-indigo-50 transition-colors cursor-pointer"
@@ -923,6 +949,7 @@ export default function TransactionList({ user, categories, periods, accounts = 
                     const { targetBtn, isLastInGroup, id } = transactionToDelete;
                     setTransactionToDelete(null);
                     animateAndDelete(targetBtn, isLastInGroup, async () => {
+                      setLocalTransactions(prev => prev.filter(t => String(t.id) !== String(id)));
                       await onDelete(id);
                     });
                   }}

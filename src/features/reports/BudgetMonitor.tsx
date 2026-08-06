@@ -161,16 +161,23 @@ export default function BudgetMonitor({
   const progressPercent = totalBudget > 0 ? Math.round((totalSpent / totalBudget) * 100) : 0;
 
   const remainingDays = useMemo(() => {
-    if (!activePeriodObj?.endDate) return 1;
+    if (!activePeriodObj?.endDate || !activePeriodObj?.startDate) return 1;
     const end = new Date(activePeriodObj.endDate);
+    const start = new Date(activePeriodObj.startDate);
     const now = new Date();
     // Reset hours to compare purely dates
     end.setHours(23, 59, 59, 999);
+    start.setHours(0, 0, 0, 0);
     now.setHours(0, 0, 0, 0);
 
-    if (now > end) return 1; 
+    let calcStart = now;
+    if (now < start) {
+      calcStart = start;
+    } else if (now > end) {
+      return 1;
+    }
     
-    const diffTime = end.getTime() - now.getTime();
+    const diffTime = end.getTime() - calcStart.getTime();
     const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
     return diffDays > 0 ? diffDays : 1;
   }, [activePeriodObj]);
@@ -201,7 +208,7 @@ export default function BudgetMonitor({
   };
 
   return (
-    <div className="widget-card opacity-0 translate-y-8 lg:col-span-6 bg-white p-6 border border-slate-100 shadow-sm rounded-xl flex flex-col justify-between min-h-[280px]" id="budget-monitor-widget">
+    <div className="widget-card gsap-dash-item lg:col-span-6 bg-white p-6 border border-slate-100 shadow-sm rounded-xl flex flex-col justify-between min-h-[280px]" id="budget-monitor-widget">
       <div>
         <div className="flex justify-between items-center mb-5" id="budget-monitor-header">
           <div className="flex items-center gap-2">

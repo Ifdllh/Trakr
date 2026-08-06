@@ -9,6 +9,27 @@ export interface UserProfile {
   categoryBudgets?: Record<string, number>;
 }
 
+export interface SavingsGoal {
+  id: string;
+  title: string;
+  targetAmount: number;
+  currentAmount: number;
+  deadlineDate: string; // Date string or Timestamp
+  status: 'active' | 'completed' | 'archived' | 'cancelled';
+  isDeleted?: boolean;
+  createdAt: string;
+  updatedAt?: string;
+}
+
+export interface SavingsTransaction {
+  id: string;
+  goalId: string;
+  type: 'topup' | 'withdraw';
+  amount: number;
+  date: string; // Date string or Timestamp
+  note?: string;
+}
+
 export interface Transaction {
   id: string;
   type: TransactionType;
@@ -19,6 +40,7 @@ export interface Transaction {
   description: string;
   accountId: string; // Mandatory for new features
   destinationAccountId?: string;
+  savingsGoalId?: string;
   assetId?: string;
   tagId?: string;
   contactId?: string;
@@ -47,6 +69,8 @@ export interface MasterAccount {
   createdAt: string;
   actual_amount?: number;
 }
+
+export type Account = MasterAccount;
 
 export interface MasterAsset {
   id: string;
@@ -113,6 +137,7 @@ export interface Category {
   colorClass: string; // Tailwind color class for text and bg (e.g., 'text-amber-500 bg-amber-50')
   colorHex?: string; // Custom color in hex format
   color_hex?: string; // Custom color in hex format (snake_case database backup representation)
+  isSavings?: boolean;
   subcategories: string[];
   inactiveSubcategories?: string[];
   parentCategory?: string | null;
@@ -121,6 +146,15 @@ export interface Category {
 // Master Data: Predefined Categories and Subcategories
 export const PREDEFINED_CATEGORIES: Category[] = [
   // PENGELUARAN (Expenses)
+  {
+    id: 'tabungan',
+    name: 'Tabungan & Impian',
+    type: 'pengeluaran',
+    iconName: 'PiggyBank',
+    colorClass: 'text-indigo-600 bg-indigo-50 border-indigo-200',
+    isSavings: true,
+    subcategories: ['Alokasi Tabungan', 'Dana Darurat', 'Investasi']
+  },
   {
     id: 'makanan',
     name: 'Makanan & Minuman',

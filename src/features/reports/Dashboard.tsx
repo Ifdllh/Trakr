@@ -95,16 +95,21 @@ export default function Dashboard({
   const [loading, setLoading] = useState(true);
   useGSAP(() => {
     if (loading || !containerRef.current) return;
-    const cards = containerRef.current.querySelectorAll(".widget-card");
-    if (!cards || cards.length === 0) return;
-    gsap.to(cards, {
-      y: 0,
-      opacity: 1,
-      stagger: 0.1,
-      ease: "power3.out",
-      duration: 0.8
-    });
-  }, { dependencies: [loading] });
+    const items = containerRef.current.querySelectorAll(".gsap-dash-item");
+    if (!items || items.length === 0) return;
+    gsap.fromTo(
+      items,
+      { opacity: 0, y: 30 },
+      {
+        y: 0,
+        opacity: 1,
+        stagger: 0.08,
+        ease: "power3.out",
+        duration: 0.5,
+        clearProps: "transform"
+      }
+    );
+  }, { scope: containerRef, dependencies: [loading] });
   const [transactions, setTransactions] = useState<any[]>(initialTransactions);
 
   const currentUserData = useMemo(() => {
@@ -890,7 +895,7 @@ export default function Dashboard({
     >
       
       {/* 1. Header Row (Avatar, Greeting, Subtitle, and Month Navigator) */}
-      <div className="flex flex-col md:flex-row justify-between items-start md:items-end gap-6 pb-2">
+      <div className="flex flex-col md:flex-row justify-between items-start md:items-end gap-6 pb-2 gsap-dash-item">
         {/* Left Side: Avatar & Personalized Greeting */}
         <div className="flex items-center gap-4">
           {currentUserData?.photoURL ? (
@@ -968,32 +973,32 @@ export default function Dashboard({
       </div>
 
                   {/* 1. Static Hero Section (Top): 3 Main Cards */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 items-stretch">
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 md:gap-6 items-stretch">
         {/* Card 1: Total Kekayaan Bersih (Net Worth) */}
-        <div className="widget-card opacity-0 translate-y-8 bg-gradient-to-br from-indigo-600 to-purple-800 p-6 rounded-3xl border-none shadow-lg shadow-indigo-500/30 flex flex-col justify-between h-full min-h-[180px]">
-          <div className="flex justify-between items-start mb-4">
-            <div className="space-y-1">
+        <div className="widget-card gsap-dash-item bg-gradient-to-br from-indigo-600 to-purple-800 p-4 md:p-6 rounded-2xl md:rounded-3xl border-none shadow-lg shadow-indigo-500/30 flex flex-col justify-between h-full min-h-[150px] md:min-h-[180px]">
+          <div className="flex justify-between items-start mb-2.5 md:mb-4">
+            <div className="space-y-0.5 md:space-y-1">
               <span className="text-[10px] uppercase font-bold text-indigo-200 tracking-wider">{t('dashboard.net_worth')}</span>
               <div className="flex items-baseline gap-0.5 tabular-nums tracking-tight">
-                <span className="text-3xl font-semibold text-white privacy-value">{balanceParts.main}</span>
+                <span className="text-2xl sm:text-3xl font-semibold text-white privacy-value">{balanceParts.main}</span>
                 <span className="text-[11px] font-bold text-indigo-200/80 privacy-value">{balanceParts.cents}</span>
               </div>
             </div>
-            <div className="h-10 w-10 bg-white/10 text-white rounded-2xl flex items-center justify-center">
-              <Wallet size={20} />
+            <div className="h-9 w-9 md:h-10 md:w-10 bg-white/10 text-white rounded-xl md:rounded-2xl flex items-center justify-center shrink-0">
+              <Wallet size={18} className="md:w-5 md:h-5" />
             </div>
           </div>
-          <div className="mt-auto pt-4 border-t border-white/10 flex items-center gap-3">
+          <div className="mt-auto pt-2.5 md:pt-4 border-t border-white/10 flex flex-row items-center gap-2 md:gap-3">
             {netSavingsAndBalance === 0 ? (
-              <button onClick={() => setActiveTab('categories')} className="w-full py-2.5 bg-white hover:bg-indigo-50 text-indigo-700 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-1.5 shadow-sm border-none cursor-pointer">
+              <button onClick={() => setActiveTab('categories')} className="w-full py-2 md:py-2.5 bg-white hover:bg-indigo-50 text-indigo-700 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-1.5 shadow-sm border-none cursor-pointer">
                 <Plus size={14} strokeWidth={2.5} /> {t('dashboard.add_first_account')}
               </button>
             ) : (
               <>
-                <button onClick={() => onOpenForm('pemasukan')} className="flex-1 py-2.5 bg-transparent hover:bg-white/10 border border-white/20 text-white rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-1.5 cursor-pointer">
+                <button onClick={() => onOpenForm('pemasukan')} className="flex-1 py-2 md:py-2.5 px-2 md:px-3 bg-transparent hover:bg-white/10 border border-white/20 text-white rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-1.5 cursor-pointer">
                   <ArrowUpRight size={14} strokeWidth={2.5} /> {t('dashboard.income')}
                 </button>
-                <button onClick={() => onOpenForm('pengeluaran')} className="flex-1 py-2.5 bg-white hover:bg-indigo-50 text-indigo-700 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-1.5 shadow-sm border-none cursor-pointer">
+                <button onClick={() => onOpenForm('pengeluaran')} className="flex-1 py-2 md:py-2.5 px-2 md:px-3 bg-white hover:bg-indigo-50 text-indigo-700 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-1.5 shadow-sm border-none cursor-pointer">
                   <ArrowDownRight size={14} strokeWidth={2.5} /> {t('dashboard.expense')}
                 </button>
               </>
@@ -1002,10 +1007,10 @@ export default function Dashboard({
         </div>
 
         {/* Card 2: Arus Kas (Income vs Expense) */}
-        <div className="widget-card opacity-0 translate-y-8 bg-white p-6 border border-slate-100 shadow-sm rounded-xl flex flex-col justify-between h-full min-h-[180px]">
-          <div className="flex justify-between items-start mb-4">
+        <div className="widget-card gsap-dash-item bg-white p-4 md:p-6 border border-slate-100 shadow-sm rounded-2xl md:rounded-3xl flex flex-col justify-between h-full min-h-[150px] md:min-h-[180px]">
+          <div className="flex justify-between items-start mb-2.5 md:mb-4">
             <div className="w-full">
-              <div className="flex items-center justify-between gap-2 mb-3">
+              <div className="flex items-center justify-between gap-2 mb-2 md:mb-3">
                 <span className="text-[10px] uppercase font-bold text-gray-400 tracking-wider">{t('dashboard.cashflow')}</span>
                 {!(finalDisplayIncome === 0 && finalDisplayExpense === 0) && (
                   <span className={`text-[9px] font-extrabold uppercase px-2 py-0.5 rounded-full ${
@@ -1017,31 +1022,31 @@ export default function Dashboard({
                   </span>
                 )}
               </div>
-              <div className="flex items-center justify-between w-full">
-                <div className="space-y-1">
+              <div className="grid grid-cols-2 gap-2 justify-between w-full">
+                <div className="space-y-0.5">
                   <span className="text-[10px] text-gray-500 font-bold block">{t('dashboard.total_income')}</span>
                   <div className="flex items-baseline gap-0.5 tabular-nums">
-                    <span className="text-xl font-semibold text-emerald-600 tracking-tight privacy-value">{monthlyIncomeParts.main}</span>
+                    <span className="text-lg sm:text-xl font-semibold text-emerald-600 tracking-tight privacy-value">{monthlyIncomeParts.main}</span>
                   </div>
                 </div>
-                <div className="space-y-1 text-right">
+                <div className="space-y-0.5 text-right">
                   <span className="text-[10px] text-gray-500 font-bold block">{t('dashboard.total_expense')}</span>
                   <div className="flex items-baseline justify-end gap-0.5 tabular-nums">
-                    <span className="text-xl font-semibold text-rose-500 tracking-tight privacy-value">-{monthlyExpenseParts.main}</span>
+                    <span className="text-lg sm:text-xl font-semibold text-rose-500 tracking-tight privacy-value">-{monthlyExpenseParts.main}</span>
                   </div>
                 </div>
               </div>
             </div>
           </div>
           
-          <div className="mt-auto pt-4 border-t border-gray-50">
-            <div className="w-full bg-gray-100 h-3 rounded-full overflow-hidden flex">
+          <div className="mt-auto pt-2.5 md:pt-4 border-t border-gray-50">
+            <div className="w-full bg-gray-100 h-2.5 md:h-3 rounded-full overflow-hidden flex">
               <div 
                 style={{ width: `${finalDisplayIncome === 0 ? 0 : Math.min((finalDisplayExpense / finalDisplayIncome) * 100, 100)}%` }}
                 className="h-full bg-rose-500 transition-all duration-500 rounded-full"
               />
             </div>
-            <div className="flex justify-between mt-2 text-[10px] font-bold">
+            <div className="flex justify-between mt-1.5 md:mt-2 text-[10px] font-bold">
               <span className="text-gray-500">{t('dashboard.usage_ratio')}</span>
               <span className={finalDisplayIncome === 0 && finalDisplayExpense === 0 ? "text-slate-400" : "text-rose-600"}>
                 {finalDisplayIncome > 0 ? Math.round((finalDisplayExpense / finalDisplayIncome) * 100) : 0}% {t('dashboard.used')}
@@ -1051,7 +1056,7 @@ export default function Dashboard({
         </div>
 
         {/* Card 3: Peringatan Anggaran (Budget Warning) / Pengeluaran Terbesar (Top Expense Fallback) */}
-        <div className="widget-card opacity-0 translate-y-8 bg-white p-6 border border-slate-100 shadow-sm rounded-xl flex flex-col h-full min-h-[180px]">
+        <div className="widget-card gsap-dash-item bg-white p-4 md:p-6 border border-slate-100 shadow-sm rounded-2xl md:rounded-3xl flex flex-col h-full min-h-[150px] md:min-h-[180px]">
           {budgetAlerts.length > 0 ? (
             <>
               <div className="flex justify-between items-center mb-4">
@@ -1153,7 +1158,7 @@ export default function Dashboard({
 
       {/* 2. Toggleable Widget Section (Middle/Bottom) */}
       <div className="mt-8">
-        <div className="flex items-center justify-between mb-4">
+        <div className="flex items-center justify-between mb-4 gsap-dash-item">
           <h3 className="text-base font-extrabold text-slate-900 tracking-tight">
             {i18n.language === 'en' ? 'Financial Analysis' : 'Analisis Finansial'}
           </h3>
@@ -1168,7 +1173,7 @@ export default function Dashboard({
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
           {/* Widget: Cashflow Stats */}
           {visibleWidgets.cashflowStats && (
-            <div className="widget-card opacity-0 translate-y-8 lg:col-span-8 bg-white p-6 border border-slate-100 shadow-sm rounded-xl flex flex-col justify-between">
+            <div className="widget-card gsap-dash-item lg:col-span-8 bg-white p-6 border border-slate-100 shadow-sm rounded-xl flex flex-col justify-between">
               <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-6">
                 <div>
                   <h3 className="text-base font-extrabold text-slate-900 tracking-tight flex items-center gap-1.5">
@@ -1234,7 +1239,7 @@ export default function Dashboard({
 
           {/* Widget: Expense Distribution */}
           {visibleWidgets.expenseDistribution && (
-            <div className="widget-card opacity-0 translate-y-8 lg:col-span-4 bg-white p-6 border border-slate-100 shadow-sm rounded-xl flex flex-col justify-between">
+            <div className="widget-card gsap-dash-item lg:col-span-4 bg-white p-6 border border-slate-100 shadow-sm rounded-xl flex flex-col justify-between">
               <div>
                 <h3 className="text-base font-extrabold text-slate-900 tracking-tight">
                   {i18n.language === 'en' ? 'All Expenses' : 'Semua Pengeluaran'}
@@ -1308,7 +1313,7 @@ export default function Dashboard({
 
           {/* Widget: Recent Transactions */}
           {visibleWidgets.recentTransactions && (
-            <div className="widget-card opacity-0 translate-y-8 lg:col-span-6 bg-white p-6 border border-slate-100 shadow-sm rounded-xl flex flex-col min-h-[280px]">
+            <div className="widget-card gsap-dash-item lg:col-span-6 bg-white p-6 border border-slate-100 shadow-sm rounded-xl flex flex-col min-h-[280px]">
               <div className="flex justify-between items-start mb-6">
                 <div>
                   <div className="flex items-center gap-2 mb-1">

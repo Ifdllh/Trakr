@@ -825,36 +825,65 @@ export default function BudgetManager({
                     <div 
                       key={budget.id} 
                       onClick={() => setActiveBudgetId(budget.id)}
-                      className="flex flex-col md:flex-row md:items-center justify-between py-4 px-4 hover:bg-slate-50/70 transition-all duration-300 rounded-2xl cursor-pointer group gap-4"
+                      className="flex flex-col md:flex-row md:items-center justify-between p-3.5 md:py-4 md:px-4 hover:bg-slate-50/70 transition-all duration-300 rounded-2xl cursor-pointer group gap-3 md:gap-4 border-b border-slate-50 md:border-b-0 last:border-b-0"
                     >
-                      {/* Left Column: Category Info (~25% width on desktop) */}
-                      <div className="flex items-center gap-3 md:w-1/4">
-                        {(() => {
-                          const IconComponent = (LucideIcons as any)[categoryInfo.iconName] || LucideIcons.HelpCircle;
-                          return (
-                            <div className={`w-10 h-10 rounded-xl flex items-center justify-center shrink-0 ${categoryInfo.colorClass}`}>
-                              <IconComponent size={18} />
-                            </div>
-                          );
-                        })()}
-                        <div className="min-w-0">
-                          <h3 className="font-bold text-slate-800 text-sm group-hover:text-indigo-600 transition-colors truncate">
-                            {categoryInfo.name}
-                          </h3>
-                          <p className="text-[10px] text-slate-400 font-bold uppercase tracking-wider tabular-nums">
-                            Target: {formatIDR(budgetAmount)}
-                          </p>
+                      {/* Top/Left Column: Category Info & Target */}
+                      <div className="flex items-center justify-between md:justify-start gap-3 md:w-1/4 min-w-0">
+                        <div className="flex items-center gap-3 min-w-0 flex-1">
+                          {(() => {
+                            const IconComponent = (LucideIcons as any)[categoryInfo.iconName] || LucideIcons.HelpCircle;
+                            return (
+                              <div className={`w-9 h-9 md:w-10 md:h-10 rounded-xl flex items-center justify-center shrink-0 ${categoryInfo.colorClass}`}>
+                                <IconComponent size={18} />
+                              </div>
+                            );
+                          })()}
+                          <div className="min-w-0 flex-1">
+                            <h3 className="font-bold text-slate-800 text-sm group-hover:text-indigo-600 transition-colors truncate">
+                              {categoryInfo.name}
+                            </h3>
+                            <p className="text-[10px] text-slate-400 font-bold uppercase tracking-wider tabular-nums">
+                              Target: {formatIDR(budgetAmount)}
+                            </p>
+                          </div>
+                        </div>
+
+                        {/* Mobile Actions (Top Right) */}
+                        <div className="flex items-center gap-1 md:hidden shrink-0">
+                          <button 
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setSingleEditBudget(budget);
+                              setSingleEditModalOpen(true);
+                            }}
+                            className="p-1.5 text-slate-400 hover:text-indigo-600 hover:bg-indigo-50/70 rounded-lg transition-all cursor-pointer"
+                            title={t('budgets.edit_budget') || "Edit Anggaran"}
+                          >
+                            <Edit2 size={14} />
+                          </button>
+                          <button 
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleDelete(budget.id);
+                            }}
+                            className="p-1.5 text-slate-400 hover:text-red-500 hover:bg-red-50/70 rounded-lg transition-all cursor-pointer"
+                            title={t('budgets.delete_budget') || "Hapus Anggaran"}
+                          >
+                            <Trash2 size={14} />
+                          </button>
                         </div>
                       </div>
 
-                      {/* Middle Column: Slim Progress Bar (~45% width on desktop) */}
-                      <div className="flex flex-col gap-1.5 md:w-5/12">
+                      {/* Middle Column: Full Width Progress Bar */}
+                      <div className="flex flex-col gap-1.5 w-full md:w-5/12">
                         <div className="flex justify-between items-center text-[10px] font-bold">
                           <span className={`${isRed ? 'text-red-600' : isWarning ? 'text-amber-500' : 'text-emerald-600'} tabular-nums`}>
                             {t('budgets.percentage_used', { percentage: actualPercentage }) || `${actualPercentage}% Terpakai`} ({formatIDR(spentAmount)})
                           </span>
                         </div>
-                        <div className="w-full bg-slate-100 h-1.5 rounded-full overflow-hidden">
+                        <div className="w-full bg-slate-100 h-2 md:h-1.5 rounded-full overflow-hidden">
                           <div 
                             style={{ width: `${barWidth}%` }}
                             className={`h-full rounded-full transition-all duration-500 ${
@@ -864,21 +893,21 @@ export default function BudgetManager({
                         </div>
                       </div>
 
-                      {/* Right Column: Numbers and Action Buttons (~30% width on desktop) */}
-                      <div className="flex items-center justify-between md:justify-end gap-6 md:w-1/3 shrink-0">
-                        <div className="text-left md:text-right">
-                          <span className="text-[9px] text-slate-400 font-extrabold block uppercase tracking-wider">
+                      {/* Right Column: Remaining Budget & Desktop Action Buttons */}
+                      <div className="flex items-center justify-between md:justify-end gap-6 w-full md:w-1/3 shrink-0 pt-1 md:pt-0 border-t md:border-t-0 border-slate-100/60">
+                        <div className="text-left md:text-right flex items-center md:flex-col justify-between w-full md:w-auto">
+                          <span className="text-[10px] text-slate-400 font-extrabold uppercase tracking-wider block">
                             {t('budgets.kpi_remaining') || 'Sisa Anggaran'}
                           </span>
-                          <span className={`font-extrabold text-xs md:text-sm tabular-nums ${
+                          <span className={`font-extrabold text-xs md:text-sm tabular-nums ml-auto md:ml-0 ${
                             budgetAmount - spentAmount < 0 ? 'text-red-500 font-black' : 'text-slate-700'
                           }`}>
                             {formatIDR(budgetAmount - spentAmount)}
                           </span>
                         </div>
 
-                        {/* Minimalist Action Buttons */}
-                        <div className="flex items-center gap-1">
+                        {/* Desktop Action Buttons */}
+                        <div className="hidden md:flex items-center gap-1">
                           <button 
                             type="button"
                             onClick={(e) => {

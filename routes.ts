@@ -320,19 +320,117 @@ export function setupApiRoutes(app: any) {
   app.put("/api/transactions/:id", requireAuth, async (req: AuthRequest, res: any, next: any) => {
     try {
       const colRef = getCollectionRef(req.authEnv!, req.userId!, 'transactions');
+      const goalColRef = getCollectionRef(req.authEnv!, req.userId!, 'savingsGoals');
       const docId = req.params.id;
       const docRef = colRef.doc(docId);
-      const existingDoc = await getDoc(docRef);
-      if (!existingDoc) return res.status(404).json({ error: "Transaction not found" });
-
       const payload = cleanPayload(req.body);
-      payload.updatedAt = new Date().toISOString();
-      if (existingDoc && existingDoc.createdAt) {
-        payload.createdAt = existingDoc.createdAt;
+
+      const txSnap = await docRef.get();
+      if (!txSnap || txSnap.exists === false) {
+        return res.status(404).json({ error: 'Transaction not found' });
       }
+
+      const oldTxData = typeof txSnap.data === 'function' ? txSnap.data() : txSnap;
+      const newTxData = { ...oldTxData, ...payload };
+
+      // Determine old savingsGoalId
+      let oldGoalId = oldTxData?.savingsGoalId;
+      const oldAmount = Number(oldTxData?.amount) || 0;
+      const oldType = (oldTxData?.type || '').toLowerCase();
+
+      // Determine new savingsGoalId
+      let newGoalId = newTxData?.savingsGoalId;
+      const newAmount = Number(newTxData?.amount) || 0;
+      const newType = (newTxData?.type || '').toLowerCase();
+
+      // Fallback matching by subcategory/category if ID not explicitly stored
+      if (!oldGoalId && (oldTxData?.category === 'Tabungan & Impian' || oldTxData?.category === 'Pencairan Tabungan' || oldTxData?.subcategory)) {
+        const goalsSnap = await goalColRef.get();
+        const matched = (goalsSnap.docs || []).find((gDoc: any) => {
+          const gData = typeof gDoc.data === 'function' ? gDoc.data() : gDoc;
+          return gDoc.id === oldTxData?.subcategory || gData?.title === oldTxData?.subcategory;
+        });
+        if (matched) oldGoalId = matched.id;
+      }
+
+      if (!newGoalId && (newTxData?.category === 'Tabungan & Impian' || newTxData?.category === 'Pencairan Tabungan' || newTxData?.subcategory)) {
+        const goalsSnap = await goalColRef.get();
+        const matched = (goalsSnap.docs || []).find((gDoc: any) => {
+          const gData = typeof gDoc.data === 'function' ? gDoc.data() : gDoc;
+          return gDoc.id === newTxData?.subcategory || gData?.title === newTxData?.subcategory;
+        });
+        if (matched) newGoalId = matched.id;
+      }
+
+      const oldGoalRef = oldGoalId ? goalColRef.doc(String(oldGoalId)) : null;
+      const newGoalRef = newGoalId ? goalColRef.doc(String(newGoalId)) : null;
+
+      const oldGoalSnap = oldGoalRef ? await oldGoalRef.get() : null;
+      const newGoalSnap = (newGoalRef && String(newGoalId) !== String(oldGoalId))
+        ? await newGoalRef.get()
+        : (String(newGoalId) === String(oldGoalId) ? oldGoalSnap : null);
+
+      const goalUpdates = new Map<string, { ref: any, currentAmount: number, targetAmount: number, status: string }>();
+
+      // Step 1: Revert Old Impact
+      if (oldGoalSnap && oldGoalSnap.exists !== false && oldAmount > 0) {
+        const gData = typeof oldGoalSnap.data === 'function' ? oldGoalSnap.data() : oldGoalSnap;
+        let curr = Number(gData?.currentAmount) || 0;
+        if (oldType === 'pengeluaran' || oldType === 'expense') {
+          curr = Math.max(0, curr - oldAmount);
+        } else if (oldType === 'pemasukan' || oldType === 'income') {
+          curr = curr + oldAmount;
+        }
+        goalUpdates.set(String(oldGoalId), {
+          ref: oldGoalRef,
+          currentAmount: curr,
+          targetAmount: Number(gData?.targetAmount) || 0,
+          status: gData?.status || 'active'
+        });
+      }
+
+      // Step 2: Apply New Impact
+      if (newGoalSnap && newGoalSnap.exists !== false && newAmount > 0) {
+        const gData = typeof newGoalSnap.data === 'function' ? newGoalSnap.data() : newGoalSnap;
+        let curr = goalUpdates.has(String(newGoalId))
+          ? goalUpdates.get(String(newGoalId))!.currentAmount
+          : (Number(gData?.currentAmount) || 0);
+
+        if (newType === 'pengeluaran' || newType === 'expense') {
+          curr = curr + newAmount;
+        } else if (newType === 'pemasukan' || newType === 'income') {
+          curr = Math.max(0, curr - newAmount);
+        }
+        goalUpdates.set(String(newGoalId), {
+          ref: newGoalRef,
+          currentAmount: curr,
+          targetAmount: Number(gData?.targetAmount) || 0,
+          status: gData?.status || 'active'
+        });
+      }
+
+      // Perform Goal Updates
+      for (const [_, entry] of goalUpdates.entries()) {
+        let status = entry.status;
+        if (status !== 'archived' && status !== 'cancelled') {
+          status = (entry.targetAmount > 0 && entry.currentAmount >= entry.targetAmount) ? 'completed' : 'active';
+        }
+        await entry.ref.set({
+          currentAmount: entry.currentAmount,
+          status: status,
+          updatedAt: new Date().toISOString()
+        }, { merge: true });
+      }
+
+      payload.updatedAt = new Date().toISOString();
+      if (oldTxData && oldTxData.createdAt) {
+        payload.createdAt = oldTxData.createdAt;
+      }
+
       await docRef.set(payload, { merge: true });
+      const finalUpdatedDocData = { id: docId, ...oldTxData, ...payload };
       
-      res.json({ id: docId, ...existingDoc, ...payload, _status: "async_processing_started" });
+      res.json({ ...finalUpdatedDocData, _status: "async_processing_started" });
 
       const runBackgroundJob = async () => {
         try {
@@ -356,9 +454,69 @@ export function setupApiRoutes(app: any) {
   app.delete("/api/transactions/:id", requireAuth, async (req: AuthRequest, res: any, next: any) => {
     try {
       const colRef = getCollectionRef(req.authEnv!, req.userId!, 'transactions');
+      const goalColRef = getCollectionRef(req.authEnv!, req.userId!, 'savingsGoals');
       const docId = req.params.id;
       const docRef = colRef.doc(docId);
-      await docRef.delete();
+
+      const txSnap = await docRef.get();
+      if (txSnap && txSnap.exists !== false) {
+        const txData = typeof txSnap.data === 'function' ? txSnap.data() : txSnap;
+        const amount = Number(txData?.amount) || 0;
+        const type = (txData?.type || '').toLowerCase();
+        let savingsGoalId = txData?.savingsGoalId;
+
+        // If savingsGoalId is missing, check if category/subcategory points to a savings goal
+        if (!savingsGoalId && (txData?.category === 'Tabungan & Impian' || txData?.category === 'Pencairan Tabungan' || txData?.subcategory)) {
+          const goalsSnap = await goalColRef.get();
+          const matchedGoal = (goalsSnap.docs || []).find((gDoc: any) => {
+            const gData = typeof gDoc.data === 'function' ? gDoc.data() : gDoc;
+            return gDoc.id === txData?.subcategory || gData?.title === txData?.subcategory;
+          });
+          if (matchedGoal) {
+            savingsGoalId = matchedGoal.id;
+          }
+        }
+
+        // Step 1: Revert Savings Goal Balance if linked
+        if (savingsGoalId && amount > 0) {
+          try {
+            const goalDocRef = goalColRef.doc(String(savingsGoalId));
+            const goalSnap = await goalDocRef.get();
+
+            if (goalSnap && goalSnap.exists !== false) {
+              const goalData = typeof goalSnap.data === 'function' ? goalSnap.data() : goalSnap;
+              const currentAmount = Number(goalData?.currentAmount) || 0;
+              const targetAmount = Number(goalData?.targetAmount) || 0;
+              let updatedAmount = currentAmount;
+
+              if (type === 'pengeluaran' || type === 'expense') {
+                // Deleting an Expense (Top-up): Subtract transaction amount from goal's currentAmount
+                updatedAmount = Math.max(0, currentAmount - amount);
+              } else if (type === 'pemasukan' || type === 'income') {
+                // Deleting an Income (Withdrawal): Add transaction amount back to goal's currentAmount
+                updatedAmount = currentAmount + amount;
+              }
+
+              // Update status dynamically based on reverted amount vs target
+              let status = goalData?.status || 'active';
+              if (status !== 'archived' && status !== 'cancelled') {
+                status = (targetAmount > 0 && updatedAmount >= targetAmount) ? 'completed' : 'active';
+              }
+
+              await goalDocRef.set({
+                currentAmount: updatedAmount,
+                status: status,
+                updatedAt: new Date().toISOString()
+              }, { merge: true });
+            }
+          } catch (goalErr) {
+            console.error('[Delete Tx] Failed to update savings goal:', goalErr);
+          }
+        }
+
+        // Step 2: Delete transaction record
+        await docRef.delete();
+      }
       
       res.json({ success: true, id: docId, _status: "async_processing_started" });
 

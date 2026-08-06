@@ -167,7 +167,7 @@ export default function GoldPriceTracker() {
   return (
     <div className="lg:col-span-12 grid grid-cols-1 md:grid-cols-12 gap-6" id="gold-price-tracker-section">
       {/* Col 1: Live Prices Card */}
-      <div className="widget-card opacity-0 translate-y-8 md:col-span-6 bg-white p-6 border border-slate-100 shadow-sm rounded-xl flex flex-col justify-between min-h-[350px]">
+      <div className="widget-card gsap-dash-item md:col-span-6 bg-white p-6 border border-slate-100 shadow-sm rounded-xl flex flex-col justify-between min-h-[350px]">
         <div>
           <div className="flex justify-between items-start mb-5">
             <div>
@@ -290,7 +290,7 @@ export default function GoldPriceTracker() {
       </div>
 
       {/* Col 2: Spread & Asset Simulator */}
-      <div className="widget-card opacity-0 translate-y-8 md:col-span-6 bg-white p-6 border border-slate-100 shadow-sm rounded-xl flex flex-col justify-start min-h-[350px]">
+      <div className="widget-card gsap-dash-item md:col-span-6 bg-white p-6 border border-slate-100 shadow-sm rounded-xl flex flex-col justify-start min-h-[350px]">
         <div>
           <div className="flex justify-between items-start mb-4">
             <div>

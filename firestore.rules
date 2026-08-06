@@ -170,6 +170,12 @@ service cloud.firestore {
       match /globalBudgets/{budgetId} {
         allow read, write: if isAuthenticated() && isOwner(userId);
       }
+      match /savingsGoals/{goalId} {
+        allow read, write: if isAuthenticated() && isOwner(userId);
+      }
+      match /savingsTransactions/{transactionId} {
+        allow read, write: if isAuthenticated() && isOwner(userId);
+      }
     }
   }
 }

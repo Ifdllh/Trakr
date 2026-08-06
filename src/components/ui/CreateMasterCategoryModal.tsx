@@ -72,6 +72,7 @@ export default function CreateMasterCategoryModal({
   const [selectedColor, setSelectedColor] = useState<string>(
     categoryToEdit?.colorHex || '#6366F1'
   );
+  const [isSavings, setIsSavings] = useState<boolean>(!!categoryToEdit?.isSavings);
   
   const [isSubmitting, setIsSubmitting] = useState(false);
 
@@ -116,6 +117,7 @@ export default function CreateMasterCategoryModal({
             colorClass: categoryToEdit.colorClass || 'bg-indigo-50 text-indigo-600',
             colorHex: selectedColor,
             color_hex: selectedColor,
+            isSavings: isSavings,
             parentCategory: null,
             subcategories: categoryToEdit.subcategories || [],
             isActive: true
@@ -130,6 +132,7 @@ export default function CreateMasterCategoryModal({
             colorClass: categoryToEdit.colorClass || 'bg-indigo-50 text-indigo-600',
             colorHex: selectedColor,
             color_hex: selectedColor,
+            isSavings: isSavings,
             parentCategory: null,
             subcategories: categoryToEdit.subcategories || [],
             isActive: true
@@ -158,6 +161,7 @@ export default function CreateMasterCategoryModal({
             colorClass: 'bg-indigo-50 text-indigo-600',
             colorHex: selectedColor,
             color_hex: selectedColor,
+            isSavings: parentCategory ? false : isSavings,
             parentCategory: parentCategory || null,
             subcategories: []
           };
@@ -268,6 +272,28 @@ export default function CreateMasterCategoryModal({
                   </div>
                 </div>
               </>
+            )}
+
+            {!formData.parentCategory && (
+              <div className="flex items-center justify-between p-3.5 bg-indigo-50/60 border border-indigo-100 rounded-2xl">
+                <div>
+                  <span className="text-xs font-bold text-slate-800 block">
+                    {t('master_data.is_savings_label')}
+                  </span>
+                  <span className="text-[10px] text-slate-500 font-medium block">
+                    {t('master_data.is_savings_help')}
+                  </span>
+                </div>
+                <label className="relative inline-flex items-center cursor-pointer shrink-0">
+                  <input
+                    type="checkbox"
+                    checked={isSavings}
+                    onChange={e => setIsSavings(e.target.checked)}
+                    className="sr-only peer"
+                  />
+                  <div className="w-10 h-6 bg-slate-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-indigo-600"></div>
+                </label>
+              </div>
             )}
 
             <div>
