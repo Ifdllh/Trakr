@@ -20,13 +20,15 @@ import BudgetManager from '@/features/budgets/BudgetManager';
 import Settings from '@/features/settings/Settings';
 import { SavingsPage } from '@/features/savings/SavingsPage';
 import FloatingActionButtons from '@/components/ui/FloatingActionButtons';
+import BottomNav from '@/components/ui/BottomNav';
 import BrandLogo from '@/components/ui/BrandLogo';
 import { Sidebar } from '@/components/Sidebar';
 import { PageTransition } from '@/components/PageTransition';
+import { ReactLenis } from 'lenis/react';
 import { motion, AnimatePresence } from 'motion/react';
 import { 
   LogOut, LayoutDashboard, History, BookOpen, 
-  Loader2, RefreshCw, Target, Settings as SettingsIcon, PiggyBank, Menu
+  Loader2, RefreshCw, Target, Settings as SettingsIcon, PiggyBank
 } from 'lucide-react';
 import { useAppData } from '@/hooks/useAppData';
 import { useTranslation } from 'react-i18next';
@@ -134,7 +136,18 @@ export default function App() {
           setDbUser((prev: any) => ({ ...prev, ...response.data, ...localPrefs }));
         }
       } catch (err: any) {
-        if (!err?.message?.includes('Quota')) console.error('Failed to fetch Firestore user profile in App:', err);
+        const isQuotaError = err?.response?.status === 429 || err?.status === 429 || err?.message?.includes('429') || err?.message?.includes('Quota');
+        if (!isQuotaError) {
+          console.error('Failed to fetch Firestore user profile in App:', err);
+        } else {
+          console.warn('Firestore user profile fetch rate-limited or quota exceeded (429), using local fallback.');
+        }
+        try {
+          const localPrefsRaw = localStorage.getItem('app_preferences');
+          if (localPrefsRaw) {
+            setDbUser((prev: any) => ({ ...JSON.parse(localPrefsRaw), ...(prev || {}) }));
+          }
+        } catch (e) {}
       }
     };
     if (user) {
@@ -153,20 +166,12 @@ export default function App() {
 
   // Sync Theme preference to documentElement class list
   useEffect(() => {
-    const savedTheme = dbUser?.theme || 'light';
+    const savedTheme = dbUser?.theme;
     const root = window.document.documentElement;
     if (savedTheme === 'dark') {
       root.classList.add('dark');
-    } else if (savedTheme === 'light') {
-      root.classList.remove('dark');
     } else {
-      // system
-      const systemTheme = window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
-      if (systemTheme === 'dark') {
-        root.classList.add('dark');
-      } else {
-        root.classList.remove('dark');
-      }
+      root.classList.remove('dark');
     }
   }, [dbUser?.theme]);
 
@@ -349,13 +354,11 @@ export default function App() {
         user ? (
           <>
             <IdleMonitor />
-          <div className="flex h-screen overflow-hidden bg-slate-50/50 text-slate-800 font-sans">
-            {/* Fixed Left Sidebar */}
+          <div className="relative flex h-screen overflow-hidden bg-slate-50/50 text-slate-800 font-sans">
+            {/* Fixed Left Sidebar for Desktop */}
             <Sidebar 
               activeTab={activeTab} 
               setActiveTab={setActiveTab} 
-              isMobileOpen={isMobileSidebarOpen}
-              onCloseMobile={() => setIsMobileSidebarOpen(false)}
             />
 
             {/* Main Content Area Wrapper */}
@@ -369,9 +372,12 @@ export default function App() {
               )}
 
               {/* Minimal Contextual Top Header */}
-              <header className="h-16 px-4 md:px-8 bg-white border-b border-slate-200/80 flex items-center justify-between shrink-0 z-20">
+              <header className="h-16 px-4 md:px-8 bg-white/95 backdrop-blur-md border-b border-slate-200/80 flex items-center justify-between shrink-0 z-20">
                 <div className="flex items-center gap-3">
-                  <h1 className="text-lg md:text-xl font-bold text-slate-900 tracking-tight">
+                  <div className="md:hidden shrink-0">
+                    <BrandLogo />
+                  </div>
+                  <h1 className="hidden md:block text-lg md:text-xl font-bold text-slate-900 tracking-tight">
                     {getPageTitle(activeTab)}
                   </h1>
                 </div>
@@ -454,7 +460,12 @@ export default function App() {
               </header>
 
               {/* Main Content Area */}
-              <main className="flex-1 overflow-y-auto p-4 md:p-8 pb-24 md:pb-8 scroll-smooth" id="main-content-area" data-lenis-prevent="true">
+              <ReactLenis 
+                root={false}
+                options={{ lerp: 0.08, duration: 1.2, smoothWheel: true, touchMultiplier: 1.5 }}
+                className="flex-1 overflow-y-auto p-4 md:p-8 pb-36 md:pb-8 scroll-smooth" 
+                id="main-content-area"
+              >
                 <div className="max-w-[1440px] mx-auto w-full">
                   <PageTransition pageKey={activeTab}>
                     {activeTab === 'dashboard' && (
@@ -469,6 +480,7 @@ export default function App() {
                         periods={periods}
                         globalBudgets={globalBudgets}
                         accounts={accounts}
+                        assets={assets}
                         onSaveGlobalBudget={handleSaveGlobalBudget}
                       />
                     )}
@@ -547,47 +559,26 @@ export default function App() {
                     )}
                   </PageTransition>
                 </div>
-              </main>
+              </ReactLenis>
+            </div>
 
-      {/* Global Floating Action Buttons */}
-      <FloatingActionButtons 
-        onAddTransaction={() => {
-          setEditingTransaction(null);
-          setIsFormOpen(true);
-        }}
-      />
+            {/* Global Floating Action Buttons */}
+            <FloatingActionButtons 
+              onAddTransaction={() => {
+                setEditingTransaction(null);
+                setIsFormOpen(true);
+              }}
+            />
 
-      {/* Bottom Nav Bar for Mobile Devices */}
-      <footer className="md:hidden fixed bottom-0 left-0 right-0 z-30 bg-white/80 backdrop-blur-lg border-t border-slate-200/60 py-2 px-2 shadow-[0_-4px_20px_rgba(0,0,0,0.03)] pb-safe">
-        <nav className="grid grid-cols-5 items-center max-w-md mx-auto text-center">
-          {[
-            { id: 'dashboard', label: t('nav_dashboard'), icon: LayoutDashboard },
-            { id: 'transactions', label: t('nav_transactions'), icon: History },
-            { id: 'budgets', label: t('nav_budgets'), icon: Target },
-            { id: 'savings', label: 'Savings', icon: PiggyBank },
-            { id: 'categories', label: t('nav_master_data'), icon: BookOpen },
-          ].map((tab) => {
-            const isActive = activeTab === tab.id;
-            const Icon = tab.icon;
-            return (
-              <button
-                key={tab.id}
-                onClick={() => setActiveTab(tab.id as any)}
-                className={`flex flex-col items-center justify-center gap-1 py-1 px-1 transition-colors cursor-pointer ${
-                  isActive ? 'text-indigo-600 font-semibold' : 'text-slate-400 hover:text-slate-600'
-                }`}
-              >
-                <div className={`relative p-1 rounded-xl transition-all ${isActive ? 'bg-indigo-50/80 text-indigo-600' : ''}`}>
-                  <Icon size={20} />
-                </div>
-                <span className="text-[10px] leading-none tracking-tight truncate max-w-full">
-                  {tab.label}
-                </span>
-              </button>
-            );
-          })}
-        </nav>
-      </footer>
+            {/* Modern Floating Bottom Nav Dock for Mobile Devices */}
+            <BottomNav 
+              activeTab={activeTab} 
+              setActiveTab={setActiveTab}
+              onAddTransaction={() => {
+                setEditingTransaction(null);
+                setIsFormOpen(true);
+              }}
+            />
 
       {/* Transaction Logging Modal */}
       <AnimatePresence>
@@ -666,7 +657,6 @@ export default function App() {
         )}
       </AnimatePresence>
             </div>
-          </div>
           </>
         ) : (
           <Navigate to="/login" replace />

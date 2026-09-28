@@ -35,6 +35,7 @@ interface DashboardProps {
   globalBudgets?: any[];
   budgetAllocations?: any[];
   accounts?: any[];
+  assets?: any[];
   onSaveGlobalBudget?: (globalBudget: any, id?: string) => Promise<void>;
 }
 
@@ -87,6 +88,7 @@ export default function Dashboard({
   globalBudgets = [],
   budgetAllocations = [],
   accounts = [],
+  assets = [],
   onSaveGlobalBudget
 }: DashboardProps) {
   const { t, i18n } = useTranslation();
@@ -540,32 +542,24 @@ export default function Dashboard({
   }, [monthlyTransactions]);
 
   const netSavingsAndBalance = useMemo(() => {
-    // 1. Calculate Base Balance: Filter for active accounts with 'includeInNetWorth === true' and sum initial balances (Saldo Awal, saved as 'balance').
-    const activeAccounts = accounts.filter((acc: any) => acc.includeInNetWorth === true);
-    const baseBalance = activeAccounts.reduce((sum: number, acc: any) => {
-      const initial = acc.balance !== undefined ? acc.balance : (acc.initialBalance || 0);
-      return sum + Number(initial || 0);
+    // 1. Calculate Total Account Balance for active accounts included in net worth.
+    // 'accounts' passed to Dashboard are already computed by calculateAccountsWithBalance (in useAppData),
+    // so 'acc.balance' / 'acc.currentBalance' reflects initial balance + net transaction cash flow.
+    const activeAccounts = (accounts || []).filter((acc: any) => acc.isActive !== false && acc.includeInNetWorth !== false);
+    const totalAccountsBalance = activeAccounts.reduce((sum: number, acc: any) => {
+      const balanceVal = acc.balance !== undefined ? acc.balance : (acc.currentBalance !== undefined ? acc.currentBalance : (acc.initialBalance || 0));
+      return sum + Number(balanceVal || 0);
     }, 0);
 
-    // 2. Calculate Cash Flow Adjustments: Find all transactions linked to active accounts, summing income (pemasukan) and subtracting expenses (pengeluaran).
-    const activeAccountIds = new Set(activeAccounts.map((acc: any) => String(acc.id)));
-    let totalIncome = 0;
-    let totalExpense = 0;
+    // 2. Calculate Total Asset Value for active investment/master assets (Gold, Stocks, Mutual funds, etc.)
+    const activeAssets = (assets || []).filter((ast: any) => ast.isActive !== false);
+    const totalAssetsValue = activeAssets.reduce((sum: number, ast: any) => {
+      return sum + Number(ast.currentValue || 0);
+    }, 0);
 
-    transactions.forEach((t: any) => {
-      const isLinkedToActiveAccount = t.accountId && activeAccountIds.has(String(t.accountId));
-      if (isLinkedToActiveAccount) {
-        if (String(t.type) === 'Cr' || t.type?.toLowerCase() === 'pemasukan') {
-          totalIncome += Number(t.amount || 0);
-        } else if (String(t.type) === 'Dr' || t.type?.toLowerCase() === 'pengeluaran') {
-          totalExpense += Number(t.amount || 0);
-        }
-      }
-    });
-
-    // 3. Compute Net Worth: Base Balance + Total Income - Total Expenses
-    return baseBalance + totalIncome - totalExpense;
-  }, [accounts, transactions]);
+    // 3. Compute Net Worth: Accounts Total + Assets Total
+    return totalAccountsBalance + totalAssetsValue;
+  }, [accounts, assets]);
 
   const finalDisplayIncome = useMemo(() => {
     return totalIncome;
@@ -989,7 +983,7 @@ export default function Dashboard({
             </div>
           </div>
           <div className="mt-auto pt-2.5 md:pt-4 border-t border-white/10 flex flex-row items-center gap-2 md:gap-3">
-            {netSavingsAndBalance === 0 ? (
+            {accounts.length === 0 && (assets || []).length === 0 ? (
               <button onClick={() => setActiveTab('categories')} className="w-full py-2 md:py-2.5 bg-white hover:bg-indigo-50 text-indigo-700 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-1.5 shadow-sm border-none cursor-pointer">
                 <Plus size={14} strokeWidth={2.5} /> {t('dashboard.add_first_account')}
               </button>

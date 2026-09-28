@@ -16,7 +16,7 @@ export function Modal({
   onClose,
   children,
   backdropClassName = "bg-black/50 backdrop-blur-sm",
-  containerClassName = "bg-white rounded-3xl w-full max-w-md overflow-hidden shadow-2xl flex flex-col max-h-[90vh]",
+  containerClassName = "bg-white rounded-t-2xl md:rounded-3xl w-full max-w-md overflow-hidden shadow-2xl flex flex-col max-h-[92vh] md:max-h-[90vh] mt-auto md:mt-0 pb-safe md:pb-0",
   zIndexClass = "z-50"
 }: ModalProps) {
   const backdropRef = useRef<HTMLDivElement>(null);
@@ -81,7 +81,7 @@ export function Modal({
       role="dialog"
       aria-modal="true"
       data-modal="true"
-      className={`fixed inset-0 ${zIndexClass} flex items-center justify-center p-4 ${backdropClassName}`}
+      className={`fixed inset-0 ${zIndexClass} flex items-end md:items-center justify-center p-0 md:p-4 ${backdropClassName}`}
       onClick={(e) => {
         if (e.target === backdropRef.current) {
           handleCloseAnimation();

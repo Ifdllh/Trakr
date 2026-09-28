@@ -56,9 +56,9 @@ function ModalTracker() {
 
 export function LenisProvider({ children }: { children: React.ReactNode }) {
   return (
-    <ReactLenis root options={{ lerp: 0.1, smoothWheel: true }}>
+    <>
       <ModalTracker />
       {children}
-    </ReactLenis>
+    </>
   );
 }

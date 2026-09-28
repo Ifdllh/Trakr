@@ -1,4 +1,6 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
+import { useGSAP } from '@gsap/react';
+import gsap from 'gsap';
 import { useLenis } from 'lenis/react';
 import { useTranslation } from 'react-i18next';
 import CreateMasterAccountModal from '@/components/ui/CreateMasterAccountModal';
@@ -339,6 +341,35 @@ export default function CategoryManager({
     }
   };
 
+  const containerRef = useRef<HTMLDivElement>(null);
+
+  useGSAP(() => {
+    if (loading || !containerRef.current) return;
+    const cards = containerRef.current.querySelectorAll('.gsap-master-card');
+    if (!cards || cards.length === 0) return;
+
+    gsap.killTweensOf(cards);
+
+    gsap.fromTo(
+      cards,
+      { opacity: 0, y: 15 },
+      {
+        opacity: 1,
+        y: 0,
+        duration: 0.35,
+        ease: 'power2.out',
+        stagger: 0.04,
+        clearProps: 'transform'
+      }
+    );
+  }, {
+    scope: containerRef,
+    dependencies: [
+      activeTab,
+      loading
+    ]
+  });
+
   const handleDeletePeriodLogic = async (p: BudgetPeriod) => {
     setDeletingPeriodId(p.id!);
     try {
@@ -534,7 +565,7 @@ export default function CategoryManager({
   }
 
   return (
-    <div className="bg-white rounded-2xl border border-gray-100 shadow-xs p-6 space-y-6 font-sans">
+    <div ref={containerRef} className="bg-white rounded-2xl border border-gray-100 shadow-xs p-6 space-y-6 font-sans">
       {/* Title & Description */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
@@ -686,7 +717,7 @@ export default function CategoryManager({
                   </tr>
                 ) : (
                   sortedPeriods.map((p, idx) => (
-                    <tr key={`${p.id}-${idx}`} className="hover:bg-slate-50 transition-colors group">
+                    <tr key={`${p.id}-${idx}`} className="hover:bg-slate-50 transition-colors group gsap-master-card">
                       <td className="p-4 font-medium text-slate-800">
                         <div className="flex items-center gap-2">
                           <Calendar size={16} className="text-indigo-500" />
@@ -793,7 +824,7 @@ export default function CategoryManager({
                       {groupAccounts.map(item => {
                         const IconComponent = (item.icon && (LucideIcons as any)[item.icon]) ? (LucideIcons as any)[item.icon] : Wallet;
                         return (
-                        <div key={item.id} className={`border border-gray-100 rounded-xl p-4 bg-white shadow-sm hover:shadow-md transition-all group flex flex-row justify-between items-center gap-4 relative overflow-hidden ${item.includeInNetWorth === false ? 'opacity-80' : ''}`} style={{ borderLeftWidth: '4px', borderLeftColor: item.includeInNetWorth === false ? '#94a3b8' : (item.color || '#4f46e5') }}>
+                        <div key={item.id} className={`border border-gray-100 rounded-xl p-4 bg-white shadow-sm hover:shadow-md transition-shadow duration-200 group flex flex-row justify-between items-center gap-4 relative overflow-hidden gsap-master-card ${item.includeInNetWorth === false ? 'opacity-80' : ''}`} style={{ borderLeftWidth: '4px', borderLeftColor: item.includeInNetWorth === false ? '#94a3b8' : (item.color || '#4f46e5') }}>
                           <div className="flex items-center gap-3 min-w-0 flex-1">
                             <div className="h-10 w-10 rounded-xl flex items-center justify-center shrink-0 bg-opacity-10" style={{ backgroundColor: item.includeInNetWorth === false ? '#94a3b820' : `${item.color || '#4f46e5'}20`, color: item.includeInNetWorth === false ? '#94a3b8' : (item.color || '#4f46e5') }}>
                               <IconComponent size={20} />
@@ -837,7 +868,7 @@ export default function CategoryManager({
             )}
 
             {activeTab === 'aset' && assets.map(item => (
-              <div key={item.id} className="border border-gray-100 rounded-xl p-5 bg-white shadow-sm hover:shadow-md transition-all group flex flex-col gap-2">
+              <div key={item.id} className="border border-gray-100 rounded-xl p-5 bg-white shadow-sm hover:shadow-md transition-shadow duration-200 group flex flex-col gap-2 gsap-master-card">
                 <div className="flex justify-between items-start">
                   <div className="flex items-center gap-3">
                     <div className="h-10 w-10 bg-emerald-50 text-emerald-600 rounded-xl flex items-center justify-center">
@@ -855,7 +886,7 @@ export default function CategoryManager({
             ))}
 
             {activeTab === 'tag' && tags.map(item => (
-              <div key={item.id} className="border border-gray-100 rounded-xl p-5 bg-white shadow-sm hover:shadow-md transition-all group flex flex-col gap-2">
+              <div key={item.id} className="border border-gray-100 rounded-xl p-5 bg-white shadow-sm hover:shadow-md transition-shadow duration-200 group flex flex-col gap-2 gsap-master-card">
                 <div className="flex justify-between items-start">
                   <div className="flex items-center gap-3">
                     <div className="h-10 w-10 bg-amber-50 text-amber-600 rounded-xl flex items-center justify-center">
@@ -872,7 +903,7 @@ export default function CategoryManager({
             ))}
 
             {activeTab === 'kontak' && contacts.map(item => (
-              <div key={item.id} className="border border-gray-100 rounded-xl p-5 bg-white shadow-sm hover:shadow-md transition-all group flex flex-col gap-2">
+              <div key={item.id} className="border border-gray-100 rounded-xl p-5 bg-white shadow-sm hover:shadow-md transition-shadow duration-200 group flex flex-col gap-2 gsap-master-card">
                 <div className="flex justify-between items-start">
                   <div className="flex items-center gap-3">
                     <div className="h-10 w-10 bg-blue-50 text-blue-600 rounded-xl flex items-center justify-center">
@@ -902,7 +933,7 @@ export default function CategoryManager({
               return (
                 <div 
                   key={`${cat.id}-${idx}`} 
-                  className="border border-gray-100 rounded-xl p-5 hover:shadow-md hover:shadow-gray-100/50 transition-all flex flex-col gap-3 relative group"
+                  className="border border-gray-100 rounded-xl p-5 hover:shadow-md hover:shadow-gray-100/50 transition-shadow duration-200 flex flex-col gap-3 relative group gsap-master-card"
                 >
                   {/* Header: Icon & Category Name */}
                   <div className="flex items-center gap-3 pr-8">

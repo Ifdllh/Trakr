@@ -167,7 +167,8 @@ export default function Settings({ user, dbUser, onProfileUpdate, setActiveTab }
           if (data.photoURL) setPhotoURL(data.photoURL);
         }
       } catch (err: any) {
-        if (!err?.message?.includes('Quota') && !err?.message?.includes('429')) console.error('Failed to load user profile settings:', err);
+        const isQuotaError = err?.response?.status === 429 || err?.status === 429 || err?.message?.includes('429') || err?.message?.includes('Quota');
+        if (!isQuotaError) console.error('Failed to load user profile settings:', err);
       } finally {
         setIsLoadingProfile(false);
       }
