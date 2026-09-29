@@ -1,15 +1,17 @@
 import React, { useState, useMemo, useEffect, useRef } from 'react';
 import { useTranslation } from 'react-i18next';
 import { startOfMonth, subMonths, addMonths, isToday, isYesterday, format } from 'date-fns';
-import { id as idLocale } from 'date-fns/locale';
+import { id as idLocale, enUS as enLocale } from 'date-fns/locale';
 import GoldPriceTracker from './GoldPriceTracker';
 import BudgetMonitor from './BudgetMonitor';
+import PeriodPicker from '@/components/ui/PeriodPicker';
 import { Category } from '@/types';
 import { getActiveDb } from '@/lib/firebase';
 import { doc, onSnapshot } from 'firebase/firestore';
 import { subscribeToCollection } from '@/services/dbServices';
 import { 
-  AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer
+  AreaChart, Area, BarChart, Bar, Line, ComposedChart,
+  XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer
 } from 'recharts';
 import { curveCardinal } from 'd3-shape';
 import { 
@@ -126,6 +128,7 @@ export default function Dashboard({
   const currentDate = new Date();
   const [searchQuery, setSearchQuery] = useState("");
   const [copied, setCopied] = useState(false);
+  const [cashflowViewMode, setCashflowViewMode] = useState<'composed' | 'bar' | 'area'>('composed');
   
   const hasInitializedPeriod = useRef(false);
   const [dashboardDate, setDashboardDate] = useState<Date>(startOfMonth(new Date()));
@@ -138,33 +141,62 @@ export default function Dashboard({
     return periods.filter((p: any) => p.isActive !== false);
   }, [periods]);
 
-  // Find a matching period on mount or when periods load
+  // Helper to determine the target month & year from a period object
+  const getPeriodTargetDate = (p: any) => {
+    if (!p) return startOfMonth(new Date());
+    if (p.endDate) {
+      return startOfMonth(new Date(p.endDate));
+    }
+    if (p.startDate) {
+      const d = new Date(p.startDate);
+      d.setDate(d.getDate() + 15);
+      return startOfMonth(d);
+    }
+    return startOfMonth(new Date());
+  };
+
+  // Find a matching period on mount or when periods load, defaulting to "This Month"
   useEffect(() => {
-    if (activePeriods.length > 0 && !selectedPeriod) {
+    if (activePeriods.length > 0 && !hasInitializedPeriod.current) {
+      hasInitializedPeriod.current = true;
       const now = new Date();
-      const targetMonthStr = now.getMonth() + 1 < 10 ? `0${now.getMonth() + 1}` : `${now.getMonth() + 1}`;
-      const targetPrefix = `${now.getFullYear()}-${targetMonthStr}`;
+      const currentMonth = now.getMonth() + 1;
+      const currentYear = now.getFullYear();
+      const targetMonthStr = currentMonth < 10 ? `0${currentMonth}` : `${currentMonth}`;
       
+      const monthsIndo = [
+        'Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni',
+        'Juli', 'Agustus', 'September', 'Oktober', 'November', 'Desember'
+      ];
       const monthsEn = [
         'January', 'February', 'March', 'April', 'May', 'June',
         'July', 'August', 'September', 'October', 'November', 'December'
       ];
-      const targetNameEn = `${monthsEn[now.getMonth()]} ${now.getFullYear()}`.toLowerCase();
-      
+      const targetNameIndo = `${monthsIndo[now.getMonth()]} ${currentYear}`.toLowerCase();
+      const targetNameEn = `${monthsEn[now.getMonth()]} ${currentYear}`.toLowerCase();
+
+      // Find period that matches current month name OR covers today's date OR ends in current month
       const matched = activePeriods.find((p: any) => {
-        if (p.startDate && p.startDate.startsWith(targetPrefix)) return true;
-        if (p.name && p.name.trim().toLowerCase() === targetNameEn) return true;
+        const pName = (p.name || '').trim().toLowerCase();
+        if (pName === targetNameIndo || pName === targetNameEn) return true;
+        if (p.startDate && p.endDate) {
+          const nowStr = `${currentYear}-${targetMonthStr}-${String(now.getDate()).padStart(2, '0')}`;
+          if (nowStr >= p.startDate && nowStr <= p.endDate) return true;
+          if (p.endDate.startsWith(`${currentYear}-${targetMonthStr}`)) return true;
+        }
+        return false;
+      }) || activePeriods.find((p: any) => {
+        if (p.startDate && p.startDate.startsWith(`${currentYear}-${targetMonthStr}`)) return true;
         return false;
       }) || activePeriods[0];
 
       if (matched) {
         setSelectedPeriod(matched);
-        if (matched.startDate) {
-          setDashboardDate(startOfMonth(new Date(matched.startDate)));
-        }
       }
+      // Always default dashboardDate to current calendar month ("This Month")
+      setDashboardDate(startOfMonth(now));
     }
-  }, [activePeriods, selectedPeriod]);
+  }, [activePeriods]);
 
   const activePeriod = useMemo(() => {
     if (selectedPeriod) return selectedPeriod;
@@ -346,7 +378,9 @@ export default function Dashboard({
 
   // Calculate cashflow chart data locally
   const cashflowStatsData = useMemo(() => {
-    const months = ['Jan', 'Feb', 'Mar', 'Apr', 'Mei', 'Jun', 'Jul', 'Ags', 'Sep', 'Okt', 'Nov', 'Des'];
+    const monthsID = ['Jan', 'Feb', 'Mar', 'Apr', 'Mei', 'Jun', 'Jul', 'Ags', 'Sep', 'Okt', 'Nov', 'Des'];
+    const monthsEN = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+    const months = i18n.language === 'en' ? monthsEN : monthsID;
     const result = months.map(m => ({ month: m, income: 0, expense: 0 }));
     
     transactions.forEach(tx => {
@@ -365,7 +399,7 @@ export default function Dashboard({
       }
     });
     return result;
-  }, [transactions, selectedYear, periods, dbUser?.financialStartDay]);
+  }, [transactions, selectedYear, periods, dbUser?.financialStartDay, i18n.language]);
   
 
   
@@ -394,10 +428,9 @@ export default function Dashboard({
     if (activePeriods.length > 0 && selectedPeriod) {
       const idx = activePeriods.findIndex(p => String(p.id) === String(selectedPeriod.id));
       if (idx > 0) {
-        setSelectedPeriod(activePeriods[idx - 1]);
-        if (activePeriods[idx - 1].startDate) {
-          setDashboardDate(startOfMonth(new Date(activePeriods[idx - 1].startDate)));
-        }
+        const prevP = activePeriods[idx - 1];
+        setSelectedPeriod(prevP);
+        setDashboardDate(getPeriodTargetDate(prevP));
         return;
       }
     }
@@ -408,10 +441,9 @@ export default function Dashboard({
     if (activePeriods.length > 0 && selectedPeriod) {
       const idx = activePeriods.findIndex(p => String(p.id) === String(selectedPeriod.id));
       if (idx !== -1 && idx < activePeriods.length - 1) {
-        setSelectedPeriod(activePeriods[idx + 1]);
-        if (activePeriods[idx + 1].startDate) {
-          setDashboardDate(startOfMonth(new Date(activePeriods[idx + 1].startDate)));
-        }
+        const nextP = activePeriods[idx + 1];
+        setSelectedPeriod(nextP);
+        setDashboardDate(getPeriodTargetDate(nextP));
         return;
       }
     }
@@ -569,14 +601,23 @@ export default function Dashboard({
     return totalExpense;
   }, [totalExpense]);
 
+  const incomeKey = useMemo(() => i18n.language === 'en' ? 'Income' : 'Pemasukan', [i18n.language]);
+  const expenseKey = useMemo(() => i18n.language === 'en' ? 'Expense' : 'Pengeluaran', [i18n.language]);
+  const netKey = useMemo(() => i18n.language === 'en' ? 'Net Cash Flow' : 'Arus Kas Bersih', [i18n.language]);
+
   // Monthly trend of cashflow based on database reports
   const chartData = useMemo(() => {
-    return cashflowStatsData.map((d: any) => ({
-      tanggal: d.month,
-      Pemasukan: Number(d.income) || 0,
-      Pengeluaran: Number(d.expense) || 0
-    }));
-  }, [cashflowStatsData]);
+    return cashflowStatsData.map((d: any) => {
+      const inc = Number(d.income) || 0;
+      const exp = Number(d.expense) || 0;
+      return {
+        tanggal: d.month,
+        [incomeKey]: inc,
+        [expenseKey]: exp,
+        [netKey]: inc - exp
+      };
+    });
+  }, [cashflowStatsData, incomeKey, expenseKey, netKey]);
 
   // Expense breakdown by category for circular chart and legend list
   const expenseCategoriesBreakdown = useMemo(() => {
@@ -590,14 +631,14 @@ export default function Dashboard({
     // 1. Sort descending
     rawMapped.sort((a: any, b: any) => b.value - a.value);
 
-    // 2. Group into 'Lainnya' if more than 5
+    // 2. Group into 'Lainnya'/'Others' if more than 5
     if (rawMapped.length > 5) {
       const top5 = rawMapped.slice(0, 5);
       const others = rawMapped.slice(5);
       const othersValue = others.reduce((sum: number, curr: any) => sum + curr.value, 0);
       if (othersValue > 0) {
         top5.push({
-          name: 'Lainnya',
+          name: i18n.language === 'en' ? 'Others' : 'Lainnya',
           value: othersValue
         });
       }
@@ -761,13 +802,14 @@ export default function Dashboard({
   const humanizeDate = (dateStr: string) => {
     try {
       const d = new Date(dateStr);
-      if (isToday(d)) return 'Hari Ini';
-      if (isYesterday(d)) return 'Kemarin';
-      return format(d, 'dd MMM yyyy', { locale: idLocale });
+      if (isToday(d)) return i18n.language === 'en' ? 'Today' : 'Hari Ini';
+      if (isYesterday(d)) return i18n.language === 'en' ? 'Yesterday' : 'Kemarin';
+      return format(d, 'dd MMM yyyy', { locale: i18n.language === 'en' ? enLocale : idLocale });
     } catch {
       return dateStr;
     }
   };
+
   // Format IDR Helper
   const formatIDR = (num: number) => {
     return new Intl.NumberFormat('id-ID', {
@@ -789,17 +831,47 @@ export default function Dashboard({
 
   const CustomTooltip = ({ active, payload, label }: any) => {
     if (active && payload && payload.length) {
-      const fullMonthName = monthMapIndo[label] || label;
+      const monthMapIndo: Record<string, string> = {
+        'Jan': 'Januari', 'Feb': 'Februari', 'Mar': 'Maret', 'Apr': 'April',
+        'Mei': 'Mei', 'Jun': 'Juni', 'Jul': 'Juli', 'Ags': 'Agustus',
+        'Sep': 'September', 'Okt': 'Oktober', 'Nov': 'November', 'Des': 'Desember'
+      };
+      const monthMapEng: Record<string, string> = {
+        'Jan': 'January', 'Feb': 'February', 'Mar': 'March', 'Apr': 'April',
+        'May': 'May', 'Jun': 'June', 'Jul': 'July', 'Aug': 'August',
+        'Sep': 'September', 'Oct': 'October', 'Nov': 'November', 'Dec': 'December'
+      };
+      const fullMonthName = i18n.language === 'en'
+        ? (monthMapEng[label] || label)
+        : (monthMapIndo[label] || label);
+
       return (
-        <div className="bg-white p-3.5 border border-gray-100 rounded-2xl shadow-xl">
-          <p className="text-xs font-black text-slate-900 mb-1.5">Bulan: {fullMonthName}</p>
-          {payload.map((entry: any, i: number) => (
-            <div key={i} className="flex items-center gap-2 text-xs py-0.5">
-              <span className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: entry.stroke || entry.color }} />
-              <span className="text-gray-500 font-medium">{entry.name}:</span>
-              <span className="font-extrabold text-slate-900 ml-auto">{formatIDR(entry.value)}</span>
-            </div>
-          ))}
+        <div className="bg-white/95 backdrop-blur-md p-3.5 border border-slate-200/90 rounded-2xl shadow-xl min-w-[200px]">
+          <p className="text-xs font-extrabold text-slate-800 mb-2 pb-1.5 border-b border-slate-100 flex items-center justify-between">
+            <span>{i18n.language === 'en' ? 'Month:' : 'Bulan:'} {fullMonthName}</span>
+          </p>
+          <div className="space-y-1.5">
+            {payload.map((entry: any, i: number) => {
+              const isNet = entry.dataKey === netKey || entry.name === netKey || entry.dataKey === 'Arus Kas Bersih' || entry.name === 'Arus Kas Bersih' || entry.dataKey === 'Net Cash Flow' || entry.name === 'Net Cash Flow';
+              const val = Number(entry.value || 0);
+              const color = entry.stroke || entry.fill || entry.color;
+              return (
+                <div key={i} className="flex items-center justify-between gap-3 text-xs">
+                  <div className="flex items-center gap-1.5">
+                    <span className="w-2.5 h-2.5 rounded-full shrink-0" style={{ backgroundColor: color }} />
+                    <span className="text-slate-500 font-semibold">{entry.name}:</span>
+                  </div>
+                  <span className={`font-black tracking-tight ${
+                    isNet 
+                      ? (val >= 0 ? 'text-emerald-600' : 'text-rose-600') 
+                      : 'text-slate-900'
+                  }`}>
+                    {val < 0 ? `-${formatIDR(Math.abs(val))}` : formatIDR(val)}
+                  </span>
+                </div>
+              );
+            })}
+          </div>
         </div>
       );
     }
@@ -912,58 +984,27 @@ export default function Dashboard({
           </div>
         </div>
 
-        {/* Right Side: Month Navigator */}
-        <div className="flex items-center gap-1 bg-white border border-gray-200/80 rounded-2xl p-1 shadow-xs shrink-0 select-none">
-          <button 
-            onClick={handlePrevMonth}
-            aria-label="Previous Month"
-            className="p-1.5 hover:bg-gray-50 text-slate-500 hover:text-slate-800 rounded-xl transition-all cursor-pointer"
-          >
-            <ChevronLeft size={16} />
-          </button>
-          
-          <div className="flex items-center gap-1 px-2">
-            <Calendar size={14} className="text-indigo-500 shrink-0" />
-            {activePeriods.length > 0 ? (
-              <select
-                value={selectedPeriod?.id || ''}
-                onChange={(e) => {
-                  const found = activePeriods.find(p => String(p.id) === String(e.target.value));
-                  if (found) {
-                    setSelectedPeriod(found);
-                    if (found.startDate) {
-                      setDashboardDate(startOfMonth(new Date(found.startDate)));
-                    }
-                  }
-                }}
-                className="bg-transparent font-bold text-slate-850 outline-none cursor-pointer text-xs pr-1 border-none focus:outline-none focus:ring-0"
-              >
-                {activePeriods.map((p: any, idx: number) => (
-                  <option key={`${p.id}-${idx}`} value={p.id}>
-                    {p.name}
-                  </option>
-                ))}
-              </select>
-            ) : (
-              <span className="text-xs font-bold text-slate-850 whitespace-nowrap">
-                {MONTHS[selectedMonth - 1]?.label} {selectedYear}
-              </span>
-            )}
-            {selectedMonth === currentDate.getMonth() + 1 && selectedYear === currentDate.getFullYear() && (
-              <span className="text-[9px] bg-indigo-50 text-indigo-700 px-2 py-0.5 rounded-lg font-bold border border-indigo-100/30 shrink-0">
-                {t('dashboard.month_this')}
-              </span>
-            )}
-          </div>
-
-          <button 
-            onClick={handleNextMonth}
-            aria-label="Next Month"
-            className="p-1.5 hover:bg-gray-50 text-slate-500 hover:text-slate-800 rounded-xl transition-all cursor-pointer"
-          >
-            <ChevronRight size={16} />
-          </button>
-        </div>
+        {/* Right Side: Redesigned Month & Period Picker */}
+        <PeriodPicker
+          periods={activePeriods}
+          selectedPeriod={selectedPeriod}
+          selectedMonth={selectedMonth}
+          selectedYear={selectedYear}
+          onSelectPeriod={(p) => {
+            setSelectedPeriod(p);
+            if (p) {
+              setDashboardDate(getPeriodTargetDate(p));
+            }
+          }}
+          onSelectMonthYear={(m, y) => {
+            setSelectedPeriod(null);
+            setDashboardDate(startOfMonth(new Date(y, m - 1, 1)));
+          }}
+          onPrevMonth={handlePrevMonth}
+          onNextMonth={handleNextMonth}
+          isCurrentMonth={selectedMonth === currentDate.getMonth() + 1 && selectedYear === currentDate.getFullYear()}
+          className="shrink-0 select-none"
+        />
       </div>
 
                   {/* 1. Static Hero Section (Top): 3 Main Cards */}
@@ -1168,26 +1209,80 @@ export default function Dashboard({
           {/* Widget: Cashflow Stats */}
           {visibleWidgets.cashflowStats && (
             <div className="widget-card gsap-dash-item lg:col-span-8 bg-white p-6 border border-slate-100 shadow-sm rounded-xl flex flex-col justify-between">
-              <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-6">
+              <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-5">
                 <div>
-                  <h3 className="text-base font-extrabold text-slate-900 tracking-tight flex items-center gap-1.5">
+                  <h3 className="text-base font-extrabold text-slate-900 tracking-tight flex items-center gap-2">
+                    <TrendingUp size={18} className="text-indigo-600" />
                     {i18n.language === 'en' ? `Cash Flow Trend (${selectedYear})` : `Tren Arus Kas (${selectedYear})`}
                   </h3>
-                  <p className="text-xs text-gray-400">
-                    {i18n.language === 'en' ? 'Your cash inflow and outflow movements this year' : 'Pergerakan uang masuk dan keluar Anda tahun ini'}
+                  <p className="text-xs text-slate-400 mt-0.5">
+                    {i18n.language === 'en' ? 'Your cash inflow, outflow, and net balance' : 'Pergerakan uang masuk, keluar, serta saldo bersih'}
                   </p>
                 </div>
                 
-                {/* Controls Row */}
-                <div className="flex items-center gap-2">
-                  <span className="h-2.5 w-2.5 rounded-full bg-emerald-500 inline-block" />
-                  <span className="text-xs text-gray-500 font-bold mr-3">{t('dashboard.income')}</span>
-                  <span className="h-2.5 w-2.5 rounded-full bg-orange-500 inline-block" />
-                  <span className="text-xs text-gray-500 font-bold">{t('dashboard.expense')}</span>
+                {/* Controls & Mode Switcher */}
+                <div className="flex flex-wrap items-center gap-3">
+                  {/* Legend Indicators */}
+                  <div className="hidden sm:flex items-center gap-2.5 text-xs font-bold text-slate-500 bg-slate-50 px-2.5 py-1 rounded-xl border border-slate-100">
+                    <div className="flex items-center gap-1">
+                      <span className="h-2 w-2 rounded-full bg-emerald-500 inline-block" />
+                      <span className="text-[11px] text-slate-600">{t('dashboard.income')}</span>
+                    </div>
+                    <div className="flex items-center gap-1">
+                      <span className="h-2 w-2 rounded-full bg-orange-500 inline-block" />
+                      <span className="text-[11px] text-slate-600">{t('dashboard.expense')}</span>
+                    </div>
+                    {cashflowViewMode === 'composed' && (
+                      <div className="flex items-center gap-1">
+                        <span className="h-2 w-2 rounded-full bg-indigo-600 inline-block" />
+                        <span className="text-[11px] text-slate-600">{t('dashboard.net_cash_flow')}</span>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Segmented View Mode Toggle */}
+                  <div className="flex items-center bg-slate-100/80 p-1 rounded-xl text-[11px] font-bold border border-slate-200/60">
+                    <button
+                      type="button"
+                      onClick={() => setCashflowViewMode('composed')}
+                      className={`px-2.5 py-1 rounded-lg transition-all cursor-pointer ${
+                        cashflowViewMode === 'composed'
+                          ? 'bg-white text-indigo-600 shadow-xs'
+                          : 'text-slate-500 hover:text-slate-800'
+                      }`}
+                      title={i18n.language === 'en' ? 'Combined Bar + Net Line' : 'Batang + Garis Net'}
+                    >
+                      {t('dashboard.cashflow_mode_combined')}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setCashflowViewMode('bar')}
+                      className={`px-2.5 py-1 rounded-lg transition-all cursor-pointer ${
+                        cashflowViewMode === 'bar'
+                          ? 'bg-white text-indigo-600 shadow-xs'
+                          : 'text-slate-500 hover:text-slate-800'
+                      }`}
+                      title={i18n.language === 'en' ? 'Bar Comparison' : 'Grafik Batang'}
+                    >
+                      {t('dashboard.cashflow_mode_bar')}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setCashflowViewMode('area')}
+                      className={`px-2.5 py-1 rounded-lg transition-all cursor-pointer ${
+                        cashflowViewMode === 'area'
+                          ? 'bg-white text-indigo-600 shadow-xs'
+                          : 'text-slate-500 hover:text-slate-800'
+                      }`}
+                      title={i18n.language === 'en' ? 'Smooth Area Flow' : 'Area Kurva'}
+                    >
+                      {t('dashboard.cashflow_mode_area')}
+                    </button>
+                  </div>
                 </div>
               </div>
 
-              {/* Area Chart with custom sharp tension curve */}
+              {/* Chart Render Area */}
               <div className="h-[280px] w-full mt-2">
                 {transactions.filter(t => t.date && new Date(t.date).getFullYear() === selectedYear).length === 0 ? (
                   <div className="w-full h-full flex flex-col items-center justify-center text-gray-400 bg-gray-50/50 rounded-xl border border-gray-100 border-dashed">
@@ -1201,31 +1296,64 @@ export default function Dashboard({
                   </div>
                 ) : (
                   <ResponsiveContainer width="100%" height="100%">
-                    <AreaChart data={chartData} margin={{ top: 10, right: 10, left: -25, bottom: 0 }}>
-                    <defs>
-                      <linearGradient id="chartIncomeColor" x1="0" y1="0" x2="0" y2="1">
-                        <stop offset="5%" stopColor="#10b981" stopOpacity={0.15}/>
-                        <stop offset="95%" stopColor="#10b981" stopOpacity={0}/>
-                      </linearGradient>
-                      <linearGradient id="chartExpenseColor" x1="0" y1="0" x2="0" y2="1">
-                        <stop offset="5%" stopColor="#f97316" stopOpacity={0.15}/>
-                        <stop offset="95%" stopColor="#f97316" stopOpacity={0}/>
-                      </linearGradient>
-                    </defs>
-                    <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
-                    <XAxis dataKey="tanggal" stroke="#94a3b8" fontSize={10} tickLine={false} />
-                    <YAxis 
-                      stroke="#94a3b8" 
-                      fontSize={10} 
-                      tickLine={false} 
-                      axisLine={false}
-                      tickFormatter={(val) => val >= 1000000 ? `${(val/1000000).toFixed(1)}M` : val >= 1000 ? `${(val/1000).toFixed(0)}k` : val} 
-                    />
-                    <Tooltip content={<CustomTooltip />} />
-                    <Area type={curveCardinal.tension(0.8)} dataKey="Pemasukan" stroke="#10b981" strokeWidth={3} fillOpacity={1} fill="url(#chartIncomeColor)" />
-                    <Area type={curveCardinal.tension(0.8)} dataKey="Pengeluaran" stroke="#f97316" strokeWidth={3} fillOpacity={1} fill="url(#chartExpenseColor)" />
-                  </AreaChart>
-                </ResponsiveContainer>
+                    {cashflowViewMode === 'composed' ? (
+                      <ComposedChart data={chartData} margin={{ top: 15, right: 10, left: -20, bottom: 0 }}>
+                        <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
+                        <XAxis dataKey="tanggal" stroke="#94a3b8" fontSize={11} tickLine={false} />
+                        <YAxis 
+                          stroke="#94a3b8" 
+                          fontSize={10} 
+                          tickLine={false} 
+                          axisLine={false}
+                          tickFormatter={(val) => val >= 1000000 ? `${(val/1000000).toFixed(1)}M` : val >= 1000 ? `${(val/1000).toFixed(0)}k` : val} 
+                        />
+                        <Tooltip content={<CustomTooltip />} />
+                        <Bar dataKey={incomeKey} fill="#10b981" radius={[6, 6, 0, 0]} maxBarSize={28} />
+                        <Bar dataKey={expenseKey} fill="#f97316" radius={[6, 6, 0, 0]} maxBarSize={28} />
+                        <Line type="monotone" dataKey={netKey} stroke="#6366f1" strokeWidth={3} dot={{ r: 4, fill: '#6366f1' }} activeDot={{ r: 6, fill: '#4f46e5' }} />
+                      </ComposedChart>
+                    ) : cashflowViewMode === 'bar' ? (
+                      <BarChart data={chartData} margin={{ top: 15, right: 10, left: -20, bottom: 0 }}>
+                        <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
+                        <XAxis dataKey="tanggal" stroke="#94a3b8" fontSize={11} tickLine={false} />
+                        <YAxis 
+                          stroke="#94a3b8" 
+                          fontSize={10} 
+                          tickLine={false} 
+                          axisLine={false}
+                          tickFormatter={(val) => val >= 1000000 ? `${(val/1000000).toFixed(1)}M` : val >= 1000 ? `${(val/1000).toFixed(0)}k` : val} 
+                        />
+                        <Tooltip content={<CustomTooltip />} />
+                        <Bar dataKey={incomeKey} fill="#10b981" radius={[6, 6, 0, 0]} maxBarSize={32} />
+                        <Bar dataKey={expenseKey} fill="#f97316" radius={[6, 6, 0, 0]} maxBarSize={32} />
+                      </BarChart>
+                    ) : (
+                      <AreaChart data={chartData} margin={{ top: 15, right: 10, left: -20, bottom: 0 }}>
+                        <defs>
+                          <linearGradient id="chartIncomeColor" x1="0" y1="0" x2="0" y2="1">
+                            <stop offset="5%" stopColor="#10b981" stopOpacity={0.2}/>
+                            <stop offset="95%" stopColor="#10b981" stopOpacity={0}/>
+                          </linearGradient>
+                          <linearGradient id="chartExpenseColor" x1="0" y1="0" x2="0" y2="1">
+                            <stop offset="5%" stopColor="#f97316" stopOpacity={0.2}/>
+                            <stop offset="95%" stopColor="#f97316" stopOpacity={0}/>
+                          </linearGradient>
+                        </defs>
+                        <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
+                        <XAxis dataKey="tanggal" stroke="#94a3b8" fontSize={11} tickLine={false} />
+                        <YAxis 
+                          stroke="#94a3b8" 
+                          fontSize={10} 
+                          tickLine={false} 
+                          axisLine={false}
+                          tickFormatter={(val) => val >= 1000000 ? `${(val/1000000).toFixed(1)}M` : val >= 1000 ? `${(val/1000).toFixed(0)}k` : val} 
+                        />
+                        <Tooltip content={<CustomTooltip />} />
+                        <Area type={curveCardinal.tension(0.8)} dataKey={incomeKey} stroke="#10b981" strokeWidth={3} fillOpacity={1} fill="url(#chartIncomeColor)" />
+                        <Area type={curveCardinal.tension(0.8)} dataKey={expenseKey} stroke="#f97316" strokeWidth={3} fillOpacity={1} fill="url(#chartExpenseColor)" />
+                      </AreaChart>
+                    )}
+                  </ResponsiveContainer>
                 )}
               </div>
             </div>

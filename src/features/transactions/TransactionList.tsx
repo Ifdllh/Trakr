@@ -11,6 +11,7 @@ import * as LucideIcons from 'lucide-react';
 import * as XLSX from 'xlsx';
 import { motion, AnimatePresence } from 'motion/react';
 import { TransactionSkeleton } from '@/components/SkeletonLoader';
+import CustomSelect from '@/components/ui/CustomSelect';
 import { gsap } from 'gsap';
 import { ScrollTrigger } from 'gsap/ScrollTrigger';
 import { useGSAP } from '@gsap/react';
@@ -420,44 +421,40 @@ export default function TransactionList({ user, categories, periods, accounts = 
 
         {/* Type Filter */}
         <div>
-          <select
+          <CustomSelect
             value={typeFilter}
-            onChange={(e) => setTypeFilter(e.target.value as any)}
-            className="w-full px-3 py-2.5 border border-gray-200 rounded-xl text-sm bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500"
-          >
-            <option value="semua">{t('transactions.all_types')}</option>
-            <option value="pengeluaran">{t('transactions.only_expenses')}</option>
-            <option value="pemasukan">{t('transactions.only_income')}</option>
-            <option value="transfer">{t('transactions.only_transfers')}</option>
-          </select>
+            onChange={(val) => setTypeFilter(val as any)}
+            options={[
+              { value: 'semua', label: t('transactions.all_types') },
+              { value: 'pengeluaran', label: t('transactions.only_expenses') },
+              { value: 'pemasukan', label: t('transactions.only_income') },
+              { value: 'transfer', label: t('transactions.only_transfers') }
+            ]}
+          />
         </div>
 
         {/* Category Filter */}
         <div>
-          <select
+          <CustomSelect
             value={categoryFilter}
-            onChange={(e) => setCategoryFilter(e.target.value)}
-            className="w-full px-3 py-2.5 border border-gray-200 rounded-xl text-sm bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500"
-          >
-            <option value="semua">{t('transactions.all_categories')}</option>
-            {uniqueCategoriesUsed.map((cat, idx) => (
-              <option key={idx} value={cat}>{cat}</option>
-            ))}
-          </select>
+            onChange={(val) => setCategoryFilter(val)}
+            options={[
+              { value: 'semua', label: t('transactions.all_categories') },
+              ...uniqueCategoriesUsed.map(cat => ({ value: cat, label: cat }))
+            ]}
+          />
         </div>
         
         {/* Period Filter */}
         <div>
-          <select
+          <CustomSelect
             value={periodFilter}
-            onChange={(e) => setPeriodFilter(e.target.value)}
-            className="w-full px-3 py-2.5 border border-gray-200 rounded-xl text-sm bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500"
-          >
-            <option value="semua">{t('transactions.all_periods')}</option>
-            {periods.map((p, idx) => (
-              <option key={`${p.id}-${idx}`} value={p.id}>{formatPeriodName(p.name, i18n.language)}</option>
-            ))}
-          </select>
+            onChange={(val) => setPeriodFilter(val)}
+            options={[
+              { value: 'semua', label: t('transactions.all_periods') },
+              ...periods.map(p => ({ value: p.id, label: formatPeriodName(p.name, i18n.language) }))
+            ]}
+          />
         </div>
       </div>
     </div>

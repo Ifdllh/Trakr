@@ -263,7 +263,7 @@ export default function App() {
       case 'settings':
         return t('nav_settings', 'Settings');
       default:
-        return 'TRAKR';
+        return '';
     }
   };
 
@@ -375,7 +375,7 @@ export default function App() {
               <header className="h-16 px-4 md:px-8 bg-white/95 backdrop-blur-md border-b border-slate-200/80 flex items-center justify-between shrink-0 z-20">
                 <div className="flex items-center gap-3">
                   <div className="md:hidden shrink-0">
-                    <BrandLogo />
+                    <BrandLogo showText={false} />
                   </div>
                   <h1 className="hidden md:block text-lg md:text-xl font-bold text-slate-900 tracking-tight">
                     {getPageTitle(activeTab)}

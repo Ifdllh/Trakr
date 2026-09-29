@@ -1,10 +1,11 @@
 
 interface BrandLogoProps {
   collapsed?: boolean;
+  showText?: boolean;
 }
 
-export default function BrandLogo({ collapsed = false }: BrandLogoProps) {
-  if (collapsed) {
+export default function BrandLogo({ collapsed = false, showText = true }: BrandLogoProps) {
+  if (collapsed || !showText) {
     return (
       <div className="w-10 h-10 flex items-center justify-center shrink-0">
         <svg width="36" height="36" viewBox="0 0 40 40" fill="none" xmlns="http://www.w3.org/2000/svg" className="shadow-xs rounded-[9px] shrink-0">

@@ -5,6 +5,7 @@ import { useQueryClient } from '@tanstack/react-query';
 import { gsap } from 'gsap';
 import { useGSAP } from '@gsap/react';
 import { Modal } from '@/components/ui/Modal';
+import { CustomSelect } from '@/components/ui/CustomSelect';
 import * as LucideIcons from 'lucide-react';
 import { AnimatedCurrency } from '@/components/ui/AnimatedCurrency';
 import { BudgetSkeleton } from '@/components/SkeletonLoader';
@@ -17,6 +18,7 @@ import {
   Plus, 
   X, 
   ChevronDown, 
+  Calendar,
   Trash2, 
   Edit2, 
   TrendingUp, 
@@ -317,17 +319,39 @@ export default function BudgetManager({
   const fetchSuggestions = async () => {
     setIsFetchingSuggestions(true);
     try {
-      const expTxs = transactions.filter((t: any) => t.type === 'Dr' || t.type?.toLowerCase() === 'pengeluaran');
-      const map: Record<string, number> = {};
-      expTxs.forEach((tx: any) => {
-         const cat = tx.category || (tx as any).categoryId || 'Lainnya';
-         map[cat] = (map[cat] || 0) + Number(tx.amount || 0);
+      const expTxs = transactions.filter((t: any) => {
+        const typeLower = (t.type || '').toLowerCase();
+        return typeLower === 'dr' || typeLower === 'pengeluaran' || typeLower === 'expense';
       });
-      const data = Object.keys(map).map(k => ({
-         category_id: k,
-         suggested_amount: Math.round(map[k] / 3) // Average loosely
-      }));
-      return { data };
+
+      // Calculate distinct months in transaction history to compute monthly average
+      const uniqueMonths = new Set<string>();
+      expTxs.forEach((tx: any) => {
+        const dateStr = tx.date || tx.createdAt;
+        if (dateStr && typeof dateStr === 'string' && dateStr.length >= 7) {
+          uniqueMonths.add(dateStr.substring(0, 7));
+        }
+      });
+      const monthsCount = Math.max(1, uniqueMonths.size);
+
+      // Match transactions against expenseCategories using isCategoryMatch
+      const suggestionsData: { categoryId: string; name: string; iconName: string; suggestedAmount: number }[] = [];
+
+      expenseCategories.forEach((cat) => {
+        const matchingTxs = expTxs.filter((tx) => isCategoryMatch(tx, cat.id, cat));
+        const total = matchingTxs.reduce((sum, tx) => sum + Number(tx.amount || 0), 0);
+        if (total > 0) {
+          const avgAmount = Math.round(total / monthsCount);
+          suggestionsData.push({
+            categoryId: String(cat.id),
+            name: cat.name,
+            iconName: cat.iconName || 'HelpCircle',
+            suggestedAmount: avgAmount > 0 ? avgAmount : 0
+          });
+        }
+      });
+
+      return { data: suggestionsData };
     } finally {
       setIsFetchingSuggestions(false);
     }
@@ -487,28 +511,32 @@ export default function BudgetManager({
   const handleAutoGenerate = async () => {
     try {
       const result = await fetchSuggestions();
-      if (result.data) {
-        const suggestionsArray = result.data || [];
-        const fetchedData = suggestionsArray.map((item: any) => {
-          const catInfo = expenseCategories.find(c => String(c.id) === String(item.category_id));
-          return {
-            categoryId: item.category_id,
-            name: catInfo ? catInfo.name : (t('budgets.col_category_other') || 'Kategori Lain'),
-            amount: item.suggested_amount > 0 ? item.suggested_amount : '',
-            type: 'amount' as const,
-            iconName: catInfo?.iconName || 'HelpCircle',
-            isGenerated: true
-          };
-        });
-        
-        // Instantly inject historical amounts without massive re-renders
+      if (result.data && result.data.length > 0) {
+        const fetchedData = result.data.map((item) => ({
+          categoryId: item.categoryId,
+          name: item.name,
+          amount: item.suggestedAmount > 0 ? item.suggestedAmount : '',
+          type: 'amount' as const,
+          iconName: item.iconName || 'HelpCircle',
+          isGenerated: false
+        }));
+
+        const totalSuggested = fetchedData.reduce((sum, item) => sum + (Number(item.amount) || 0), 0);
+        const currentGb = watchedGlobalBudget || 0;
+
+        // Auto update globalBudget if empty or if total suggested exceeds current global budget
+        if (currentGb === 0 || currentGb < totalSuggested) {
+          setValue('globalBudget', totalSuggested, { shouldValidate: true });
+        }
+
         setValue('categories', fetchedData, { shouldValidate: true });
-        
-        showToast(t('budgets.toast_est_success') || 'Anggaran berhasil diestimasikan berdasarkan riwayat 3 bulan terakhir!', 'success');
+
+        showToast(t('budgets.toast_est_success') || 'Anggaran berhasil diestimasikan berdasarkan riwayat transaksi!', 'success');
+      } else {
+        showToast(t('budgets.no_recent_transactions') || 'Belum ada riwayat pengeluaran untuk diestimasikan.', 'info');
       }
     } catch (error: any) {
-
-      showToast(t('budgets.toast_est_fail') || "Gagal mengambil rekomendasi anggaran.", 'error');
+      showToast(t('budgets.toast_est_fail') || 'Gagal mengambil rekomendasi anggaran.', 'error');
     }
   };
 
@@ -609,19 +637,21 @@ export default function BudgetManager({
       
       {/* Period Selector */}
       <div className="flex justify-end">
-        <div className="flex items-center gap-2 bg-white px-4 py-2 border border-slate-100 shadow-sm rounded-xl w-fit">
-          <ChevronDown size={16} className="text-indigo-600" />
-          <select 
-            value={selectedPeriod}
-            onChange={(e) => setSelectedPeriod(e.target.value)}
-            className="bg-transparent font-bold text-slate-800 outline-none cursor-pointer text-sm"
-          >
-            {activePeriods.length === 0 && <option value="">{t('budgets.no_period_title') || 'Belum Ada Periode'}</option>}
-            {activePeriods.map((p, idx) => (
-              <option key={`${p.id}-${idx}`} value={p.id}>{getLocalizedPeriodName(p, i18n.language)}</option>
-            ))}
-          </select>
-        </div>
+        <CustomSelect
+          options={
+            activePeriods.length === 0 
+              ? [{ value: '', label: t('budgets.no_period_title') || 'Belum Ada Periode' }]
+              : activePeriods.map((p) => ({
+                  value: p.id,
+                  label: getLocalizedPeriodName(p, i18n.language)
+                }))
+          }
+          value={selectedPeriod}
+          onChange={(val) => setSelectedPeriod(val)}
+          icon={<Calendar size={16} className="text-indigo-600 shrink-0" />}
+          className="w-auto sm:w-60 max-w-[240px]"
+          buttonClassName="py-2 px-3.5 bg-white border border-slate-200/90 hover:border-slate-300 shadow-xs rounded-xl"
+        />
       </div>
 
       {activePeriods.length === 0 ? (
@@ -1081,31 +1111,25 @@ export default function BudgetManager({
                                 {renderCategoryIcon(currentIconName)}
                               </div>
                               <div className="flex-1 min-w-0">
-                                {isGenerated ? (
-                                  <div className="w-full text-xs font-bold text-slate-500 bg-slate-100/60 border border-slate-200/50 rounded-lg p-2 select-none cursor-not-allowed truncate">
-                                    {currentCatInfo?.name || watchedCategories[index]?.name || (t('budgets.col_category_other') || 'Kategori Lain')}
-                                  </div>
-                                ) : (
-                                  <select
-                                    {...register(`categories.${index}.categoryId` as const)}
-                                    onChange={(e) => {
-                                      register(`categories.${index}.categoryId` as const).onChange(e);
-                                      handleCategoryChange(index, e.target.value);
-                                    }}
-                                    className="w-full text-xs font-bold text-slate-700 bg-white border border-slate-200 rounded-lg p-1.5 focus:ring-2 focus:ring-indigo-500 outline-none"
-                                    value={currentCategoryId || ''}
-                                  >
-                                    <option value="" disabled>{t('budgets.select_category')}</option>
-                                    {masterCategories
-                                      .filter(c => {
-                                        if (String(c.id) === String(currentCategoryId)) return true;
-                                        return !watchedCategories?.some((wc: any, wcIdx: number) => wcIdx !== index && String(wc?.categoryId) === String(c.id));
-                                      })
-                                      .map((c, cIdx) => (
-                                        <option key={`${c.id}-${cIdx}`} value={c.id}>{c.name}</option>
-                                      ))}
-                                  </select>
-                                )}
+                                <select
+                                  {...register(`categories.${index}.categoryId` as const)}
+                                  onChange={(e) => {
+                                    register(`categories.${index}.categoryId` as const).onChange(e);
+                                    handleCategoryChange(index, e.target.value);
+                                  }}
+                                  className="w-full text-xs font-bold text-slate-700 bg-white border border-slate-200 rounded-lg p-1.5 focus:ring-2 focus:ring-indigo-500 outline-none"
+                                  value={currentCategoryId || ''}
+                                >
+                                  <option value="" disabled>{t('budgets.select_category')}</option>
+                                  {masterCategories
+                                    .filter(c => {
+                                      if (String(c.id) === String(currentCategoryId)) return true;
+                                      return !watchedCategories?.some((wc: any, wcIdx: number) => wcIdx !== index && String(wc?.categoryId) === String(c.id));
+                                    })
+                                    .map((c, cIdx) => (
+                                      <option key={`${c.id}-${cIdx}`} value={c.id}>{c.name}</option>
+                                    ))}
+                                </select>
                               </div>
                             </div>
                             
