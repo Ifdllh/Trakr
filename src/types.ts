@@ -219,6 +219,14 @@ export const PREDEFINED_CATEGORIES: Category[] = [
     colorClass: 'text-gray-600 bg-gray-50 border-gray-200',
     subcategories: ['Biaya Admin Bank', 'Donasi & Sedekah', 'Pengeluaran Tak Terduga', 'Pajak']
   },
+  {
+    id: 'penyesuaian-pengeluaran',
+    name: 'Penyesuaian Saldo',
+    type: 'pengeluaran',
+    iconName: 'SlidersHorizontal',
+    colorClass: 'text-rose-600 bg-rose-50 border-rose-200',
+    subcategories: ['Koreksi Pengeluaran', 'Selisih Kurang', 'Biaya Tidak Tercatat']
+  },
 
   // PEMASUKAN (Incomes)
   {
@@ -236,6 +244,14 @@ export const PREDEFINED_CATEGORIES: Category[] = [
     iconName: 'TrendingUp',
     colorClass: 'text-indigo-600 bg-indigo-50 border-indigo-200',
     subcategories: ['Dividen', 'Keuntungan Saham / Reksadana', 'Bunga Deposito', 'Imbal Hasil Obligasi', 'Sewa Properti']
+  },
+  {
+    id: 'penyesuaian-pemasukan',
+    name: 'Penyesuaian Saldo',
+    type: 'pemasukan',
+    iconName: 'SlidersHorizontal',
+    colorClass: 'text-emerald-600 bg-emerald-50 border-emerald-200',
+    subcategories: ['Koreksi Pemasukan', 'Selisih Lebih', 'Pendapatan Tidak Tercatat']
   },
   {
     id: 'lain-lain-pemasukan',

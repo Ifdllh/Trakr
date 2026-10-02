@@ -183,24 +183,73 @@ export default function BudgetManager({
   // Filter out soft-deleted periods
   const activePeriods = useMemo(() => periods.filter(p => p.isActive !== false), [periods]);
 
+  // Robustly resolve the current month's period ID
   const defaultPeriodId = useMemo(() => {
     if (activePeriods.length === 0) return '';
     const now = new Date();
-    const targetMonthStr = now.getMonth() + 1 < 10 ? `0${now.getMonth() + 1}` : `${now.getMonth() + 1}`;
-    const targetPrefix = `${now.getFullYear()}-${targetMonthStr}`;
-    const matchingPeriod = activePeriods.find(p => p.startDate && p.startDate.startsWith(targetPrefix));
-    return matchingPeriod?.id || activePeriods[0]?.id || '';
+    const currentYear = now.getFullYear();
+    const currentMonthNum = now.getMonth() + 1; // 1-12
+    const currentMonthPad = String(currentMonthNum).padStart(2, '0');
+    const targetPrefix = `${currentYear}-${currentMonthPad}`;
+
+    const idMonths = ['januari', 'februari', 'maret', 'april', 'mei', 'juni', 'juli', 'agustus', 'september', 'oktober', 'november', 'desember'];
+    const enMonths = ['january', 'february', 'march', 'april', 'may', 'june', 'july', 'august', 'september', 'october', 'november', 'december'];
+    const idMonthName = idMonths[now.getMonth()];
+    const enMonthName = enMonths[now.getMonth()];
+
+    // 1. Check if current date falls within period range (today >= startDate && today <= endDate)
+    const activeDatePeriod = activePeriods.find(p => {
+      if (!p.startDate || !p.endDate) return false;
+      const s = new Date(p.startDate.split('T')[0] + 'T00:00:00');
+      const e = new Date(p.endDate.split('T')[0] + 'T23:59:59');
+      return !isNaN(s.getTime()) && !isNaN(e.getTime()) && now >= s && now <= e;
+    });
+    if (activeDatePeriod) return activeDatePeriod.id;
+
+    // 2. Check if startDate or endDate matches YYYY-MM of this month
+    const matchingPrefixPeriod = activePeriods.find(p => {
+      const s = p.startDate ? p.startDate.split('T')[0] : '';
+      const e = p.endDate ? p.endDate.split('T')[0] : '';
+      return s.startsWith(targetPrefix) || e.startsWith(targetPrefix);
+    });
+    if (matchingPrefixPeriod) return matchingPrefixPeriod.id;
+
+    // 3. Check if name contains current month name and year (e.g. "Oktober 2026" or "October 2026")
+    const matchingNameAndYear = activePeriods.find(p => {
+      const nameLower = (p.name || '').toLowerCase();
+      const hasMonth = nameLower.includes(idMonthName) || nameLower.includes(enMonthName);
+      const hasYear = nameLower.includes(String(currentYear));
+      return hasMonth && hasYear;
+    });
+    if (matchingNameAndYear) return matchingNameAndYear.id;
+
+    // 4. Check if name contains just the current month name
+    const matchingName = activePeriods.find(p => {
+      const nameLower = (p.name || '').toLowerCase();
+      return nameLower.includes(idMonthName) || nameLower.includes(enMonthName);
+    });
+    if (matchingName) return matchingName.id;
+
+    // 5. Fallback: pick the latest period by date
+    const sorted = [...activePeriods].sort((a, b) => {
+      const timeA = a.startDate ? new Date(a.startDate).getTime() : 0;
+      const timeB = b.startDate ? new Date(b.startDate).getTime() : 0;
+      return timeB - timeA;
+    });
+
+    return sorted[0]?.id || activePeriods[0]?.id || '';
   }, [activePeriods]);
 
   const [selectedPeriod, setSelectedPeriod] = useState<string>('');
+  const userHasManuallySelectedRef = useRef<boolean>(false);
   
   const [loading, setLoading] = useState(false);
 
   useEffect(() => {
-    if (!selectedPeriod && defaultPeriodId) {
+    if (!userHasManuallySelectedRef.current && defaultPeriodId) {
       setSelectedPeriod(defaultPeriodId);
     }
-  }, [defaultPeriodId, selectedPeriod]);
+  }, [defaultPeriodId]);
 
 
   const { showToast } = useToast();
@@ -647,7 +696,10 @@ export default function BudgetManager({
                 }))
           }
           value={selectedPeriod}
-          onChange={(val) => setSelectedPeriod(val)}
+          onChange={(val) => {
+            userHasManuallySelectedRef.current = true;
+            setSelectedPeriod(val);
+          }}
           icon={<Calendar size={16} className="text-indigo-600 shrink-0" />}
           className="w-auto sm:w-60 max-w-[240px]"
           buttonClassName="py-2 px-3.5 bg-white border border-slate-200/90 hover:border-slate-300 shadow-xs rounded-xl"

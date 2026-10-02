@@ -482,6 +482,7 @@ export default function App() {
                         accounts={accounts}
                         assets={assets}
                         onSaveGlobalBudget={handleSaveGlobalBudget}
+                        onSaveTransaction={handleSaveTransaction}
                       />
                     )}
 
@@ -514,6 +515,7 @@ export default function App() {
                         onDeletePeriod={handleDeletePeriod}
                         onSaveMasterData={handleSaveMasterData}
                         onDeleteMasterData={handleDeleteMasterData}
+                        onSaveTransaction={handleSaveTransaction}
                         onRefreshData={refreshData}
                         globalAddTrigger={triggerAddMasterData}
                       />

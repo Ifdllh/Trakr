@@ -155,3 +155,95 @@ export async function upsertSavingsCategory({
   };
 }
 
+/**
+ * Upserts Net Worth / Balance Adjustment category and subcategory into Master Data (customCategories)
+ * if they don't exist. Ensures relational integrity so adjustment transactions appear in Master Data.
+ */
+export async function upsertAdjustmentCategory({
+  type,
+  categories = [],
+  customCategories = [],
+  onSaveMasterData
+}: {
+  type: 'pemasukan' | 'pengeluaran';
+  categories?: Category[];
+  customCategories?: any[];
+  onSaveMasterData?: (collectionName: string, data: any, id?: string) => Promise<string | void>;
+}): Promise<{ category: string; subcategory: string }> {
+  const saveFunc = async (collName: string, data: any, id?: string) => {
+    if (onSaveMasterData) {
+      return await onSaveMasterData(collName, data, id);
+    } else {
+      return await masterDataService.save(collName, data, id);
+    }
+  };
+
+  const normType = type.toLowerCase() as 'pemasukan' | 'pengeluaran';
+  const targetCatName = 'Penyesuaian Saldo';
+  const targetSubName = normType === 'pemasukan' ? 'Koreksi Pemasukan' : 'Koreksi Pengeluaran';
+
+  const iconName = 'SlidersHorizontal';
+  const colorClass = normType === 'pemasukan' 
+    ? 'text-emerald-600 bg-emerald-50 border-emerald-200'
+    : 'text-rose-600 bg-rose-50 border-rose-200';
+  const colorHex = normType === 'pemasukan' ? '#10b981' : '#f43f5e';
+
+  // Find if parent category exists in categories
+  const existingCat = categories.find(
+    c => (c.name || '').trim().toLowerCase() === targetCatName.toLowerCase() &&
+         (c.type || '').trim().toLowerCase() === normType
+  );
+
+  if (!existingCat) {
+    // 1. Parent category does NOT exist in custom or default -> Create in customCategories
+    await saveFunc('customCategories', {
+      name: targetCatName,
+      type: normType,
+      iconName: iconName,
+      colorClass: colorClass,
+      colorHex: colorHex,
+      color_hex: colorHex,
+      parentCategory: null,
+      subcategories: [targetSubName],
+      isActive: true
+    });
+  } else {
+    // 2. Parent category exists. Ensure subcategory is linked
+    const currentSubs = existingCat.subcategories || [];
+    const hasSub = currentSubs.some(s => (s || '').trim().toLowerCase() === targetSubName.toLowerCase());
+
+    if (!hasSub) {
+      await saveFunc('customCategories', {
+        name: targetSubName,
+        parentCategory: targetCatName,
+        type: normType,
+        iconName: iconName,
+        colorClass: colorClass,
+        colorHex: colorHex,
+        color_hex: colorHex,
+        subcategories: [],
+        isActive: true
+      });
+
+      const customParentDoc = customCategories.find(
+        c => (c.name || '').trim().toLowerCase() === targetCatName.toLowerCase() &&
+             (c.type || '').trim().toLowerCase() === normType &&
+             !c.parentCategory
+      );
+
+      if (customParentDoc && customParentDoc.id) {
+        const updatedSubs = Array.from(new Set([...(customParentDoc.subcategories || []), targetSubName]));
+        await saveFunc('customCategories', {
+          ...customParentDoc,
+          subcategories: updatedSubs
+        }, String(customParentDoc.id));
+      }
+    }
+  }
+
+  return {
+    category: targetCatName,
+    subcategory: targetSubName
+  };
+}
+

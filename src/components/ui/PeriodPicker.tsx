@@ -147,13 +147,42 @@ export const PeriodPicker: React.FC<PeriodPickerProps> = ({
   const handleJumpToCurrentMonth = () => {
     if (activePeriods.length > 0) {
       const now = new Date();
-      const targetMonthStr = String(now.getMonth() + 1).padStart(2, '0');
-      const targetPrefix = `${now.getFullYear()}-${targetMonthStr}`;
-      
-      const currentP = activePeriods.find((p: any) => {
-        if (p.startDate && p.startDate.startsWith(targetPrefix)) return true;
+      const yyyy = now.getFullYear();
+      const mm = now.getMonth() + 1;
+      const mmStr = String(mm).padStart(2, '0');
+      const ddStr = String(now.getDate()).padStart(2, '0');
+      const todayStr = `${yyyy}-${mmStr}-${ddStr}`;
+
+      const monthIndo = MONTH_NAMES_ID[now.getMonth()].toLowerCase();
+      const monthEn = MONTH_NAMES_EN[now.getMonth()].toLowerCase();
+
+      // 1. Date range covers today
+      const dateMatch = activePeriods.find((p: any) => {
+        if (p.startDate && p.endDate) {
+          return todayStr >= p.startDate && todayStr <= p.endDate;
+        }
         return false;
-      }) || activePeriods[0];
+      });
+
+      // 2. Name contains current month & year
+      const nameMatch = activePeriods.find((p: any) => {
+        const pName = (p.name || '').toLowerCase();
+        return (pName.includes(monthIndo) || pName.includes(monthEn)) && pName.includes(String(yyyy));
+      });
+
+      // 3. Name contains current month
+      const monthNameMatch = activePeriods.find((p: any) => {
+        const pName = (p.name || '').toLowerCase();
+        return pName.includes(monthIndo) || pName.includes(monthEn);
+      });
+
+      // 4. Starts or ends in current YYYY-MM
+      const prefixMatch = activePeriods.find((p: any) => {
+        const targetPrefix = `${yyyy}-${mmStr}`;
+        return (p.startDate && p.startDate.startsWith(targetPrefix)) || (p.endDate && p.endDate.startsWith(targetPrefix));
+      });
+
+      const currentP = dateMatch || nameMatch || monthNameMatch || prefixMatch || activePeriods[0];
 
       if (currentP) {
         onSelectPeriod(currentP);

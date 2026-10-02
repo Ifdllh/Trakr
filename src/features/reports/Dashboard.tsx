@@ -18,12 +18,14 @@ import {
   ArrowUpRight, ArrowDownRight, Wallet, TrendingUp, TrendingDown, 
   Calendar, AlertTriangle, ShieldCheck, CreditCard, Copy, Check,
   ChevronLeft, ChevronRight, Search, Info, MessageSquare,
-  Award, HelpCircle, Settings2, X, Repeat, Plus
+  Award, HelpCircle, Settings2, X, Repeat, Plus, SlidersHorizontal
 } from 'lucide-react';
 import * as LucideIcons from 'lucide-react';
 import { motion } from 'motion/react';
 import { useGSAP } from '@gsap/react';
 import gsap from 'gsap';
+import BalanceAdjustmentModal from '@/components/ui/BalanceAdjustmentModal';
+import { transactionService } from '@/services/dbServices';
 
 interface DashboardProps {
   user: any;
@@ -39,6 +41,7 @@ interface DashboardProps {
   accounts?: any[];
   assets?: any[];
   onSaveGlobalBudget?: (globalBudget: any, id?: string) => Promise<void>;
+  onSaveTransaction?: (txData: any) => Promise<void>;
 }
 
 // Indonesian month names for dropdown
@@ -91,11 +94,13 @@ export default function Dashboard({
   budgetAllocations = [],
   accounts = [],
   assets = [],
-  onSaveGlobalBudget
+  onSaveGlobalBudget,
+  onSaveTransaction
 }: DashboardProps) {
   const { t, i18n } = useTranslation();
   const containerRef = useRef<HTMLDivElement>(null);
 
+  const [showAdjustmentModal, setShowAdjustmentModal] = useState(false);
   const [loading, setLoading] = useState(true);
   useGSAP(() => {
     if (loading || !containerRef.current) return;
@@ -141,60 +146,109 @@ export default function Dashboard({
     return periods.filter((p: any) => p.isActive !== false);
   }, [periods]);
 
+  // Helper to find period covering today's date or matching current month
+  const findCurrentPeriod = (periodsList: any[]) => {
+    if (!periodsList || periodsList.length === 0) return null;
+    const now = new Date();
+    const yyyy = now.getFullYear();
+    const mm = now.getMonth() + 1;
+    const mmStr = String(mm).padStart(2, '0');
+    const ddStr = String(now.getDate()).padStart(2, '0');
+    const todayStr = `${yyyy}-${mmStr}-${ddStr}`;
+
+    const monthsIndo = [
+      'Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni',
+      'Juli', 'Agustus', 'September', 'Oktober', 'November', 'Desember'
+    ];
+    const monthsEn = [
+      'January', 'February', 'March', 'April', 'May', 'June',
+      'July', 'August', 'September', 'October', 'November', 'December'
+    ];
+    const monthIndo = monthsIndo[now.getMonth()].toLowerCase();
+    const monthEn = monthsEn[now.getMonth()].toLowerCase();
+
+    // 1. Exact date range covering today
+    const dateMatch = periodsList.find((p: any) => {
+      if (p.startDate && p.endDate) {
+        return todayStr >= p.startDate && todayStr <= p.endDate;
+      }
+      return false;
+    });
+    if (dateMatch) return dateMatch;
+
+    // 2. Name contains current month name & year
+    const nameMatch = periodsList.find((p: any) => {
+      const pName = (p.name || '').trim().toLowerCase();
+      return (pName.includes(monthIndo) || pName.includes(monthEn)) && pName.includes(String(yyyy));
+    });
+    if (nameMatch) return nameMatch;
+
+    // 3. Name contains current month name
+    const monthNameMatch = periodsList.find((p: any) => {
+      const pName = (p.name || '').trim().toLowerCase();
+      return pName.includes(monthIndo) || pName.includes(monthEn);
+    });
+    if (monthNameMatch) return monthNameMatch;
+
+    // 4. Starts or ends in current YYYY-MM
+    const prefixMatch = periodsList.find((p: any) => {
+      const targetPrefix = `${yyyy}-${mmStr}`;
+      return (p.startDate && p.startDate.startsWith(targetPrefix)) || (p.endDate && p.endDate.startsWith(targetPrefix));
+    });
+    if (prefixMatch) return prefixMatch;
+
+    return null;
+  };
+
   // Helper to determine the target month & year from a period object
   const getPeriodTargetDate = (p: any) => {
     if (!p) return startOfMonth(new Date());
+
+    const now = new Date();
+    const yyyy = now.getFullYear();
+    const mmStr = String(now.getMonth() + 1).padStart(2, '0');
+    const ddStr = String(now.getDate()).padStart(2, '0');
+    const todayStr = `${yyyy}-${mmStr}-${ddStr}`;
+
+    // 1. If today's date falls within period [startDate, endDate], return today's month
+    if (p.startDate && p.endDate && todayStr >= p.startDate && todayStr <= p.endDate) {
+      return startOfMonth(now);
+    }
+
+    // 2. Midpoint calculation between startDate and endDate
+    if (p.startDate && p.endDate) {
+      try {
+        const startMs = new Date(p.startDate).getTime();
+        const endMs = new Date(p.endDate).getTime();
+        if (!isNaN(startMs) && !isNaN(endMs)) {
+          const midDate = new Date((startMs + endMs) / 2);
+          return startOfMonth(midDate);
+        }
+      } catch (e) {
+        // ignore
+      }
+    }
+
+    if (p.startDate) {
+      return startOfMonth(new Date(p.startDate));
+    }
     if (p.endDate) {
       return startOfMonth(new Date(p.endDate));
     }
-    if (p.startDate) {
-      const d = new Date(p.startDate);
-      d.setDate(d.getDate() + 15);
-      return startOfMonth(d);
-    }
-    return startOfMonth(new Date());
+    return startOfMonth(now);
   };
 
   // Find a matching period on mount or when periods load, defaulting to "This Month"
   useEffect(() => {
     if (activePeriods.length > 0 && !hasInitializedPeriod.current) {
       hasInitializedPeriod.current = true;
-      const now = new Date();
-      const currentMonth = now.getMonth() + 1;
-      const currentYear = now.getFullYear();
-      const targetMonthStr = currentMonth < 10 ? `0${currentMonth}` : `${currentMonth}`;
-      
-      const monthsIndo = [
-        'Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni',
-        'Juli', 'Agustus', 'September', 'Oktober', 'November', 'Desember'
-      ];
-      const monthsEn = [
-        'January', 'February', 'March', 'April', 'May', 'June',
-        'July', 'August', 'September', 'October', 'November', 'December'
-      ];
-      const targetNameIndo = `${monthsIndo[now.getMonth()]} ${currentYear}`.toLowerCase();
-      const targetNameEn = `${monthsEn[now.getMonth()]} ${currentYear}`.toLowerCase();
-
-      // Find period that matches current month name OR covers today's date OR ends in current month
-      const matched = activePeriods.find((p: any) => {
-        const pName = (p.name || '').trim().toLowerCase();
-        if (pName === targetNameIndo || pName === targetNameEn) return true;
-        if (p.startDate && p.endDate) {
-          const nowStr = `${currentYear}-${targetMonthStr}-${String(now.getDate()).padStart(2, '0')}`;
-          if (nowStr >= p.startDate && nowStr <= p.endDate) return true;
-          if (p.endDate.startsWith(`${currentYear}-${targetMonthStr}`)) return true;
-        }
-        return false;
-      }) || activePeriods.find((p: any) => {
-        if (p.startDate && p.startDate.startsWith(`${currentYear}-${targetMonthStr}`)) return true;
-        return false;
-      }) || activePeriods[0];
-
-      if (matched) {
-        setSelectedPeriod(matched);
+      const currentP = findCurrentPeriod(activePeriods) || activePeriods[0];
+      if (currentP) {
+        setSelectedPeriod(currentP);
+        setDashboardDate(getPeriodTargetDate(currentP));
+      } else {
+        setDashboardDate(startOfMonth(new Date()));
       }
-      // Always default dashboardDate to current calendar month ("This Month")
-      setDashboardDate(startOfMonth(now));
     }
   }, [activePeriods]);
 
@@ -354,19 +408,25 @@ export default function Dashboard({
     return transactions.filter(t => {
       if (!t.date) return false;
       
-      if (activePeriodId && t.periodId) {
-        return String(t.periodId) === String(activePeriodId);
-      } else if (activePeriodId) {
-        if (activePeriod && activePeriod.startDate && activePeriod.endDate) {
-          return t.date >= activePeriod.startDate && t.date <= activePeriod.endDate;
+      if (activePeriod) {
+        // 1. Match by explicit periodId if transaction has periodId
+        if (t.periodId && activePeriod.id && String(t.periodId) === String(activePeriod.id)) {
+          return true;
+        }
+        // 2. Match by date range if activePeriod has startDate and endDate
+        if (activePeriod.startDate && activePeriod.endDate) {
+          if (t.date >= activePeriod.startDate && t.date <= activePeriod.endDate) {
+            return true;
+          }
+        }
+        // 3. Fallback name match
+        if (t.periodId && (String(t.periodId) === String(activePeriod.name) || String(t.periodId) === String(activePeriod.periodName))) {
+          return true;
         }
       }
       
-      if (t.periodId && !activePeriodId) {
-        return false;
-      }
-      
-      if (calculatedRange) {
+      // Fallback to calculated range
+      if (!activePeriod && calculatedRange) {
         if (t.date >= calculatedRange.startDate && t.date <= calculatedRange.endDate) {
           return true;
         }
@@ -374,7 +434,7 @@ export default function Dashboard({
       
       return false;
     });
-  }, [transactions, activePeriodId, activePeriod, calculatedRange]);
+  }, [transactions, activePeriod, calculatedRange]);
 
   // Calculate cashflow chart data locally
   const cashflowStatsData = useMemo(() => {
@@ -618,6 +678,35 @@ export default function Dashboard({
       };
     });
   }, [cashflowStatsData, incomeKey, expenseKey, netKey]);
+
+  // Dynamic YAxis domain calculation to prevent bars/lines floating when all data is >= 0
+  const yAxisMinDomain = useMemo(() => {
+    if (!chartData || chartData.length === 0) return 0;
+    let minVal = 0;
+    chartData.forEach((item: any) => {
+      const inc = Number(item[incomeKey]) || 0;
+      const exp = Number(item[expenseKey]) || 0;
+      const net = Number(item[netKey]) || 0;
+      if (inc < minVal) minVal = inc;
+      if (exp < minVal) minVal = exp;
+      if (net < minVal) minVal = net;
+    });
+    return minVal < 0 ? 'auto' : 0;
+  }, [chartData, incomeKey, expenseKey, netKey]);
+
+  const formatYAxisTick = (val: number) => {
+    if (val === 0) return '0';
+    const absVal = Math.abs(val);
+    const sign = val < 0 ? '-' : '';
+    if (absVal >= 1000000) {
+      const formatted = (absVal / 1000000).toFixed(1);
+      return `${sign}${formatted.endsWith('.0') ? formatted.slice(0, -2) : formatted}M`;
+    }
+    if (absVal >= 1000) {
+      return `${sign}${(absVal / 1000).toFixed(0)}k`;
+    }
+    return `${sign}${absVal}`;
+  };
 
   // Expense breakdown by category for circular chart and legend list
   const expenseCategoriesBreakdown = useMemo(() => {
@@ -918,6 +1007,38 @@ export default function Dashboard({
   const balanceParts = formatIDRWithSplit(netSavingsAndBalance);
   const monthlyIncomeParts = formatIDRWithSplit(finalDisplayIncome);
   const monthlyExpenseParts = formatIDRWithSplit(finalDisplayExpense);
+  const isCurrentPeriod = useMemo(() => {
+    const now = new Date();
+    const yyyy = now.getFullYear();
+    const mmStr = String(now.getMonth() + 1).padStart(2, '0');
+    const ddStr = String(now.getDate()).padStart(2, '0');
+    const todayStr = `${yyyy}-${mmStr}-${ddStr}`;
+
+    if (selectedPeriod) {
+      if (selectedPeriod.startDate && selectedPeriod.endDate) {
+        if (todayStr >= selectedPeriod.startDate && todayStr <= selectedPeriod.endDate) {
+          return true;
+        }
+      }
+      const monthsIndo = [
+        'Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni',
+        'Juli', 'Agustus', 'September', 'Oktober', 'November', 'Desember'
+      ];
+      const monthsEn = [
+        'January', 'February', 'March', 'April', 'May', 'June',
+        'July', 'August', 'September', 'October', 'November', 'December'
+      ];
+      const pName = (selectedPeriod.name || '').trim().toLowerCase();
+      const monthIndo = monthsIndo[now.getMonth()].toLowerCase();
+      const monthEn = monthsEn[now.getMonth()].toLowerCase();
+      if ((pName.includes(monthIndo) || pName.includes(monthEn)) && pName.includes(String(yyyy))) {
+        return true;
+      }
+    }
+
+    return selectedMonth === (now.getMonth() + 1) && selectedYear === now.getFullYear();
+  }, [selectedPeriod, selectedMonth, selectedYear]);
+
   if (loading) {
     return (
       <div className="space-y-6 font-sans select-none pb-12 animate-pulse">
@@ -1002,7 +1123,7 @@ export default function Dashboard({
           }}
           onPrevMonth={handlePrevMonth}
           onNextMonth={handleNextMonth}
-          isCurrentMonth={selectedMonth === currentDate.getMonth() + 1 && selectedYear === currentDate.getFullYear()}
+          isCurrentMonth={isCurrentPeriod}
           className="shrink-0 select-none"
         />
       </div>
@@ -1305,7 +1426,8 @@ export default function Dashboard({
                           fontSize={10} 
                           tickLine={false} 
                           axisLine={false}
-                          tickFormatter={(val) => val >= 1000000 ? `${(val/1000000).toFixed(1)}M` : val >= 1000 ? `${(val/1000).toFixed(0)}k` : val} 
+                          domain={[yAxisMinDomain, 'auto']}
+                          tickFormatter={formatYAxisTick} 
                         />
                         <Tooltip content={<CustomTooltip />} />
                         <Bar dataKey={incomeKey} fill="#10b981" radius={[6, 6, 0, 0]} maxBarSize={28} />
@@ -1321,7 +1443,8 @@ export default function Dashboard({
                           fontSize={10} 
                           tickLine={false} 
                           axisLine={false}
-                          tickFormatter={(val) => val >= 1000000 ? `${(val/1000000).toFixed(1)}M` : val >= 1000 ? `${(val/1000).toFixed(0)}k` : val} 
+                          domain={[yAxisMinDomain, 'auto']}
+                          tickFormatter={formatYAxisTick} 
                         />
                         <Tooltip content={<CustomTooltip />} />
                         <Bar dataKey={incomeKey} fill="#10b981" radius={[6, 6, 0, 0]} maxBarSize={32} />
@@ -1346,7 +1469,8 @@ export default function Dashboard({
                           fontSize={10} 
                           tickLine={false} 
                           axisLine={false}
-                          tickFormatter={(val) => val >= 1000000 ? `${(val/1000000).toFixed(1)}M` : val >= 1000 ? `${(val/1000).toFixed(0)}k` : val} 
+                          domain={[yAxisMinDomain, 'auto']}
+                          tickFormatter={formatYAxisTick} 
                         />
                         <Tooltip content={<CustomTooltip />} />
                         <Area type={curveCardinal.tension(0.8)} dataKey={incomeKey} stroke="#10b981" strokeWidth={3} fillOpacity={1} fill="url(#chartIncomeColor)" />

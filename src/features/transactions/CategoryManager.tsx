@@ -18,9 +18,11 @@ import {
 import { 
   HelpCircle, Calendar, Plus, Trash2, 
   Wallet, TrendingUp, Tags, Users, ChevronDown, Edit2, Search, MoreVertical, 
-  Pencil, X, PiggyBank 
+  Pencil, X, PiggyBank, SlidersHorizontal 
 } from 'lucide-react';
 import * as LucideIcons from 'lucide-react';
+import BalanceAdjustmentModal from '@/components/ui/BalanceAdjustmentModal';
+import { transactionService } from '@/services/dbServices';
 
 interface CategoryManagerProps {
   user?: any;
@@ -38,6 +40,7 @@ interface CategoryManagerProps {
   onDeletePeriod: (id: string) => Promise<string | void>;
   onSaveMasterData: (collectionName: string, data: any, id?: string) => Promise<string | void>;
   onDeleteMasterData: (collectionName: string, id: string) => Promise<string | void>;
+  onSaveTransaction?: (txData: any) => Promise<void>;
   onRefreshData?: () => void;
   globalAddTrigger?: number;
 }
@@ -166,7 +169,7 @@ export default function CategoryManager({
   categories: initialCategories, customCategories: initialCustomCategories, periods: initialPeriods, accounts: initialAccounts, assets: initialAssets, tags: initialTags, contacts: initialContacts, transactions, budgets,
   dbUser,
   onSavePeriod, onDeletePeriod,
-  onSaveMasterData, onDeleteMasterData, onRefreshData,
+  onSaveMasterData, onDeleteMasterData, onSaveTransaction, onRefreshData,
   globalAddTrigger
 }: CategoryManagerProps) {
   const { t, i18n } = useTranslation();
@@ -184,6 +187,9 @@ export default function CategoryManager({
   
   const [deleteTarget, setDeleteTarget] = useState<{ type: 'category' | 'subcategory' | 'account', category?: Category, subName?: string, account?: MasterAccount } | null>(null);
   const [renameTarget, setRenameTarget] = useState<{ category: Category, oldName: string } | null>(null);
+
+  const [showAdjustmentModal, setShowAdjustmentModal] = useState(false);
+  const [selectedAccForAdjust, setSelectedAccForAdjust] = useState<MasterAccount | null>(null);
 
   // For generic master data form
   const [isFormOpen, setIsFormOpen] = useState(false);
@@ -851,6 +857,10 @@ export default function CategoryManager({
                             </div>
                             <div className="flex gap-1 bg-slate-50/80 p-1 rounded-lg border border-slate-100">
                               <button onClick={() => {
+                                setSelectedAccForAdjust(item);
+                                setShowAdjustmentModal(true);
+                              }} className="text-slate-400 hover:text-indigo-600 hover:bg-white p-1 rounded transition-colors cursor-pointer" title={t('balance_adjustment.btn_tooltip', 'Penyesuaian Saldo')}><SlidersHorizontal size={14} /></button>
+                              <button onClick={() => {
                                 setAccountToEdit(item);
                                 setIsFormOpen(true);
                               }} className="text-slate-400 hover:text-indigo-600 hover:bg-white p-1 rounded transition-colors cursor-pointer" title="Edit"><Edit2 size={14} /></button>
@@ -1285,6 +1295,22 @@ export default function CategoryManager({
           </div>
         </div>
       )}
+
+      {/* Balance Adjustment Modal */}
+      <BalanceAdjustmentModal
+        isOpen={showAdjustmentModal}
+        onClose={() => {
+          setShowAdjustmentModal(false);
+          setSelectedAccForAdjust(null);
+        }}
+        accounts={displayAccounts}
+        transactions={transactions}
+        selectedAccountId={selectedAccForAdjust?.id}
+        categories={categories}
+        customCategories={customCategories}
+        onSaveMasterData={onSaveMasterData}
+        onSaveTransaction={onSaveTransaction || transactionService.save}
+      />
     </div>
   );
 }
